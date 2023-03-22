@@ -92,7 +92,8 @@ impl VerifierHandle {
     scheme: String,
     host: String,
     port: u16,
-    path: String
+    path: String,
+    transports: Vec<ProviderTransport>
   ) {
     let port = if port == 0 { None } else { Some(port) };
     self.provider = ProviderInfo {
@@ -101,12 +102,7 @@ impl VerifierHandle {
       host,
       port: port.clone(),
       path: path.clone(),
-      transports: vec![ ProviderTransport {
-        transport: scheme.clone(),
-        port,
-        path: if path.is_empty() { None } else { Some(path) },
-        scheme: None
-      } ]
+      transports
     }
   }
 

@@ -17,6 +17,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use pact_matching::logging::fetch_buffer_contents;
+use pact_verifier::{ProviderTransport};
 use pact_verifier::selectors::{consumer_tags_to_selectors, json_to_selectors};
 
 use crate::{as_mut, as_ref, ffi_fn, safe_str};
@@ -153,8 +154,36 @@ ffi_fn! {
       let scheme = if_null(scheme, "http");
       let host = if_null(host, "localhost");
       let path = if_null(path, "/");
+      let transports = vec![ ProviderTransport {
+        transport: scheme.clone(),
+        port: if port == 0 { None } else { Some(port) },
+        path: if path.is_empty() { None } else { Some(path.clone()) },
+        scheme: None
+      } ];
 
-      handle.update_provider_info(name, scheme, host, port as u16, path);
+      handle.update_provider_info(name, scheme, host, port as u16, path, transports);
+    }
+}
+
+ffi_fn! {
+    /// Set the provider details for the Pact verifier. Passing a NULL for any field will
+    /// use the default value for that field.
+    ///
+    /// # Safety
+    ///
+    /// All string fields must contain valid UTF-8. Invalid UTF-8
+    /// will be replaced with U+FFFD REPLACEMENT CHARACTER.
+    ///
+    fn pactffi_verifier_set_provider_info_v2(
+      handle: *mut handle::VerifierHandle,
+      name: *const c_char,
+      host: *const c_char
+    ) {
+      let handle = as_mut!(handle);
+      let name = if_null(name, "provider");
+      let host = if_null(host, "localhost");
+
+      handle.update_provider_info(name, String::from("http"), host, 0, String::from("/"), vec![]);
     }
 }
 

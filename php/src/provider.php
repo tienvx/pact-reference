@@ -34,7 +34,8 @@ function getCData(array $items): FFI\CData
 }
 
 $handle = $ffi->pactffi_verifier_new();
-$ffi->pactffi_verifier_set_provider_info($handle, 'http-provider', 'http', 'localhost', 8000, '/');
+$ffi->pactffi_verifier_set_provider_info_v2($handle, 'http-provider', 'localhost');
+$ffi->pactffi_verifier_add_provider_transport($handle, 'http', 8000, '/', 'http');
 $ffi->pactffi_verifier_set_filter_info($handle, '', 'book', false);
 $ffi->pactffi_verifier_set_provider_state($handle, 'http://localhost:8000/change-state', true, true);
 $ffi->pactffi_verifier_set_verification_options($handle, false, 5000);
