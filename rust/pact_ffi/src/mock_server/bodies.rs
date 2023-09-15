@@ -15,6 +15,8 @@ use regex::Regex;
 use serde_json::{Map, Value};
 use tracing::{debug, error, trace, warn};
 
+use pact_models::content_types::{ContentType, ContentTypeHint};
+
 const CONTENT_TYPE_HEADER: &str = "Content-Type";
 
 lazy_static! {
@@ -202,21 +204,22 @@ pub fn request_multipart(
   part_name: &str
 ) {
   if let Some(parts) = add_part_to_multipart(&request.body, &body, boundary) {
-    // Exiting part with the same boundary marker found, just add the new part to the end
+    // Existing multipart exists, just add the new part to the end
     // This assumes that the previous call will have correctly setup headers and matching rules etc.
     debug!("Found existing multipart with the same boundary marker, will append to it");
-    let ct_hint = match &request.body {
-      OptionalBody::Present(_, _, hint) => *hint,
-      _ => None
-    };
-    request.body = OptionalBody::Present(parts, request.body.content_type(), ct_hint);
+    request.body = OptionalBody::Present(parts, request.body.content_type(), get_content_type_hint(&request.body));
   } else {
-    // Either no existing multipart exists, or there is one with a different marker, so we
-    // overwrite it.
-    let multipart = format!("multipart/form-data; boundary={}", boundary);
-    request.set_header(CONTENT_TYPE_HEADER, &[multipart.as_str()]);
-    request.body = body;
-
+    // No existing multipart exists, so we add the first part.
+    if let Some(existing_boundary) = contains_existing_boundary(&request.content_type().unwrap_or_default()) {
+      debug!("Found existing multipart's boundary in content type, will re-use");
+      let first_part = replace_marker(&body, boundary, existing_boundary);
+      request.body = OptionalBody::Present(first_part, body.content_type(), get_content_type_hint(&body));
+    } else {
+      debug!("Use new auto-generated boundary for the first part in multipart");
+      let content_type = format!("multipart/form-data; boundary={}", boundary);
+      request.set_header(CONTENT_TYPE_HEADER, &[content_type.as_str()]);
+      request.body = body;
+    }
     request.matching_rules.add_category("header")
       .add_rule(DocPath::new_unwrap("Content-Type"),
                 MatchingRule::Regex(r"multipart/form-data;(\s*charset=[^;]*;)?\s*boundary=.*".into()), RuleLogic::And);
@@ -231,21 +234,45 @@ pub fn request_multipart(
 fn add_part_to_multipart(body: &OptionalBody, new_part: &OptionalBody, boundary: &str) -> Option<Bytes> {
   if let Some(boundary_marker) = contains_existing_multipart(body) {
     let existing_parts = body.value().unwrap_or_default();
-    let marker = format!("--{}\r\n", boundary_marker);
     let end_marker = format!("--{}--\r\n", boundary_marker);
     let base = existing_parts.strip_suffix(end_marker.as_bytes()).unwrap_or(&existing_parts);
-
-    let marker_to_replace = format!("--{}\r\n", boundary);
-    let end_marker_to_replace = format!("--{}--\r\n", boundary);
-    let new_part = new_part.value().unwrap_or_default();
-    let new_part = new_part.strip_prefix(marker_to_replace.as_bytes()).unwrap_or(&new_part);
-    let new_part = new_part.strip_suffix(end_marker_to_replace.as_bytes()).unwrap_or(&new_part);
+    let new_part = replace_marker(new_part, boundary, &boundary_marker.as_str());
 
     let mut bytes = BytesMut::from(base);
-    bytes.extend(marker.as_bytes());
     bytes.extend(new_part);
-    bytes.extend(end_marker.as_bytes());
     Some(bytes.freeze())
+  } else {
+    None
+  }
+}
+
+fn replace_marker(body: &OptionalBody, boundary: &str, new_boundary: &str) -> Bytes {
+  let marker = format!("--{}\r\n", new_boundary);
+  let end_marker = format!("--{}--\r\n", new_boundary);
+
+  let marker_to_replace = format!("--{}\r\n", boundary);
+  let end_marker_to_replace = format!("--{}--\r\n", boundary);
+  let body = body.value().unwrap_or_default();
+  let body = body.strip_prefix(marker_to_replace.as_bytes()).unwrap_or(&body);
+  let body = body.strip_suffix(end_marker_to_replace.as_bytes()).unwrap_or(&body);
+
+  let mut bytes = BytesMut::new();
+  bytes.extend(marker.as_bytes());
+  bytes.extend(body);
+  bytes.extend(end_marker.as_bytes());
+  bytes.freeze()
+}
+
+fn get_content_type_hint(body: &OptionalBody) -> Option<ContentTypeHint> {
+  match &body {
+    OptionalBody::Present(_, _, hint) => *hint,
+    _ => None
+  }
+}
+
+fn contains_existing_boundary(content_type: &ContentType) -> Option<&str> {
+  if content_type.main_type == "multipart" && content_type.sub_type == "form-data" && content_type.attributes.contains_key("boundary") {
+    Some(content_type.attributes.get("boundary").unwrap().as_str())
   } else {
     None
   }
@@ -273,20 +300,22 @@ pub fn response_multipart(
   part_name: &str
 ) {
   if let Some(parts) = add_part_to_multipart(&response.body, &body, boundary) {
-    // Exiting part with the same boundary marker found, just add the new part to the end
+    // Existing multipart exists, just add the new part to the end
     // This assumes that the previous call will have correctly setup headers and matching rules etc.
     debug!("Found existing multipart with the same boundary marker, will append to it");
-    let ct_hint = match &response.body {
-      OptionalBody::Present(_, _, hint) => *hint,
-      _ => None
-    };
-    response.body = OptionalBody::Present(parts, response.body.content_type(), ct_hint);
+    response.body = OptionalBody::Present(parts, response.body.content_type(), get_content_type_hint(&response.body));
   } else {
-    // Either no existing multipart exists, or there is one with a different marker, so we
-    // overwrite it.
-    let multipart = format!("multipart/form-data; boundary={}", boundary);
-    response.set_header(CONTENT_TYPE_HEADER, &[multipart.as_str()]);
-    response.body = body;
+    // No existing multipart exists, so we add the first part.
+    if let Some(existing_boundary) = contains_existing_boundary(&response.content_type().unwrap_or_default()) {
+      debug!("Found existing multipart's boundary in content type, will re-use");
+      let first_part = replace_marker(&body, boundary, existing_boundary);
+      response.body = OptionalBody::Present(first_part, body.content_type(), get_content_type_hint(&body));
+    } else {
+      debug!("Use new auto-generated boundary for the first part in multipart");
+      let content_type = format!("multipart/form-data; boundary={}", boundary);
+      response.set_header(CONTENT_TYPE_HEADER, &[content_type.as_str()]);
+      response.body = body;
+    }
 
     response.matching_rules.add_category("header")
       .add_rule(DocPath::new_unwrap("Content-Type"),
@@ -777,6 +806,28 @@ name=\"part-2\"; filename=\"2.txt\"\r\nContent-Type: text/plain\r\n\r\nTEXT\r\n-
                request.body.value_as_string().unwrap());
   }
 
+  // Issue #321
+  #[test_log::test]
+  fn request_multipart_allows_reusing_boundary() {
+    let mut request = HttpRequest::default();
+    request.set_header("Content-Type", &["multipart/form-data; boundary=ABCD"]);
+    let body1 = Bytes::from_static(b"--EFGH\r\nContent-Disposition: form-data; name=\"part-1\"; filename=\"1.json\"\r\nContent-Type: application/json\r\n\r\n{}\r\n--EFGH--\r\n");
+    let ct1 = ContentType::parse("application/json").unwrap();
+    let body2 = Bytes::from_static(b"--IJKL\r\nContent-Disposition: form-data; name=\"part-2\"; filename=\"2.txt\"\r\nContent-Type: text/plain\r\n\r\nTEXT\r\n--IJKL--\r\n");
+    let ct2 = ContentType::parse("text/plain").unwrap();
+
+    request_multipart(&mut request, "EFGH", OptionalBody::Present(body1, Some(ct1.clone()), Some(ContentTypeHint::TEXT)), &ct1.to_string(), "part-1");
+    request_multipart(&mut request, "IJKL", OptionalBody::Present(body2, Some(ct2.clone()), Some(ContentTypeHint::TEXT)), &ct2.to_string(), "part-2");
+
+    expect!(request.headers.unwrap()).to(be_equal_to(hashmap!{
+      "Content-Type".to_string() => vec!["multipart/form-data; boundary=ABCD".to_string()]
+    }));
+    assert_eq!("--ABCD\r\nContent-Disposition: form-data; name=\"part-1\"; filename=\"1.json\"\r\n\
+Content-Type: application/json\r\n\r\n{}\r\n--ABCD\r\nContent-Disposition: form-data; \
+name=\"part-2\"; filename=\"2.txt\"\r\nContent-Type: text/plain\r\n\r\nTEXT\r\n--ABCD--\r\n",
+               request.body.value_as_string().unwrap());
+  }
+
   #[test_log::test]
   fn response_multipart_test() {
     let mut response = HttpResponse::default();
@@ -804,6 +855,28 @@ Content-Type: application/json\r\n\r\n{}\r\n--ABCD--\r\n",
 
     response_multipart(&mut response, "ABCD", OptionalBody::Present(body1, Some(ct1.clone()), None), &ct1.to_string(), "part-1");
     response_multipart(&mut response, "ABCD", OptionalBody::Present(body2, Some(ct2.clone()), None), &ct2.to_string(), "part-2");
+
+    expect!(response.headers.unwrap()).to(be_equal_to(hashmap!{
+      "Content-Type".to_string() => vec!["multipart/form-data; boundary=ABCD".to_string()]
+    }));
+    assert_eq!("--ABCD\r\nContent-Disposition: form-data; name=\"part-1\"; filename=\"1.json\"\r\n\
+Content-Type: application/json\r\n\r\n{}\r\n--ABCD\r\nContent-Disposition: form-data; \
+name=\"part-2\"; filename=\"2.txt\"\r\nContent-Type: text/plain\r\n\r\nTEXT\r\n--ABCD--\r\n",
+               response.body.value_as_string().unwrap());
+  }
+
+  // Issue #321
+  #[test_log::test]
+  fn response_multipart_allows_reusing_boundary() {
+    let mut response = HttpResponse::default();
+    response.set_header("Content-Type", &["multipart/form-data; boundary=ABCD"]);
+    let body1 = Bytes::from_static(b"--EFGH\r\nContent-Disposition: form-data; name=\"part-1\"; filename=\"1.json\"\r\nContent-Type: application/json\r\n\r\n{}\r\n--EFGH--\r\n");
+    let ct1 = ContentType::parse("application/json").unwrap();
+    let body2 = Bytes::from_static(b"--IJKL\r\nContent-Disposition: form-data; name=\"part-2\"; filename=\"2.txt\"\r\nContent-Type: text/plain\r\n\r\nTEXT\r\n--IJKL--\r\n");
+    let ct2 = ContentType::parse("text/plain").unwrap();
+
+    response_multipart(&mut response, "EFGH", OptionalBody::Present(body1, Some(ct1.clone()), Some(ContentTypeHint::TEXT)), &ct1.to_string(), "part-1");
+    response_multipart(&mut response, "IJKL", OptionalBody::Present(body2, Some(ct2.clone()), Some(ContentTypeHint::TEXT)), &ct2.to_string(), "part-2");
 
     expect!(response.headers.unwrap()).to(be_equal_to(hashmap!{
       "Content-Type".to_string() => vec!["multipart/form-data; boundary=ABCD".to_string()]
