@@ -151,7 +151,9 @@ use crate::mock_server::bodies::{
   process_json,
   process_object,
   request_multipart,
-  response_multipart
+  response_multipart,
+  request_multipart_boundary,
+  response_multipart_boundary
 };
 use crate::models::iterators::{PactMessageIterator, PactSyncHttpIterator, PactSyncMessageIterator};
 use crate::ptr;
@@ -1683,6 +1685,72 @@ pub extern fn pactffi_with_multipart_file(
     None => {
       error!("with_multipart_file: Content type value is not valid (NULL or non-UTF-8)");
       let error = CString::new("with_multipart_file: Content type value is not valid (NULL or non-UTF-8)").unwrap();
+      StringResult::Failed(error.into_raw())
+    }
+  }
+}
+
+/// Set custom multipart boundary. Will replace existing boundary. Returns an error if the interaction or Pact can't be
+/// modified (i.e. the mock server for it has already started) or an error occurs.
+///
+/// * `interaction` - Interaction handle to set the body for.
+/// * `part` - Request or response part.
+/// * `boundary` - boundary for multipart separation
+///
+/// This function must be called after `pactffi_with_multipart_file`.
+///
+/// # Safety
+///
+/// The boundary must be valid pointers to UTF-8 encoded NULL-terminated strings.
+/// Passing invalid pointers or pointers to strings that are not NULL terminated will lead to undefined
+/// behaviour.
+///
+/// # Error Handling
+///
+/// If the boundary is a null pointer, or can't be parsed, it will return an error result.
+/// Returns an error if the interaction or Pact can't be modified (i.e. the mock server for it has
+/// already started), the interaction is not an HTTP interaction or some other error occurs.
+#[no_mangle]
+pub extern fn pactffi_with_multipart_boundary(
+  interaction: InteractionHandle,
+  part: InteractionPart,
+  boundary: *const c_char
+) -> StringResult {
+  match convert_cstr("boundary", boundary) {
+    Some(boundary) => {
+      let result = interaction.with_interaction(&|_, mock_server_started, inner| {
+        if let Some(reqres) = inner.as_v4_http_mut() {
+          match part {
+            InteractionPart::Request => request_multipart_boundary(&mut reqres.request, &boundary),
+            InteractionPart::Response => response_multipart_boundary(&mut reqres.response, &boundary)
+          };
+          if mock_server_started {
+            Err("with_multipart_file: This Pact can not be modified, as the mock server has already started".to_string())
+          } else {
+            Ok(())
+          }
+        } else {
+          error!("Interaction is not an HTTP interaction, is {}", inner.type_of());
+          Err(format!("with_multipart_file: Interaction is not an HTTP interaction, is {}", inner.type_of()))
+        }
+      });
+      match result {
+        Some(inner_result) => match inner_result {
+          Ok(_) => StringResult::Ok(null_mut()),
+          Err(err) => {
+            let error = CString::new(err).unwrap();
+            StringResult::Failed(error.into_raw())
+          }
+        },
+        None => {
+          let error = CString::new("with_multipart_file: Interaction handle is invalid").unwrap();
+          StringResult::Failed(error.into_raw())
+        }
+      }
+    },
+    None => {
+      error!("with_multipart_boundary: Boundary value is not valid (NULL or non-UTF-8)");
+      let error = CString::new("with_multipart_boundary: Boundary value is not valid (NULL or non-UTF-8)").unwrap();
       StringResult::Failed(error.into_raw())
     }
   }
