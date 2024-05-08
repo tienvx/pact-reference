@@ -695,19 +695,6 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
-dependencies = [
- "humantime",
- "is-terminal",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38b35839ba51819680ba087cd351788c9a3c476841207e0b8cee0b04722343b9"
@@ -1341,17 +1328,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
-name = "is-terminal"
-version = "0.4.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f23ff5ef2b80d608d61efee834934d862cd92461afc0560dedf493e4c033738b"
-dependencies = [
- "hermit-abi 0.3.9",
- "libc",
- "windows-sys 0.52.0",
-]
-
-[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1937,10 +1913,10 @@ dependencies = [
  "anyhow",
  "bytes",
  "chrono",
- "chrono-tz 0.8.6",
+ "chrono-tz 0.9.0",
  "clap 2.34.0",
  "either",
- "env_logger 0.10.2",
+ "env_logger 0.11.3",
  "expectest",
  "futures",
  "home",
@@ -1964,8 +1940,8 @@ dependencies = [
  "rand_regex",
  "regex",
  "regex-syntax 0.6.29",
- "reqwest 0.11.27",
- "rstest 0.18.2",
+ "reqwest 0.12.4",
+ "rstest",
  "serde",
  "serde_json",
  "sxd-document",
@@ -2054,7 +2030,7 @@ dependencies = [
  "quickcheck",
  "rand",
  "reqwest 0.12.4",
- "rstest 0.19.0",
+ "rstest",
  "semver",
  "serde",
  "serde_json",
@@ -2171,7 +2147,7 @@ dependencies = [
  "regex",
  "regex-syntax 0.6.29",
  "reqwest 0.11.27",
- "rstest 0.19.0",
+ "rstest",
  "semver",
  "serde",
  "serde_json",
@@ -2798,43 +2774,14 @@ dependencies = [
 
 [[package]]
 name = "rstest"
-version = "0.18.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97eeab2f3c0a199bc4be135c36c924b6590b88c377d416494288c14f2db30199"
-dependencies = [
- "futures",
- "futures-timer",
- "rstest_macros 0.18.2",
- "rustc_version",
-]
-
-[[package]]
-name = "rstest"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d5316d2a1479eeef1ea21e7f9ddc67c191d497abc8fc3ba2467857abbb68330"
 dependencies = [
  "futures",
  "futures-timer",
- "rstest_macros 0.19.0",
+ "rstest_macros",
  "rustc_version",
-]
-
-[[package]]
-name = "rstest_macros"
-version = "0.18.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d428f8247852f894ee1be110b375111b586d4fa431f6c46e64ba5a0dcccbe605"
-dependencies = [
- "cfg-if",
- "glob",
- "proc-macro2 1.0.82",
- "quote 1.0.36",
- "regex",
- "relative-path",
- "rustc_version",
- "syn 2.0.61",
- "unicode-ident",
 ]
 
 [[package]]
@@ -3407,15 +3354,6 @@ dependencies = [
  "fastrand",
  "rustix",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "termcolor"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
-dependencies = [
- "winapi-util",
 ]
 
 [[package]]

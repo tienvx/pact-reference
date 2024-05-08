@@ -18,10 +18,10 @@ ansi_term = "0.12.1"
 anyhow = "1.0.75"
 bytes = "1.5.0"
 chrono = "0.4.31"
-chrono-tz = "0.8.4"
+chrono-tz = "0.9.0"
 clap = "2.34.0"
 either = "1.9.0"
-env_logger = "0.10.1"
+env_logger = "0.11.3"
 futures = "0.3.29"
 itertools = "0.12.0"
 lazy_static = "1.4.0"
@@ -55,13 +55,13 @@ zeroize = "1.7.0"
 
 [dev-dependencies]
 expectest = "0.12.0"
-reqwest = { version = "0.11.23", default-features = false, features = ["rustls-tls-native-roots", "blocking", "json"] }
+reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls-native-roots", "blocking", "json"] }
 quickcheck = "1.0.3"
 test-log = "0.2.14"
 tempfile = "3.8.1"
 home = "0.5.9"
 pretty_assertions = "1.4.0"
-rstest = "0.18.2"
+rstest = "0.19.0"
 
 [lib]
 crate-type = ["cdylib", "staticlib", "rlib"]
