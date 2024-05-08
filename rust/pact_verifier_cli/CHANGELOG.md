@@ -1,5 +1,15 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.1.2 - Maintenance Release
+
+* 5a6b004a - chore: Upgrade reqwest to 0.12.4 (Ronald Holshausen, Wed May 8 15:42:28 2024 +1000)
+* 2f17632d - chore: Upgrade clap crate to 4.5.4 (Ronald Holshausen, Wed May 8 15:38:21 2024 +1000)
+* edc1ad0c - chore: Upgrade pact_verifier to 1.2.1 (Ronald Holshausen, Wed May 8 15:32:36 2024 +1000)
+* 694100fb - chore: Update pact_models to 1.2.0 (Ronald Holshausen, Tue Apr 23 10:51:11 2024 +1000)
+* edfac7ba - chore: remove local pact_models from the other pact crates (Ronald Holshausen, Tue Apr 23 10:03:29 2024 +1000)
+* 7688469a - chore(pact_verifier): Bump minor version (Ronald Holshausen, Tue Apr 16 10:41:18 2024 +1000)
+* add35c94 - bump version to 1.1.2 (Ronald Holshausen, Mon Mar 18 11:34:42 2024 +1100)
+
 # 1.1.1 - Maintenance Release
 
 * e08dc260 - chore(pact_verifier_cli): Create multi-arch docker images (Ronald Holshausen, Mon Mar 18 11:27:24 2024 +1100)
