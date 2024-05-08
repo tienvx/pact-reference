@@ -1,5 +1,15 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.1 - Maintenance Release
+
+* c3cae83e - chore: Upgrade pact_consumer to 1.2.2 (Ronald Holshausen, Wed May 8 14:46:19 2024 +1000)
+* fa2b1d09 - chore: Upgrade pact_matching to 1.2.2 (Ronald Holshausen, Tue May 7 10:50:08 2024 +1000)
+* 694100fb - chore: Update pact_models to 1.2.0 (Ronald Holshausen, Tue Apr 23 10:51:11 2024 +1000)
+* edfac7ba - chore: remove local pact_models from the other pact crates (Ronald Holshausen, Tue Apr 23 10:03:29 2024 +1000)
+* c3128a6d - feat: Support optional query parameter values (where there is only a name) (Ronald Holshausen, Mon Apr 22 10:36:05 2024 +1000)
+* 758f4c03 - chore: Update pact_matching to 1.2.1 (Ronald Holshausen, Tue Apr 16 16:29:38 2024 +1000)
+* 05c8d536 - bump version to 1.2.1 (Ronald Holshausen, Tue Apr 16 15:37:53 2024 +1000)
+
 # 1.2.0 - Maintenance Release
 
 * dffbc8e7 - chore(pact_consumer): Bump minor version (Ronald Holshausen, Tue Apr 16 11:49:14 2024 +1000)
