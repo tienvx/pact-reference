@@ -1,5 +1,25 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 0.4.20 - Maintenance Release
+
+* 2c28d36b - chore(FFI): Upgrade dependencies (Ronald Holshausen, Wed May 8 16:32:55 2024 +1000)
+* edc1ad0c - chore: Upgrade pact_verifier to 1.2.1 (Ronald Holshausen, Wed May 8 15:32:36 2024 +1000)
+* f5ad729f - chore: Moved mock server crates to pact-foundation/pact-core-mock-server (Ronald Holshausen, Tue May 7 17:36:26 2024 +1000)
+* fa2b1d09 - chore: Upgrade pact_matching to 1.2.2 (Ronald Holshausen, Tue May 7 10:50:08 2024 +1000)
+* adf6379a - chore: build linux x86_64 ffi against glibc 2.23 (Yousaf Nabi, Mon Apr 29 18:25:54 2024 +0100)
+* 694100fb - chore: Update pact_models to 1.2.0 (Ronald Holshausen, Tue Apr 23 10:51:11 2024 +1000)
+* edfac7ba - chore: remove local pact_models from the other pact crates (Ronald Holshausen, Tue Apr 23 10:03:29 2024 +1000)
+* d7952e15 - Merge pull request #411 from pact-foundation/feat/optional-query-parameter-values (Ronald Holshausen, Mon Apr 22 15:17:01 2024 +1000)
+* 941560b4 - chore: Update doc comment with NULL query parameter value example (Ronald Holshausen, Mon Apr 22 15:01:08 2024 +1000)
+* c3128a6d - feat: Support optional query parameter values (where there is only a name) (Ronald Holshausen, Mon Apr 22 10:36:05 2024 +1000)
+* e3dc2658 - fix: downgrade JSON parsing from warn to debug in from_integration_json_v2. Fixes #408 (Matt Fellows, Wed Apr 17 13:28:14 2024 +1000)
+* 758f4c03 - chore: Update pact_matching to 1.2.1 (Ronald Holshausen, Tue Apr 16 16:29:38 2024 +1000)
+* bfd6eae0 - chore: Upgrade pact_mock_server to 1.2.6 (Ronald Holshausen, Tue Apr 16 15:14:00 2024 +1000)
+* 7688469a - chore(pact_verifier): Bump minor version (Ronald Holshausen, Tue Apr 16 10:41:18 2024 +1000)
+* d6125b75 - chore(pact_matching): Bump minor version (Ronald Holshausen, Tue Apr 16 10:16:44 2024 +1000)
+* a38e93c5 - fix(ci): fix macos extensions (JP-Ellis, Thu Apr 11 13:12:30 2024 +1000)
+* c2ec4610 - bump version to 0.4.20 (Ronald Holshausen, Thu Apr 11 12:05:29 2024 +1000)
+
 # 0.4.19 - Bugfix Release
 
 * d3c18d21 - chore(ffi): Remove unecessary mutable references #399 (Ronald Holshausen, Wed Mar 20 14:47:54 2024 +1100)
