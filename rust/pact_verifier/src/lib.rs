@@ -407,7 +407,7 @@ async fn execute_state_change<S: ProviderStateExecutor>(
 
 /// Main implementation for verifying an interaction. Will return a tuple containing the
 /// result of the verification and any output collected plus the time taken to execute
-#[tracing::instrument(level = "trace")]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn verify_interaction<'a, F: RequestFilterExecutor, S: ProviderStateExecutor>(
   provider: &ProviderInfo,
   interaction: &(dyn Interaction + Send + Sync + RefUnwindSafe),
