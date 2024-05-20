@@ -375,8 +375,8 @@ pub fn build_regex<S: AsRef<str>>(regex_str: S) -> Regex {
 /// # fn main() {
 /// json_pattern!({
 ///   // Match a string consisting of numbers and lower case letters, and
-///   // generate `"10a"`.$crate::patterns::
-///   "id_string": term!("^[0-9a-z]$", "10a")
+///   // generate `"10a"`.
+///   "id_string": term!("^[0-9a-z]+$", "10a")
 /// });
 /// # }
 /// ```
@@ -398,8 +398,8 @@ macro_rules! term {
 /// # fn main() {
 /// json_pattern!({
 ///   // Match a string consisting of numbers and lower case letters, and
-///   // generate `"10a"`.$crate::patterns::
-///   "id_string": matching_regex!("^[0-9a-z]$", "10a")
+///   // generate `"10a"`
+///   "id_string": matching_regex!("^[0-9a-z]+$", "10a")
 /// });
 /// # }
 /// ```
