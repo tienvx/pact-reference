@@ -878,7 +878,6 @@ fn values_matcher_defined() {
 
 const IMAGE_BYTES: [u8; 16] = [ 0o107, 0o111, 0o106, 0o070, 0o067, 0o141, 0o001, 0o000, 0o001, 0o000, 0o200, 0o000, 0o000, 0o377, 0o377, 0o377 ];
 
-#[cfg(not(windows))]
 #[test]
 fn compare_bodies_core_should_check_for_content_type_matcher() {
   let content_type = ContentType::parse("application/gif").unwrap();
@@ -898,9 +897,13 @@ fn compare_bodies_core_should_check_for_content_type_matcher() {
   );
 
   let result = compare_bodies_core(&content_type, &expected, &actual, &context);
-
+  // required if shared-mime-info not installed, not installed on windows easily
+  #[cfg(not(windows))]
+  let magic_content_type = "image/gif";
+  #[cfg(windows)]
+  let magic_content_type = "application/octet-stream";
   expect!(result.len()).to(be_equal_to(1));
-  expect!(result.first().unwrap().description()).to(be_equal_to("$ -> Expected binary contents to have content type 'application/gif' but detected contents was 'image/gif'"));
+  expect!(result.first().unwrap().description()).to(be_equal_to(format!("$ -> Expected binary contents to have content type 'application/gif' but inferred contents are 'image/gif', magic contents are '{}'", magic_content_type)));
 }
 
 #[test_log::test]

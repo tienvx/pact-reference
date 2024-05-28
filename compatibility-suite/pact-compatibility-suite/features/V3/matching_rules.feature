@@ -212,7 +212,7 @@ Feature: V3 era Matching Rules
       | application/octet-stream | file: sample.pdf |
     When the request is compared to the expected one
     Then the comparison should NOT be OK
-    And the mismatches will contain a mismatch with error "$" -> "Expected binary contents to have content type 'image/jpeg' but detected contents was 'application/pdf'"
+    And the mismatches will contain a mismatch with error "$" -> "Expected binary contents to have content type 'image/jpeg' but inferred contents are 'application/pdf', magic contents are 'application/pdf'"
 
   Scenario: Supports a Values matcher (positive case, ignores missing and additional keys)
     Given an expected request configured with the following:
