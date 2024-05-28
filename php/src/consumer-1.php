@@ -5,7 +5,7 @@ require __DIR__ . '/../vendor/autoload.php';
 use Symfony\Component\HttpClient\HttpClient;
 
 $code = file_get_contents(__DIR__ . '/../../rust/pact_ffi/include/pact.h');
-$ffi = FFI::cdef($code, __DIR__ . '/../../rust/target/debug/libpact_ffi.so');
+$ffi = FFI::cdef($code, getenv('PACT_FFI_LIBRARY_PATH') ?: __DIR__ . '/../../rust/target/debug/libpact_ffi.so');
 // Macs use dylib extension, following will assume os's downloaded in users home dir ~/.pact/ffi/arch/libpact_ffi.<dylib|so>
 // $code = file_get_contents(posix_getpwnam(get_current_user())['dir'] . '/.pact/ffi/pact.h');
 // $ffi = FFI::cdef($code, posix_getpwnam(get_current_user())['dir'] . '/.pact/ffi/osxaarch64/libpact_ffi.dylib');
