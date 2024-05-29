@@ -39,6 +39,7 @@ where
     S: Into<String>,
 {
     let expected = expected_content_type.into();
+
     // Use infer crate to detect via magic bytes
     let inferred_content_type = infer::get(data)
         .map(|result| result.mime_type())
@@ -49,13 +50,17 @@ where
     if inferred_match {
         return Ok(());
     }
-    // Use tree_magic_mini crate to detect via magic bytes using mime-db (requires user to install)
-    let magic_content_type = tree_magic_mini::from_u8(data);
-    let magic_match = magic_content_type == expected;
-    debug!("Matching binary contents by content type: expected '{}', detection method: tree_magic_mini '{}' -> {}",
-  expected, magic_content_type, magic_match);
-    if magic_match && magic_content_type != "text/plain" {
-        return Ok(());
+
+    let mut magic_content_type = "";
+    if inferred_content_type == "" {
+      // Use tree_magic_mini crate to detect via magic bytes using mime-db (requires user to install)
+      magic_content_type = tree_magic_mini::from_u8(data);
+      let magic_match = magic_content_type == expected;
+      debug!("Matching binary contents by content type: expected '{}', detection method: tree_magic_mini '{}' -> {}",
+    expected, magic_content_type, magic_match);
+      if magic_match && magic_content_type != "text/plain" {
+          return Ok(());
+      }
     }
 
     // Where we have detected text/plain, check content type against our own detection from bytes
