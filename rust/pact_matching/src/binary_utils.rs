@@ -52,13 +52,14 @@ where
     }
 
     let mut magic_content_type = "";
+    let mut magic_match = false;
     if inferred_content_type == "" {
       // Use tree_magic_mini crate to detect via magic bytes using mime-db (requires user to install)
       magic_content_type = tree_magic_mini::from_u8(data);
-      let magic_match = magic_content_type == expected;
+      magic_match = magic_content_type == expected;
       debug!("Matching binary contents by content type: expected '{}', detection method: tree_magic_mini '{}' -> {}",
     expected, magic_content_type, magic_match);
-      if magic_match && magic_content_type != "text/plain" {
+      if magic_match {
           return Ok(());
       }
     }
@@ -72,17 +73,21 @@ where
         }
     };
 
-    if detected_content_type == "text/plain" {
+    let matched = magic_match == true || inferred_match == true;
+    let unmatched = magic_match == false && inferred_match == false;
+    let detected_text_plain = detected_content_type == "text/plain";
+
+    if unmatched && detected_text_plain {
         let bytes_detected_content_type = detect_content_type_from_bytes(data);
-        if bytes_detected_content_type.is_some() {
-            let bytes_detected_content_type = bytes_detected_content_type.unwrap();
-            let bytes_match = bytes_detected_content_type == ContentType::from(&expected);
-            debug!("Matching binary contents by content type: expected '{}', detection method: detect_content_type_from_bytes '{}' -> {}",
-    expected, bytes_detected_content_type, bytes_match);
-            if bytes_match {
-                return Ok(());
-            }
-        }
+          let bytes_detected_content_type = bytes_detected_content_type.unwrap();
+          let bytes_match = if bytes_detected_content_type ==  ContentType::from(&expected) { Some(()) } else { None };
+          debug!("Matching binary contents by content type: expected '{}', detection method: detect_content_type_from_bytes '{}' -> {:?}",
+  expected, bytes_detected_content_type, bytes_match);
+          return bytes_match.ok_or_else(|| anyhow!(
+              "Expected binary contents to have content type '{}' but detected contents was '{}'",
+              expected,
+              bytes_detected_content_type
+          ));
     }
 
     return Err(anyhow!(

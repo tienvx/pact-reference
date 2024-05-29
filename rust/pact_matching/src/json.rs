@@ -975,8 +975,8 @@ mod tests {
     let matcher = MatchingRule::ContentType("text/plain".to_string());
     expect!(Value::String("plain text".into()).matches_with(&Value::String("plain text".into()), &matcher, false)).to(be_ok());
     expect!(Value::String("plain text".into()).matches_with(&Value::String("different text".into()), &matcher, false)).to(be_ok());
-    expect!(Value::String("plain text".into()).matches_with(&json!(100), &matcher, false)).to(be_err());
-    expect!(Value::String("plain text".into()).matches_with(&json!(100.01), &matcher, false)).to(be_err());
+    expect!(Value::String("plain text".into()).matches_with(&json!(100), &matcher, false)).to(be_ok());
+    expect!(Value::String("plain text".into()).matches_with(&json!(100.01), &matcher, false)).to(be_ok());
     {
       let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
       <note>
