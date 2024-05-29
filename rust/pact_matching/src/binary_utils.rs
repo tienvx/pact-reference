@@ -36,65 +36,78 @@ use crate::matchers::Matches;
 /// type against the expected content type
 pub fn match_content_type<S>(data: &[u8], expected_content_type: S) -> anyhow::Result<()>
 where
-    S: Into<String>,
+  S: Into<String>,
 {
-    let expected = expected_content_type.into();
+  let expected = expected_content_type.into();
 
-    // Use infer crate to detect via magic bytes
-    let inferred_content_type = infer::get(data)
-        .map(|result| result.mime_type())
-        .unwrap_or_default();
-    let inferred_match = inferred_content_type == expected;
-    debug!("Matching binary contents by content type: expected '{}', detection method: infer '{}' -> {}",
+  // Use infer crate to detect via magic bytes
+  let inferred_content_type = infer::get(data)
+    .map(|result| result.mime_type())
+    .unwrap_or_default();
+  let inferred_match = inferred_content_type == expected;
+  debug!("Matching binary contents by content type: expected '{}', detection method: infer '{}' -> {}",
   expected, inferred_content_type, inferred_match);
-    if inferred_match {
-        return Ok(());
+  if inferred_match {
+    return Ok(());
+  }
+
+  let mut magic_content_type = "";
+  let mut magic_match = false;
+  if inferred_content_type == "" {
+    // Use tree_magic_mini crate to detect via magic bytes using mime-db (requires user to install)
+    magic_content_type = tree_magic_mini::from_u8(data);
+    magic_match = magic_content_type == expected;
+    debug!("Matching binary contents by content type: expected '{}', detection method: tree_magic_mini '{}' -> {}",
+  expected, magic_content_type, magic_match);
+    if magic_match {
+      return Ok(());
     }
+  }
 
-    let mut magic_content_type = "";
-    let mut magic_match = false;
-    if inferred_content_type == "" {
-      // Use tree_magic_mini crate to detect via magic bytes using mime-db (requires user to install)
-      magic_content_type = tree_magic_mini::from_u8(data);
-      magic_match = magic_content_type == expected;
-      debug!("Matching binary contents by content type: expected '{}', detection method: tree_magic_mini '{}' -> {}",
-    expected, magic_content_type, magic_match);
-      if magic_match {
-          return Ok(());
-      }
+  // Where we have detected text/plain, check content type against our own detection from bytes
+  let detected_content_type: &str = {
+    if inferred_content_type != "" {
+      inferred_content_type
+    } else {
+      magic_content_type
     }
+  };
 
-    // Where we have detected text/plain, check content type against our own detection from bytes
-    let detected_content_type: &str = {
-        if inferred_content_type != "" {
-            inferred_content_type
-        } else {
-            magic_content_type
-        }
-    };
+  let matched: bool = magic_match || inferred_match;
+  if matched {
+    return Ok(());
+  };
+  let unmatched = !magic_match && !inferred_match;
+  let detected_text_plain = detected_content_type == "text/plain";
 
-    let matched = magic_match == true || inferred_match == true;
-    let unmatched = magic_match == false && inferred_match == false;
-    let detected_text_plain = detected_content_type == "text/plain";
-
-    if unmatched && detected_text_plain {
-        let bytes_detected_content_type = detect_content_type_from_bytes(data);
-          let bytes_detected_content_type = bytes_detected_content_type.unwrap();
-          let bytes_match = if bytes_detected_content_type ==  ContentType::from(&expected) { Some(()) } else { None };
-          debug!("Matching binary contents by content type: expected '{}', detection method: detect_content_type_from_bytes '{}' -> {:?}",
-  expected, bytes_detected_content_type, bytes_match);
-          return bytes_match.ok_or_else(|| anyhow!(
-              "Expected binary contents to have content type '{}' but detected contents was '{}'",
-              expected,
-              bytes_detected_content_type
-          ));
-    }
-
-    return Err(anyhow!(
+  if unmatched && detected_text_plain {
+    debug!("Matching binary contents by content type: expected '{}', detected '{}', matched: {}. Attempting to detect_content_type_from_bytes",
+  expected, detected_content_type, unmatched);
+    let bytes_detected_content_type = detect_content_type_from_bytes(data)
+      .ok_or_else(|| anyhow!(
         "Expected binary contents to have content type '{}' but detected contents was '{}'",
         expected,
         detected_content_type
-    ));
+      ))?;
+    let bytes_match = bytes_detected_content_type == ContentType::from(&expected);
+    debug!("Matching binary contents by content type: expected '{}', detection method: detect_content_type_from_bytes '{}' -> {}",
+  expected, bytes_detected_content_type, bytes_match);
+    return if bytes_match {
+      Ok(())
+    } else {
+      Err(anyhow!(
+        "Expected binary contents to have content type '{}' but detected contents was '{}'",
+        expected,
+        bytes_detected_content_type
+      ))
+    };
+  }
+
+  Err(anyhow!(
+    "Expected binary contents to have content type '{}' but detected contents was '{}'",
+    expected,
+    detected_content_type
+  ))
 }
 
 pub(crate) fn convert_data(data: &Value) -> Vec<u8> {
