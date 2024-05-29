@@ -52,11 +52,9 @@ sxd-document = { version = "0.3.2", optional = true }
 tokio = { version = "1.37.0", features = ["full"] }
 tracing = "0.1.40"
 tracing-core = "0.1.32"
-tree_magic_mini = {version = "3.1.4", git = "https://github.com/YOU54F/tree_magic.git", branch = "mini" }
-# tree_magic_mini = {version = "3.1.4", path = "../../../tree_magic" }
 infer = "0.15.0"
+tree_magic_mini = "3.1.5"
 uuid = { version = "1.8.0", features = ["v4"] }
-# indexmap = { version = "1.9.3", features = ["std"] } # for errors x-compiling from macos without cross
 
 [dev-dependencies]
 quickcheck = "1"

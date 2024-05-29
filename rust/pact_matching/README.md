@@ -529,13 +529,7 @@ matching(contentType, 'application/json', '{}')
 Rust libraries used:
 
 - https://github.com/mbrubeck/tree_magic
-  - fork https://github.com/you54f/tree_magic
 - https://github.com/bojand/infer
-- Explore:- https://github.com/ebassi/xdg-mime-rs
-
-TODO:
-
-Provide user full opt-out of content-type matching?
 
 ##### Matching an example type by reference
 

@@ -502,8 +502,8 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact_consumer",
- "pact_matching",
- "pact_mock_server",
+ "pact_matching 1.2.3",
+ "pact_mock_server 1.2.7",
  "pact_models",
  "pact_verifier",
  "pretty_assertions",
@@ -2004,8 +2004,8 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching",
- "pact_mock_server",
+ "pact_matching 1.2.3",
+ "pact_mock_server 1.2.8",
  "pact_models",
  "regex",
  "serde_json",
@@ -2013,6 +2013,45 @@ dependencies = [
  "tracing",
  "tracing-core",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "pact_matching"
+version = "1.2.3"
+dependencies = [
+ "ansi_term",
+ "anyhow",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "difference",
+ "futures",
+ "hex",
+ "http 1.1.0",
+ "infer",
+ "itertools 0.12.1",
+ "lazy_static",
+ "lenient_semver",
+ "maplit",
+ "md5",
+ "mime",
+ "multer 3.1.0",
+ "nom",
+ "onig",
+ "pact-plugin-driver",
+ "pact_models",
+ "rand",
+ "reqwest 0.12.4",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sxd-document",
+ "tokio",
+ "tracing",
+ "tracing-core",
+ "tree_magic_mini",
  "uuid",
 ]
 
@@ -2058,6 +2097,36 @@ dependencies = [
 
 [[package]]
 name = "pact_mock_server"
+version = "1.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb43567a0954ecba3b91d70543617923d9217a98ea3f5f0a5149648b46f0aa55"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "futures",
+ "hyper 0.14.28",
+ "hyper-rustls 0.24.2",
+ "itertools 0.12.1",
+ "lazy_static",
+ "maplit",
+ "pact-plugin-driver",
+ "pact_matching 1.2.3",
+ "pact_models",
+ "rustls 0.21.12",
+ "rustls-pemfile 1.0.4",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-rustls 0.24.1",
+ "tracing",
+ "tracing-core",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "pact_mock_server"
 version = "1.2.8"
 source = "git+https://github.com/you54f/pact-core-mock-server.git?branch=main#090eb1ab3d6d201247cb016b57269f390a37e830"
 dependencies = [
@@ -2070,7 +2139,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching",
+ "pact_matching 1.2.3 (git+https://github.com/you54f/pact-reference.git?branch=master)",
  "pact_models",
  "rustls 0.21.12",
  "rustls-pemfile 1.0.4",
@@ -2142,7 +2211,7 @@ dependencies = [
  "maplit",
  "mime",
  "pact-plugin-driver",
- "pact_matching",
+ "pact_matching 1.2.3",
  "pact_models",
  "regex",
  "reqwest 0.12.4",
@@ -2437,7 +2506,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80b776a1b2dc779f5ee0641f8ade0125bc1298dd41a9a0c16d8bd57b42d222b1"
 dependencies = [
  "bytes",
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.12.1",
  "log",
  "multimap",
@@ -3716,9 +3785,9 @@ dependencies = [
 
 [[package]]
 name = "tree_magic_mini"
-version = "3.1.4"
+version = "3.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77ee137597cdb361b55a4746983e4ac1b35ab6024396a419944ad473bb915265"
+checksum = "469a727cac55b41448315cc10427c069c618ac59bb6a4480283fcd811749bdc2"
 dependencies = [
  "fnv",
  "home",
@@ -4295,7 +4364,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "pact_matching"
-version = "1.2.3"

@@ -686,16 +686,15 @@ fn pactffi_with_binary_file_feature_test(specification: PactSpecification, expec
 
   let client = Client::default();
   let result = client.post(format!("http://127.0.0.1:{}/upload", port).as_str())
-  .header("Content-Type", "image/gif")
-  .body(buffer)
+    .header("Content-Type", "image/gif")
+    .body(buffer)
     .send();
 
   let mismatches = unsafe {
     CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
   };
 
-  println!("{}",mismatches);
-
+  println!("pactffi_with_binary_file_feature_test v{}: {}", specification, mismatches);
   match result {
     Ok(res) => {
       let status = res.status();

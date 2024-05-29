@@ -2022,7 +2022,7 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-subscriber",
- "tree_magic_mini 3.1.4 (git+https://github.com/YOU54F/tree_magic.git?branch=mini)",
+ "tree_magic_mini",
  "uuid",
 ]
 
@@ -2062,7 +2062,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-core",
- "tree_magic_mini 3.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tree_magic_mini",
  "uuid",
 ]
 
@@ -3762,22 +3762,9 @@ dependencies = [
 
 [[package]]
 name = "tree_magic_mini"
-version = "3.1.4"
+version = "3.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77ee137597cdb361b55a4746983e4ac1b35ab6024396a419944ad473bb915265"
-dependencies = [
- "fnv",
- "home",
- "memchr",
- "nom",
- "once_cell",
- "petgraph",
-]
-
-[[package]]
-name = "tree_magic_mini"
-version = "3.1.4"
-source = "git+https://github.com/YOU54F/tree_magic.git?branch=mini#f77cc2bcd3a920bed0225c6cb207c1af45b623e7"
+checksum = "469a727cac55b41448315cc10427c069c618ac59bb6a4480283fcd811749bdc2"
 dependencies = [
  "fnv",
  "home",

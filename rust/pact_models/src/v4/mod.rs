@@ -70,6 +70,7 @@ pub fn calc_content_type(body: &OptionalBody, headers: &Option<HashMap<String, V
       }
     }).flatten())
     .or_else(|| if body.is_present() {
+      // TODO:- use shared infer/tree_magic_mini here for consistency?
       detect_content_type_from_bytes(&*body.value().unwrap_or_default())
     } else {
       None
