@@ -60,7 +60,7 @@ where
 
     // Where we have detected text/plain, check content type against our own detection from bytes
     let detected_content_type: &str = {
-        if inferred_match {
+        if inferred_content_type != "" {
             inferred_content_type
         } else {
             magic_content_type
