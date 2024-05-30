@@ -1916,7 +1916,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching 1.2.3",
+ "pact_matching 1.2.4",
  "pact_mock_server",
  "pact_models 1.2.0",
  "pretty_assertions",
@@ -1960,7 +1960,7 @@ dependencies = [
  "onig",
  "os_info",
  "pact-plugin-driver",
- "pact_matching 1.2.3",
+ "pact_matching 1.2.4",
  "pact_mock_server",
  "pact_models 1.2.0",
  "pact_verifier",
@@ -1991,9 +1991,9 @@ dependencies = [
 
 [[package]]
 name = "pact_matching"
-version = "1.2.2"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9183bf02dfc92afae178174c5c2bf64787e7fdb98081742ca6f2318f3e7af5a5"
+checksum = "ddd60651cf03381d1834353687140ab2f0756b5a7c15a1860d1831fee3380dba"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -2004,6 +2004,7 @@ dependencies = [
  "futures",
  "hex",
  "http 1.1.0",
+ "infer",
  "itertools 0.12.1",
  "lazy_static",
  "lenient_semver",
@@ -2031,7 +2032,7 @@ dependencies = [
 
 [[package]]
 name = "pact_matching"
-version = "1.2.3"
+version = "1.2.4"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -2092,7 +2093,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching 1.2.2",
+ "pact_matching 1.2.3",
  "pact_models 1.2.0",
  "rustls 0.21.12",
  "rustls-pemfile 1.0.4",
@@ -2215,7 +2216,7 @@ dependencies = [
  "mime",
  "pact-plugin-driver",
  "pact_consumer",
- "pact_matching 1.2.3",
+ "pact_matching 1.2.4",
  "pact_models 1.2.0",
  "pretty_assertions",
  "quickcheck",
