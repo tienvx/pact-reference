@@ -47,3 +47,5 @@ php/composer.lock
 pkg/
 python/venv/
 python/pacts
+
+compatibility-suite/Cargo.lock
