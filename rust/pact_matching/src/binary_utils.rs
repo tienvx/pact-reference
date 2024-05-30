@@ -35,23 +35,79 @@ use crate::matchers::Matches;
 /// Compares the binary data using a magic test and comparing the resulting detected content
 /// type against the expected content type
 pub fn match_content_type<S>(data: &[u8], expected_content_type: S) -> anyhow::Result<()>
-  where S: Into<String> {
-  let result = tree_magic_mini::from_u8(data);
+where
+  S: Into<String>,
+{
   let expected = expected_content_type.into();
-  let matches = result == expected;
-  debug!("Matching binary contents by content type: expected '{}', detected '{}' -> {}",
-         expected, result, matches);
-  if matches {
-    Ok(())
-  } else if result == "text/plain" {
-    detect_content_type_from_bytes(data)
-      .and_then(|ct| if ct ==  ContentType::from(&expected) { Some(()) } else { None })
-      .ok_or_else(|| anyhow!("Expected binary contents to have content type '{}' but detected contents was '{}'",
-        expected, result))
-  } else {
-    Err(anyhow!("Expected binary contents to have content type '{}' but detected contents was '{}'",
-      expected, result))
+
+  // Use infer crate to detect via magic bytes
+  let inferred_content_type = infer::get(data)
+    .map(|result| result.mime_type())
+    .unwrap_or_default();
+  let inferred_match = inferred_content_type == expected;
+  debug!("Matching binary contents by content type: expected '{}', detection method: infer '{}' -> {}",
+  expected, inferred_content_type, inferred_match);
+  if inferred_match {
+    return Ok(());
   }
+
+  let mut magic_content_type = "";
+  let mut magic_match = false;
+  if inferred_content_type == "" {
+    // Use tree_magic_mini crate to detect via magic bytes using mime-db (requires user to install)
+    magic_content_type = tree_magic_mini::from_u8(data);
+    magic_match = magic_content_type == expected;
+    debug!("Matching binary contents by content type: expected '{}', detection method: tree_magic_mini '{}' -> {}",
+  expected, magic_content_type, magic_match);
+    if magic_match {
+      return Ok(());
+    }
+  }
+
+  // Where we have detected text/plain, check content type against our own detection from bytes
+  let detected_content_type: &str = {
+    if inferred_content_type != "" {
+      inferred_content_type
+    } else {
+      magic_content_type
+    }
+  };
+
+  let matched: bool = magic_match || inferred_match;
+  if matched {
+    return Ok(());
+  };
+  let unmatched = !magic_match && !inferred_match;
+  let detected_text_plain = detected_content_type == "text/plain";
+
+  if unmatched && detected_text_plain {
+    debug!("Matching binary contents by content type: expected '{}', detected '{}', matched: {}. Attempting to detect_content_type_from_bytes",
+  expected, detected_content_type, unmatched);
+    let bytes_detected_content_type = detect_content_type_from_bytes(data)
+      .ok_or_else(|| anyhow!(
+        "Expected binary contents to have content type '{}' but detected contents was '{}'",
+        expected,
+        detected_content_type
+      ))?;
+    let bytes_match = bytes_detected_content_type == ContentType::from(&expected);
+    debug!("Matching binary contents by content type: expected '{}', detection method: detect_content_type_from_bytes '{}' -> {}",
+  expected, bytes_detected_content_type, bytes_match);
+    return if bytes_match {
+      Ok(())
+    } else {
+      Err(anyhow!(
+        "Expected binary contents to have content type '{}' but detected contents was '{}'",
+        expected,
+        bytes_detected_content_type
+      ))
+    };
+  }
+
+  Err(anyhow!(
+    "Expected binary contents to have content type '{}' but detected contents was '{}'",
+    expected,
+    detected_content_type
+  ))
 }
 
 pub(crate) fn convert_data(data: &Value) -> Vec<u8> {
@@ -1027,7 +1083,6 @@ mod tests {
 
   #[test]
   #[cfg(feature = "multipart")]
-  #[cfg(not(target_os = "windows"))] // Requires shared mime-info db, not available on Windows
   fn match_mime_multipart_content_type_matcher() {
     let expected_body = Bytes::from("--1234\r\n\
       Content-Type: text/plain\r\n\
@@ -1084,7 +1139,6 @@ mod tests {
 
   #[test]
   #[cfg(feature = "multipart")]
-  #[cfg(not(target_os = "windows"))] // Requires shared mime-info db, not available on Windows
   fn match_mime_multipart_content_type_matcher_with_mismatch() {
     let expected_body = Bytes::from("--1234\r\n\
       Content-Type: text/plain\r\n\
@@ -1138,7 +1192,6 @@ mod tests {
 
   #[test]
   #[cfg(feature = "multipart")]
-  #[cfg(not(target_os = "windows"))] // Requires shared mime-info db, not available on Windows
   fn match_content_type_equals() {
     expect!(match_content_type("some text".as_bytes(), "text/plain")).to(be_ok());
 
@@ -1151,7 +1204,6 @@ mod tests {
 
   #[test]
   #[cfg(feature = "multipart")]
-  #[cfg(not(target_os = "windows"))] // Requires shared mime-info db, not available on Windows
   fn match_content_type_common_text_types() {
     expect!(match_content_type("{\"val\": \"some text\"}".as_bytes(), "application/json")).to(be_ok());
     expect!(match_content_type("<xml version=\"1.0\"><a/>".as_bytes(), "application/xml")).to(be_ok());

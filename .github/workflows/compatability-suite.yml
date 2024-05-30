@@ -7,7 +7,11 @@ env:
 
 jobs:
   v1:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.operating-system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        operating-system: [ ubuntu-latest, windows-latest, macos-12, macos-14 ]
     steps:
     - uses: actions/checkout@v2
     - uses: dtolnay/rust-toolchain@stable
@@ -15,7 +19,11 @@ jobs:
       run: cargo test --test v1*
       working-directory: compatibility-suite
   v2:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.operating-system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        operating-system: [ ubuntu-latest, windows-latest, macos-12, macos-14 ]
     steps:
       - uses: actions/checkout@v2
       - uses: dtolnay/rust-toolchain@stable
@@ -23,7 +31,11 @@ jobs:
         run: cargo test --test v2*
         working-directory: compatibility-suite
   v3:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.operating-system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        operating-system: [ ubuntu-latest, windows-latest, macos-12, macos-14 ]
     steps:
       - uses: actions/checkout@v2
       - uses: dtolnay/rust-toolchain@stable
@@ -31,7 +43,11 @@ jobs:
         run: cargo test --test v3*
         working-directory: compatibility-suite
   v4:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.operating-system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        operating-system: [ ubuntu-latest, windows-latest, macos-12, macos-14 ]
     steps:
       - uses: actions/checkout@v2
       - uses: dtolnay/rust-toolchain@stable

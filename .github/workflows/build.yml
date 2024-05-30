@@ -6,8 +6,9 @@ jobs:
   build:
     runs-on: ${{ matrix.operating-system }}
     strategy:
+      fail-fast: false
       matrix:
-        operating-system: [ ubuntu-latest, windows-latest, macos-12 ]
+        operating-system: [ ubuntu-latest, windows-latest, macos-12, macos-14 ]
         rust: [ stable ]
     env:
       pact_do_not_track: true

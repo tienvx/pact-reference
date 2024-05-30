@@ -641,7 +641,6 @@ fn fixture_path(path: &str) -> PathBuf {
     .to_owned()
 }
 
-#[cfg(not(windows))]
 #[rstest(
   specification,                                          expected_value,
   case::specification_unknown(PactSpecification::Unknown, false),
@@ -695,6 +694,7 @@ fn pactffi_with_binary_file_feature_test(specification: PactSpecification, expec
     CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
   };
 
+  println!("pactffi_with_binary_file_feature_test v{}: {}", specification, mismatches);
   match result {
     Ok(res) => {
       let status = res.status();
