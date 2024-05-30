@@ -1,5 +1,15 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.3 - Supports content type detection on Windows
+
+* e0ffa61f - chore: refactor matching logic and add debug logs if text/plain detected, before we match (Yousaf Nabi, Wed May 29 20:42:15 2024 +0100)
+* 72c6e572 - chore: preserve original behaviour for text/plain content-type header with application/json body (Yousaf Nabi, Wed May 29 06:09:12 2024 +0100)
+* 57b16b89 - chore: only check with tree_magic if inferred_content_type is empty (Yousaf Nabi, Wed May 29 04:17:39 2024 +0100)
+* 60944777 - chore: inferred_content_type default is empty string if no match (Yousaf Nabi, Wed May 29 04:03:36 2024 +0100)
+* b0fd7e2f - chore: refactor to preserve existing error messages (Yousaf Nabi, Wed May 29 03:31:11 2024 +0100)
+* 968be075 - feat: update content_type_matching logic for binary payloads (Yousaf Nabi, Tue May 28 23:25:07 2024 +0100)
+* 88f71944 - bump version to 1.2.3 (Ronald Holshausen, Tue May 7 10:05:48 2024 +1000)
+
 # 1.2.2 - Maintenance Release
 
 * 694100fb - chore: Update pact_models to 1.2.0 (Ronald Holshausen, Tue Apr 23 10:51:11 2024 +1000)
