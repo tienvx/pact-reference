@@ -1238,7 +1238,6 @@ mod tests {
     expect!("plain text".matches_with("plain text", &matcher, false)).to(be_ok());
     expect!("plain text".matches_with("different text", &matcher, false)).to(be_ok());
     expect!("plain text".matches_with(100, &matcher, false)).to(be_err());
-    #[cfg(not(windows))]
     {
       let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
       <note>

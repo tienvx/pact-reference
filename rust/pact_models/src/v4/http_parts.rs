@@ -344,6 +344,7 @@ pub fn body_from_json(json: &Value, attr_name: &str, headers: &Option<HashMap<St
                 if body_bytes.is_empty() {
                   OptionalBody::Empty
                 } else {
+                  // TODO:- use shared infer/tree_magic_mini here for consistency?
                   let content_type = content_type.unwrap_or_else(|| {
                     detect_content_type_from_bytes(&body_bytes).unwrap_or_default()
                   });

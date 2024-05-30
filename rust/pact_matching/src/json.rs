@@ -977,7 +977,6 @@ mod tests {
     expect!(Value::String("plain text".into()).matches_with(&Value::String("different text".into()), &matcher, false)).to(be_ok());
     expect!(Value::String("plain text".into()).matches_with(&json!(100), &matcher, false)).to(be_ok());
     expect!(Value::String("plain text".into()).matches_with(&json!(100.01), &matcher, false)).to(be_ok());
-    #[cfg(not(windows))]
     {
       let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
       <note>
