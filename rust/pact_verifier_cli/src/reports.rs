@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Write;
 
 #[cfg(feature = "junit")] use junit_report::{ReportBuilder, TestCaseBuilder, TestSuiteBuilder};
+#[cfg(feature = "junit")] use strip_ansi_escapes;
 use serde_json::Value;
 use tracing::debug;
 
@@ -22,7 +23,8 @@ pub(crate) fn write_junit_report(result: &VerificationExecutionResult, file_name
   let mut f = File::create(file_name)?;
 
   let mut test_suite = TestSuiteBuilder::new(provider);
-  test_suite.set_system_out(result.output.join("\n").as_str());
+  let stripped_system_out = strip_ansi_escapes::strip_str(result.output.join("\n"));
+  test_suite.set_system_out(&stripped_system_out);
   for interaction_result in &result.interaction_results {
     let duration = time::Duration::try_from(interaction_result.duration).unwrap_or_default();
     let test_case = match &interaction_result.result {
@@ -42,7 +44,8 @@ pub(crate) fn write_junit_report(result: &VerificationExecutionResult, file_name
                 "",
                 "Verification for interaction failed"
               );
-              builder.set_system_out(output_buffer.join("\n").as_str());
+              let stripped_output = strip_ansi_escapes::strip_str(output_buffer.join("\n"));
+              builder.set_system_out(&stripped_output);
               builder
             },
             MismatchResult::Error(error, _) => TestCaseBuilder::error(
