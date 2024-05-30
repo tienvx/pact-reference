@@ -2080,9 +2080,9 @@ dependencies = [
 
 [[package]]
 name = "pact_mock_server"
-version = "1.2.7"
+version = "1.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb43567a0954ecba3b91d70543617923d9217a98ea3f5f0a5149648b46f0aa55"
+checksum = "1c30ce7d0fb6daf3bd3d60ab0781ca618ac76f53354e48967a48b846f05288cf"
 dependencies = [
  "anyhow",
  "bytes",
