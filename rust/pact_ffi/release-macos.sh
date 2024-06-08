@@ -3,58 +3,67 @@
 set -e
 set -x
 
-RUST_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd )"
+RUST_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_NAME=libpact_ffi
 
 source "$RUST_DIR/scripts/gzip-and-sum.sh"
 ARTIFACTS_DIR=${ARTIFACTS_DIR:-"$RUST_DIR/release_artifacts"}
 mkdir -p "$ARTIFACTS_DIR"
-export CARGO_TARGET_DIR=${CARO_TARGET_DIR:-"$RUST_DIR/target"}
+export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"$RUST_DIR/target"}
 
 # We target the oldest supported version of macOS.
 export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-12}
 
 # All flags passed to this script are passed to cargo.
-cargo_flags=( "$@" )
+case $1 in
+x86_64-apple-darwin)
+    TARGET=$1
+    shift
+    ;;
+aarch64-apple-darwin)
+    TARGET=$1
+    shift
+    ;;
+*) ;;
+esac
+cargo_flags=("$@")
 
-# Build the x86_64 darwin release
-build_x86_64() {
-    cargo build --target x86_64-apple-darwin "${cargo_flags[@]}"
+build_target() {
+    TARGET=$1
+
+    case $TARGET in
+    x86_64-apple-darwin)
+        ARCH_SUFFIX=x86_64
+        ;;
+    aarch64-apple-darwin)
+        ARCH_SUFFIX=aarch64
+        ;;
+    *)
+        echo unknown target $TARGET
+        exit 1
+        ;;
+    esac
+    cargo build --target $TARGET "${cargo_flags[@]}"
 
     if [[ "${cargo_flags[*]}" =~ "--release" ]]; then
+        file "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.a"
+        file "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.dylib"
+        du -sh "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.a"
+        du -sh "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.dylib"
         gzip_and_sum \
-            "$CARGO_TARGET_DIR/x86_64-apple-darwin/release/libpact_ffi.dylib" \
-            "$ARTIFACTS_DIR/libpact_ffi-osx-x86_64.dylib.gz"
+            "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.a" \
+            "$ARTIFACTS_DIR/$APP_NAME-macos-$ARCH_SUFFIX.a.gz"
         gzip_and_sum \
-            "$CARGO_TARGET_DIR/x86_64-apple-darwin/release/libpact_ffi.a" \
-            "$ARTIFACTS_DIR/libpact_ffi-osx-x86_64.a.gz"
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/x86_64-apple-darwin/release/libpact_ffi.dylib" \
-            "$ARTIFACTS_DIR/libpact_ffi-macos-x86_64.dylib.gz"
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/x86_64-apple-darwin/release/libpact_ffi.a" \
-            "$ARTIFACTS_DIR/libpact_ffi-macos-x86_64.a.gz"
+            "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.dylib" \
+            "$ARTIFACTS_DIR/$APP_NAME-macos-$ARCH_SUFFIX.dylib.gz"
     fi
 }
 
-# Build the aarch64 darwin release
-build_aarch64() {
-    cargo build --target aarch64-apple-darwin "${cargo_flags[@]}"
-
-    if [[ "${cargo_flags[*]}" =~ "--release" ]]; then
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/aarch64-apple-darwin/release/libpact_ffi.dylib" \
-            "$ARTIFACTS_DIR/libpact_ffi-osx-aarch64-apple-darwin.dylib.gz"
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/aarch64-apple-darwin/release/libpact_ffi.a" \
-            "$ARTIFACTS_DIR/libpact_ffi-osx-aarch64-apple-darwin.a.gz"
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/aarch64-apple-darwin/release/libpact_ffi.dylib" \
-            "$ARTIFACTS_DIR/libpact_ffi-macos-aarch64-apple-darwin.dylib.gz"
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/aarch64-apple-darwin/release/libpact_ffi.a" \
-            "$ARTIFACTS_DIR/libpact_ffi-macos-aarch64-apple-darwin.a.gz"
-    fi
-}
-
-build_x86_64
-build_aarch64
+if [ ! -z "$TARGET" ]; then
+    echo building for target $TARGET
+    build_target $TARGET
+else
+    echo building for all targets
+    build_target x86_64-apple-darwin
+    build_target aarch64-apple-darwin
+fi
