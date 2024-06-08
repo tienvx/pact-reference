@@ -47,6 +47,7 @@ use pact_ffi::mock_server::handles::{
   pactffi_message_with_metadata_v2,
   pactffi_new_interaction,
   pactffi_new_message,
+  pactffi_new_message_interaction,
   pactffi_new_message_pact,
   pactffi_new_pact,
   pactffi_pact_handle_write_file,
@@ -1184,6 +1185,405 @@ fn repeated_interaction() {
 }"#
   );
 }
+
+// Issue #389
+#[test_log::test]
+fn merging_duplicate_http_interaction_without_state_with_pact_containing_two_http_interactions_does_not_duplicate() {
+
+  let tmp = tempfile::tempdir().unwrap();
+  let tmp_dir = CString::new(tmp.path().to_string_lossy().as_bytes().to_vec()).unwrap();
+  // 1. create an existing pact containing
+  // 1a. http interaction with provider state
+  // 1b. http interaction without provider state
+  // 2. save pact to file
+  // 3. create new pact interaction, duplicating 1b http interaction without provider state
+  // 4. expect deduplication, and pact contents to be the same as step 2
+  let pact_handle = PactHandle::new("MergingPactC", "MergingPactP");
+  pactffi_with_specification(pact_handle, PactSpecification::V4);
+  let desc1 = CString::new("description 1").unwrap();
+  let desc2 = CString::new("description 2").unwrap();
+  let state_desc_1 = CString::new("state_desc_1").unwrap();
+  let path = CString::new("/api/orders/404").unwrap();
+  let method = CString::new("GET").unwrap();
+  let accept = CString::new("Accept").unwrap();
+  let header = CString::new("application/json").unwrap();
+  let state_params = CString::new(r#"{"id": "1"}"#).unwrap();
+
+  // Setup Pact 1 - Interaction 1 - http with provider state
+  let i_handle1 = pactffi_new_interaction(pact_handle, desc1.as_ptr());
+  pactffi_with_request(i_handle1, method.as_ptr(), path.as_ptr());
+  pactffi_given_with_params(i_handle1, state_desc_1.as_ptr(), state_params.as_ptr());
+  pactffi_with_header_v2(i_handle1, InteractionPart::Request, accept.as_ptr(), 0, header.as_ptr());
+  pactffi_response_status(i_handle1, 200);
+
+
+  // Write to file
+  let result_1 = pactffi_pact_handle_write_file(pact_handle, tmp_dir.as_ptr(), false);
+
+  // Setup Pact 1 - Interaction 2 - http without provider state
+  let i_handle2 = pactffi_new_interaction(pact_handle, desc2.as_ptr());
+  pactffi_with_request(i_handle2, method.as_ptr(), path.as_ptr());
+  pactffi_with_header_v2(i_handle2, InteractionPart::Request, accept.as_ptr(), 0, header.as_ptr());
+  pactffi_response_status(i_handle2, 200);
+  pactffi_with_header_v2(i_handle2, InteractionPart::Request, accept.as_ptr(), 0, header.as_ptr());
+  let result_2 = pactffi_pact_handle_write_file(pact_handle, tmp_dir.as_ptr(), false);
+
+  // Clear pact handle 
+  let existing_pact_file: Option<String> = pact_default_file_name(&pact_handle);
+  pactffi_free_pact_handle(pact_handle);
+
+  expect!(result_1).to(be_equal_to(0));
+  expect!(result_2).to(be_equal_to(0));
+
+  // Setup Pact 2 - Interaction 1 - http without provider state
+  // act like we have an existing file and try and merge the same interaction again
+  let pact_handle = PactHandle::new("MergingPactC", "MergingPactP");
+  pactffi_with_specification(pact_handle, PactSpecification::V4);
+  let i_handle = pactffi_new_interaction(pact_handle, desc2.as_ptr());
+  pactffi_with_request(i_handle, method.as_ptr(), path.as_ptr());
+  pactffi_with_header_v2(i_handle, InteractionPart::Request, accept.as_ptr(), 0, header.as_ptr());
+  pactffi_response_status(i_handle, 200);
+  pactffi_with_header_v2(i_handle, InteractionPart::Request, accept.as_ptr(), 0, header.as_ptr());
+  let result_3 = pactffi_pact_handle_write_file(pact_handle, tmp_dir.as_ptr(), false);
+  expect!(result_3).to(be_equal_to(0));
+  let new_pact_file = pact_default_file_name(&pact_handle);
+  pactffi_free_pact_handle(pact_handle);
+  let pact_path = tmp.path().join(new_pact_file.unwrap());
+  let f= File::open(pact_path).unwrap();
+
+  let mut json: Value = serde_json::from_reader(f).unwrap();
+  json["metadata"] = Value::Null;
+  assert_eq!(serde_json::to_string_pretty(&json).unwrap(),
+  r#"{
+  "consumer": {
+    "name": "MergingPactC"
+  },
+  "interactions": [
+    {
+      "description": "description 1",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "state_desc_1",
+          "params": {
+            "id": "1"
+          }
+        }
+      ],
+      "request": {
+        "headers": {
+          "Accept": [
+            "application/json"
+          ]
+        },
+        "method": "GET",
+        "path": "/api/orders/404"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "description 2",
+      "pending": false,
+      "request": {
+        "headers": {
+          "Accept": [
+            "application/json"
+          ]
+        },
+        "method": "GET",
+        "path": "/api/orders/404"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": null,
+  "provider": {
+    "name": "MergingPactP"
+  }
+}"#
+  );
+}
+
+// Issue #389
+#[test_log::test]
+fn merging_duplicate_message_interaction_without_state_with_pact_containing_two_mixed_interactions_does_not_duplicate() {
+
+  let tmp = tempfile::tempdir().unwrap();
+  let tmp_dir = CString::new(tmp.path().to_string_lossy().as_bytes().to_vec()).unwrap();
+  // 1. create an existing pact containing
+  // 1a. http interaction with provider state
+  // 1b. message interaction without provider state
+  // 2. save pact to file
+  // 3. create new pact interaction, duplicating 1b message interaction without provider state
+  // 4. expect deduplication, and pact contents to be the same as step 2
+  let consumer_name = CString::new("MergingPactC").unwrap();
+  let provider_name = CString::new("MergingPactP").unwrap();
+  let pact_handle: PactHandle = pactffi_new_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+  pactffi_with_specification(pact_handle, PactSpecification::V4);
+  let desc1 = CString::new("description 1").unwrap();
+  // let desc2 = CString::new("description 2").unwrap();
+  let state_desc_1 = CString::new("state_desc_1").unwrap();
+  let path = CString::new("/api/orders/404").unwrap();
+  let method = CString::new("GET").unwrap();
+  let accept = CString::new("Accept").unwrap();
+  let header = CString::new("application/json").unwrap();
+  let state_params = CString::new(r#"{"id": "1"}"#).unwrap();
+
+  // Setup Pact 1 - Interaction 1 - http with provider state
+  let i_handle1 = pactffi_new_interaction(pact_handle, desc1.as_ptr());
+  pactffi_with_request(i_handle1, method.as_ptr(), path.as_ptr());
+  pactffi_given_with_params(i_handle1, state_desc_1.as_ptr(), state_params.as_ptr());
+  pactffi_with_header_v2(i_handle1, InteractionPart::Request, accept.as_ptr(), 0, header.as_ptr());
+  pactffi_response_status(i_handle1, 200);
+
+
+  // Write to file
+  let result_1 = pactffi_pact_handle_write_file(pact_handle, tmp_dir.as_ptr(), false);
+
+  // Setup Pact 1 - Interaction 2 - message interaction without provider state
+  let description = CString::new("description 2").unwrap();
+  let content_type = CString::new("application/json").unwrap();
+  let request_body_with_matchers = CString::new("{\"id\": {\"value\":\"1\",\"pact:matcher:type\":\"integer\"}}").unwrap();
+  let interaction_handle = pactffi_new_message_interaction(pact_handle, description.as_ptr());
+  let body_bytes = request_body_with_matchers;
+  pactffi_with_body(interaction_handle.clone(),InteractionPart::Request, content_type.as_ptr(), body_bytes.as_ptr());
+  let result_2 = pactffi_pact_handle_write_file(pact_handle, tmp_dir.as_ptr(), false);
+
+  expect!(result_1).to(be_equal_to(0));
+  expect!(result_2).to(be_equal_to(0));
+  // Clear pact handle 
+  let pact_file: Option<String> = pact_default_file_name(&pact_handle);
+  pactffi_free_pact_handle(pact_handle);
+
+  // Setup Pact 2 - Interaction 1 - message interaction without provider state
+  // act like we have an existing file and try and merge the same interaction again
+  let pact_handle: PactHandle = pactffi_new_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+  pactffi_with_specification(pact_handle, PactSpecification::V4);
+  let description = CString::new("description 2").unwrap();
+  let content_type = CString::new("application/json").unwrap();
+  let request_body_with_matchers = CString::new("{\"id\": {\"value\":\"1\",\"pact:matcher:type\":\"integer\"}}").unwrap();
+  let interaction_handle = pactffi_new_message_interaction(pact_handle, description.as_ptr());
+  let body_bytes = request_body_with_matchers;
+  pactffi_with_body(interaction_handle.clone(),InteractionPart::Request, content_type.as_ptr(), body_bytes.as_ptr());
+  let result_3 = pactffi_pact_handle_write_file(pact_handle, tmp_dir.as_ptr(), false);
+  expect!(result_3).to(be_equal_to(0));
+  let pact_file: Option<String> = pact_default_file_name(&pact_handle);
+  pactffi_free_pact_handle(pact_handle);
+
+  // end setup new pact
+
+  let pact_path = tmp.path().join(pact_file.unwrap());
+  let f= File::open(pact_path).unwrap();
+
+  let mut json: Value = serde_json::from_reader(f).unwrap();
+  json["metadata"]["pactRust"] = Value::Null;
+  assert_eq!(serde_json::to_string_pretty(&json).unwrap(),
+  r#"{
+  "consumer": {
+    "name": "MergingPactC"
+  },
+  "interactions": [
+    {
+      "description": "description 1",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "state_desc_1",
+          "params": {
+            "id": "1"
+          }
+        }
+      ],
+      "request": {
+        "headers": {
+          "Accept": [
+            "application/json"
+          ]
+        },
+        "method": "GET",
+        "path": "/api/orders/404"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "contents": {
+        "content": {
+          "id": "1"
+        },
+        "contentType": "application/json",
+        "encoded": false
+      },
+      "description": "description 2",
+      "matchingRules": {
+        "body": {
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      },
+      "pending": false,
+      "type": "Asynchronous/Messages"
+    }
+  ],
+  "metadata": {
+    "pactRust": null,
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "MergingPactP"
+  }
+}"#
+  );
+}
+
+// Issue - Should we be able to set version of message pact, and write to file containing v4 interactions
+// seems to be a problem setting the version, which defaults to v3
+// pactffi_new_message will accept a MessageHandle over the FFI barrier, but rust typing wont allow us
+// to pass a PactHandle along with pactffi_with_specification
+#[ignore = "require ability to set pact specification version in pactffi_new_message_pact"]
+#[test_log::test]
+fn allow_creation_v4_spec_message() {
+
+  let tmp = tempfile::tempdir().unwrap();
+  let tmp_dir = CString::new(tmp.path().to_string_lossy().as_bytes().to_vec()).unwrap();
+  // 1. create an existing pact containing http interaction with provider state
+  // 3. create new message pact/interaction with v4 specification
+  let consumer_name = CString::new("MergingPactC").unwrap();
+  let provider_name = CString::new("MergingPactP").unwrap();
+  let pact_handle: PactHandle = pactffi_new_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+  pactffi_with_specification(pact_handle, PactSpecification::V4);
+  let desc1 = CString::new("description 1").unwrap();
+  // let desc2 = CString::new("description 2").unwrap();
+  let state_desc_1 = CString::new("state_desc_1").unwrap();
+  let path = CString::new("/api/orders/404").unwrap();
+  let method = CString::new("GET").unwrap();
+  let accept = CString::new("Accept").unwrap();
+  let header = CString::new("application/json").unwrap();
+  let state_params = CString::new(r#"{"id": "1"}"#).unwrap();
+
+  // Setup Pact 1 - Interaction 1 - http with provider state
+  let i_handle1 = pactffi_new_interaction(pact_handle, desc1.as_ptr());
+  pactffi_with_request(i_handle1, method.as_ptr(), path.as_ptr());
+  pactffi_given_with_params(i_handle1, state_desc_1.as_ptr(), state_params.as_ptr());
+  pactffi_with_header_v2(i_handle1, InteractionPart::Request, accept.as_ptr(), 0, header.as_ptr());
+  pactffi_response_status(i_handle1, 200);
+  // Write to file
+  let result_1 = pactffi_pact_handle_write_file(pact_handle, tmp_dir.as_ptr(), false);
+
+  // Setup Pact 1 - Interaction 2 - message interaction without provider state
+  let description = CString::new("async message description").unwrap();
+  let content_type = CString::new("application/json").unwrap();
+  let request_body_with_matchers = CString::new("{\"id\": {\"value\":\"1\",\"pact:matcher:type\":\"integer\"}}").unwrap();
+
+  let message_pact_handle = pactffi_new_message_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+  let message_handle = pactffi_new_message(message_pact_handle, description.as_ptr());
+  let body_bytes = request_body_with_matchers.as_bytes();
+  pactffi_message_with_contents(message_handle.clone(), content_type.as_ptr(), body_bytes.as_ptr(), body_bytes.len());
+  let res: *const c_char = pactffi_message_reify(message_handle.clone());
+  let result_2 = pactffi_write_message_pact_file(message_pact_handle.clone(), tmp_dir.as_ptr(), false);  
+  expect!(result_1).to(be_equal_to(0));
+  expect!(result_2).to(be_equal_to(0));
+  let pact_file: Option<String> = pact_default_file_name(&pact_handle);
+  // Clear pact handle 
+  pactffi_free_pact_handle(pact_handle);
+  // end setup new pact
+
+  let pact_path = tmp.path().join(pact_file.unwrap());
+  let f= File::open(pact_path).unwrap();
+
+  let mut json: Value = serde_json::from_reader(f).unwrap();
+  json["metadata"]["pactRust"] = Value::Null;
+  assert_eq!(serde_json::to_string_pretty(&json).unwrap(),
+  r#"{
+  "consumer": {
+    "name": "MergingPactC"
+  },
+  "interactions": [
+    {
+      "contents": {
+        "content": {
+          "id": "1"
+        },
+        "contentType": "application/json",
+        "encoded": false
+      },
+      "description": "async message description",
+      "matchingRules": {
+        "body": {
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      },
+      "pending": false,
+      "type": "Asynchronous/Messages"
+    },
+    {
+      "description": "description 1",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "state_desc_1",
+          "params": {
+            "id": "1"
+          }
+        }
+      ],
+      "request": {
+        "headers": {
+          "Accept": [
+            "application/json"
+          ]
+        },
+        "method": "GET",
+        "path": "/api/orders/404"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pactRust": null,
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "MergingPactP"
+  }
+}"#
+  );
+}
+
 
 // Issue #298
 #[test_log::test]

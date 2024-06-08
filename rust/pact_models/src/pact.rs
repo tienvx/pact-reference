@@ -438,6 +438,8 @@ mod tests {
   use pretty_assertions::assert_eq;
   use serde_json::{json, Value};
 
+  use crate::message::Message;
+  use crate::message_pact::MessagePact;
   use crate::{Consumer, PactSpecification, Provider};
   use crate::bodies::OptionalBody;
   use crate::content_types::JSON;
@@ -1010,6 +1012,190 @@ mod tests {
 }}"#, PACT_RUST_VERSION.unwrap())));
   }
 
+  // Issue #389
+  #[test]
+  fn write_pact_test_should_merge_duplicate_http_pacts_without_provider_states() {
+    let existing_pact = RequestResponsePact { consumer: Consumer { name: "dupe_consumer".to_string() },
+      provider: Provider { name: "dupe_provider".to_string() },
+      interactions: vec![
+        RequestResponseInteraction {
+          description: "description 1".to_string(),
+          provider_states: vec![ProviderState { name: "Good state to be in".to_string(), params: hashmap!{} }],
+          request: Request { headers: Some(hashmap!{
+            "Accept".to_string()=>vec!["application/json".to_string()]
+          }), .. Request::default() },
+          .. RequestResponseInteraction::default()
+        },
+        RequestResponseInteraction {
+          description: "description 2".to_string(),
+          request: Request { headers: Some(hashmap!{
+            "Accept".to_string()=>vec!["application/json".to_string()]
+          }), .. Request::default() },
+          .. RequestResponseInteraction::default()
+        }
+      ],
+      metadata: btreemap!{},
+      specification_version: PactSpecification::V3
+    };
+    let new_pact = RequestResponsePact { consumer: Consumer { name: "dupe_consumer".to_string() },
+      provider: Provider { name: "dupe_provider".to_string() },
+      interactions: vec![
+        RequestResponseInteraction {
+          description: "description 2".to_string(),
+          request: Request { headers: Some(hashmap!{
+            "Accept".to_string()=>vec!["application/json".to_string()]
+          }), .. Request::default() },
+          .. RequestResponseInteraction::default()
+        }
+      ],
+      metadata: btreemap!{},
+      specification_version: PactSpecification::V3
+    };
+    let mut dir = env::temp_dir();
+    let x = rand::random::<u16>();
+    dir.push(format!("pact_test_{}", x));
+    dir.push(existing_pact.default_file_name());
+
+    let result = write_pact(existing_pact.boxed(), dir.as_path(), PactSpecification::V3, false);
+    let result2 = write_pact(new_pact.boxed(), dir.as_path(), PactSpecification::V3, false);
+
+    let pact_file: String = read_pact_file(dir.as_path().to_str().unwrap()).unwrap_or("".to_string());
+    let mut json: Value = serde_json::from_str(&pact_file).unwrap();
+    json["metadata"]["pactRust"] = Value::Null;
+    fs::remove_dir_all(dir.parent().unwrap()).unwrap_or(());
+
+    expect!(result).to(be_ok());
+    expect!(result2).to(be_ok());
+    assert_eq!(serde_json::to_string_pretty(&json).unwrap(),r#"{
+  "consumer": {
+    "name": "dupe_consumer"
+  },
+  "interactions": [
+    {
+      "description": "description 1",
+      "providerStates": [
+        {
+          "name": "Good state to be in"
+        }
+      ],
+      "request": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "method": "GET",
+        "path": "/"
+      },
+      "response": {
+        "status": 200
+      }
+    },
+    {
+      "description": "description 2",
+      "request": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "method": "GET",
+        "path": "/"
+      },
+      "response": {
+        "status": 200
+      }
+    }
+  ],
+  "metadata": {
+    "pactRust": null,
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "dupe_provider"
+  }
+}"#);
+  }
+  
+  // Issue #389
+  #[test]
+  fn write_pact_test_should_merge_duplicate_message_pacts_without_provider_states() {
+    let existing_pact = MessagePact {
+      consumer: Consumer { name: "dupe_consumer".to_string() },
+      provider: Provider { name: "dupe_provider".to_string() },
+      messages: vec![
+        Message {
+          description: "description 1".to_string(),
+          provider_states: vec![ProviderState { name: "Good state to be in".to_string(), params: hashmap!{} }],
+          .. Message::default()
+        },
+        Message {
+          description: "description 2".to_string(),
+          .. Message::default()
+        }
+      ],
+      metadata: btreemap!{},
+      specification_version: PactSpecification::V3
+    };
+    let new_pact = MessagePact { consumer: Consumer { name: "dupe_consumer".to_string() },
+      provider: Provider { name: "dupe_provider".to_string() },
+      messages: vec![
+        Message {
+          description: "description 2".to_string(),
+          .. Message::default()
+        }
+      ],
+      metadata: btreemap!{},
+      specification_version: PactSpecification::V3
+    };
+    let mut dir = env::temp_dir();
+    let x = rand::random::<u16>();
+    dir.push(format!("pact_test_{}", x));
+    dir.push(existing_pact.default_file_name());
+
+    let result = write_pact(existing_pact.boxed(), dir.as_path(), PactSpecification::V3, false);
+    let result2 = write_pact(new_pact.boxed(), dir.as_path(), PactSpecification::V3, false);
+
+    let pact_file: String = read_pact_file(dir.as_path().to_str().unwrap()).unwrap_or("".to_string());
+    let mut json: Value = serde_json::from_str(&pact_file).unwrap();
+    json["metadata"]["pactRust"] = Value::Null;
+    fs::remove_dir_all(dir.parent().unwrap()).unwrap_or(());
+
+    expect!(result).to(be_ok());
+    expect!(result2).to(be_ok());
+    assert_eq!(serde_json::to_string_pretty(&json).unwrap(),r#"{
+  "consumer": {
+    "name": "dupe_consumer"
+  },
+  "messages": [
+    {
+      "description": "description 1",
+      "metadata": {
+        "contentType": "application/json"
+      },
+      "providerStates": [
+        {
+          "name": "Good state to be in"
+        }
+      ]
+    },
+    {
+      "description": "description 2",
+      "metadata": {
+        "contentType": "application/json"
+      }
+    }
+  ],
+  "metadata": {
+    "pactRust": null,
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "dupe_provider"
+  }
+}"#);
+  }
+  
   #[test]
   fn write_pact_test_should_not_merge_pacts_with_conflicts() {
     let pact = RequestResponsePact { consumer: Consumer { name: "write_pact_test_consumer".to_string() },
