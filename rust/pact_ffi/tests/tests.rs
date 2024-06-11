@@ -1413,15 +1413,17 @@ fn matching_definition_expressions_matcher() {
 // Run independently as this log settings are global, and other tests affect this one.
 // cargo test -p pact_ffi returns_mock_server_logs -- --nocapture --include-ignored
 #[ignore]
-#[test]
+#[test_log::test]
 fn returns_mock_server_logs() {
   let pact_json = include_str!("post-pact.json");
   let pact_json_c = CString::new(pact_json).expect("Could not construct C string from json");
   let address = CString::new("127.0.0.1:0").unwrap();
+
+  pactffi_log_to_buffer(LevelFilter::Debug.into());
   #[allow(deprecated)]
   let port = pactffi_create_mock_server(pact_json_c.as_ptr(), address.as_ptr(), false);
   expect!(port).to(be_greater_than(0));
-  pactffi_log_to_buffer(LevelFilter::Debug.into());
+
   let client = Client::default();
   client.post(format!("http://127.0.0.1:{}/path", port).as_str())
     .header(CONTENT_TYPE, "application/json")
@@ -1432,7 +1434,8 @@ fn returns_mock_server_logs() {
     CStr::from_ptr(pactffi_mock_server_logs(port)).to_string_lossy().into_owned()
   };
   println!("{}",logs);
-  assert_ne!(logs,"", "logs are empty");
 
   pactffi_cleanup_mock_server(port);
+
+  assert_ne!(logs,"", "logs are empty");
 }

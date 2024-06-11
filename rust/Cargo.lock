@@ -2053,7 +2053,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching 1.2.4",
+ "pact_matching",
  "pact_mock_server",
  "pact_models 1.2.0",
  "pretty_assertions",
@@ -2097,7 +2097,7 @@ dependencies = [
  "onig",
  "os_info",
  "pact-plugin-driver",
- "pact_matching 1.2.4",
+ "pact_matching",
  "pact_mock_server",
  "pact_models 1.2.0",
  "pact_verifier",
@@ -2124,47 +2124,6 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "zeroize",
-]
-
-[[package]]
-name = "pact_matching"
-version = "1.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd60651cf03381d1834353687140ab2f0756b5a7c15a1860d1831fee3380dba"
-dependencies = [
- "ansi_term",
- "anyhow",
- "base64 0.22.1",
- "bytes",
- "chrono",
- "difference",
- "futures",
- "hex",
- "http 1.1.0",
- "infer",
- "itertools 0.12.1",
- "lazy_static",
- "lenient_semver",
- "maplit",
- "md5",
- "mime",
- "multer",
- "nom",
- "onig",
- "pact-plugin-driver",
- "pact_models 1.2.0",
- "rand",
- "reqwest 0.12.4",
- "semver",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sxd-document",
- "tokio",
- "tracing",
- "tracing-core",
- "tree_magic_mini",
- "uuid",
 ]
 
 [[package]]
@@ -2230,7 +2189,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching 1.2.3",
+ "pact_matching",
  "pact_models 1.2.0",
  "rustls 0.21.12",
  "rustls-pemfile 1.0.4",
@@ -2353,7 +2312,7 @@ dependencies = [
  "mime",
  "pact-plugin-driver",
  "pact_consumer",
- "pact_matching 1.2.4",
+ "pact_matching",
  "pact_models 1.2.0",
  "pretty_assertions",
  "quickcheck",
