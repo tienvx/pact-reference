@@ -1151,6 +1151,148 @@ pub extern fn pactffi_with_pact_metadata(
   }).unwrap_or(false)
 }
 
+  /// Adds metadata to the interaction.
+  ///
+  /// Metadata is only relevant for message interactions to provide additional
+  /// information about the message, such as the queue name, message type, tags,
+  /// timestamps, etc.
+  ///
+  /// * `key` - metadata key
+  /// * `value` - metadata value, supports JSON structures with matchers and
+  ///   generators. Passing a `NULL` point will remove the metadata key instead.
+  /// * `part` - the part of the interaction to add the metadata to (only
+  ///  relevant for synchronous message interactions).
+  ///
+  /// Returns `true` if the metadata was added successfully, `false` otherwise.
+  ///
+  /// To include matching rules for the value, include the matching rule JSON
+  /// format with the value as a single JSON document. I.e.
+  ///
+  /// ```c
+  /// const char* value = "{\"value\": { \"ID\": \"sjhdjkshsdjh\", \"weight\": 100.5 }, \"pact:matcher:type\":\"type\"}";
+  /// pactffi_message_with_metadata_v2(handle, "TagData", value);
+  /// ```
+  ///
+  /// See
+  /// [IntegrationJson.md](https://github.com/pact-foundation/pact-reference/blob/master/rust/pact_ffi/IntegrationJson.md)
+  ///
+  /// # Note
+  ///
+  /// For HTTP interactions, use [`pactffi_with_header_v2`] instead. This
+  /// function will not have any effect on HTTP interactions and returns
+  /// `false`.
+  ///
+  /// For synchronous message interactions, the `part` parameter is required to
+  /// specify whether the metadata should be added to the request or response
+  /// part. For responses which can have multiple messages, the metadata will be
+  /// set on all response messages. This also requires for responses to have
+  /// been defined in the interaction.
+  ///
+  /// The [`pactffi_with_body`] will also contribute to the metadata of the
+  /// message (both sync and async) by setting the key `contentType` with the
+  /// content type of the message.
+  ///
+  /// # Safety
+  ///
+  /// The key and value parameters must be valid pointers to NULL terminated
+  /// strings, or `NULL` for the value parameter if the metadata key should be
+  /// removed.
+#[no_mangle]
+pub extern fn pactffi_with_metadata(
+  interaction: InteractionHandle,
+  key: *const c_char,
+  value: *const c_char,
+  part: InteractionPart,
+) -> bool {
+  trace!("pactffi_with_metadata(interaction: {:?}, key: {:?}, value: {:?}, part: {:?})", interaction, key, value, part);
+  let key = match convert_cstr("key", key) {
+    Some(key) => key,
+    None => {
+      error!("Failed to convert key to a string");
+      return false;
+    }
+  };
+
+  let value = if value.is_null() { None } else {
+    match convert_cstr("value", value) {
+      Some(value) => match serde_json::from_str(value) {
+        Ok(json) => Some(json),
+        Err(err) => {
+          warn!("Failed to parse metadata value '{}' as JSON - {}. Will treat it as string", value, err);
+          Some(Value::String(value.to_string()))
+        }
+      },
+      None => {
+        error!("Failed to convert value to a string");
+        return false;
+      }
+    }
+  };
+
+  interaction.with_interaction(&|_, mock_server_started, inner| {
+    if mock_server_started {
+      return false;
+    }
+
+    if inner.is_v4_http() {
+      warn!("Use `pactffi_with_header_v2` to add metadata to HTTP interactions");
+      return false;
+   }
+
+   if let Some(message) = inner.as_v4_async_message_mut() {
+      match &value {
+        None => {
+          message.contents.metadata.remove(key);
+        },
+        Some(json) => {
+          let matching_rules = message.contents.matching_rules.add_category(Category::METADATA);
+          let generators = &mut message.contents.generators;
+          let value = match json {
+            Value::Object(map) => process_object(&map, matching_rules, generators, DocPath::new(key).unwrap(), false),
+            Value::Array(array) => process_array(array.as_slice(), matching_rules, generators, DocPath::new(key).unwrap(), false, false),
+            json => json.clone()
+          };
+        message.contents.metadata.insert(key.to_string(), value);
+        }
+      };
+    } else if let Some(message) = inner.as_v4_sync_message_mut() {
+      match (&value, part) {
+        (None, InteractionPart::Request) => {
+          message.request.metadata.remove(key);
+        },
+        (None, InteractionPart::Response) => {
+          for response in &mut message.response {
+            response.metadata.remove(key);
+          }
+        },
+        (Some(json), InteractionPart::Request) => {
+          let matching_rules = message.request.matching_rules.add_category(Category::METADATA);
+          let generators = &mut message.request.generators;
+          let value = match json {
+            Value::Object(map) => process_object(&map, matching_rules, generators, DocPath::new(key).unwrap(), false),
+            Value::Array(array) => process_array(array.as_slice(), matching_rules, generators, DocPath::new(key).unwrap(), false, false),
+            json => json.clone()
+          };
+          message.request.metadata.insert(key.to_string(), value);
+        },
+        (Some(json), InteractionPart::Response) => {
+          for response in &mut message.response {
+            let matching_rules = response.matching_rules.add_category(Category::METADATA);
+            let generators = &mut response.generators;
+            let value = match json {
+              Value::Object(map) => process_object(&map, matching_rules, generators, DocPath::new(key).unwrap(), false),
+              Value::Array(array) => process_array(array.as_slice(), matching_rules, generators, DocPath::new(key).unwrap(), false, false),
+              json => json.clone()
+            };
+            response.metadata.insert(key.to_string(), value);
+          }
+        }
+      }
+    };
+    true
+  }).unwrap_or(false)
+}
+
 /// Configures a header for the Interaction. Returns false if the interaction or Pact can't be
 /// modified (i.e. the mock server for it has already started)
 ///
@@ -2533,6 +2675,7 @@ pub extern fn pactffi_message_with_contents(message_handle: MessageHandle, conte
 /// * `key` - metadata key
 /// * `value` - metadata value.
 #[no_mangle]
+#[deprecated(note = "Replaced with `pactffi_with_metadata`")]
 pub extern fn pactffi_message_with_metadata(message_handle: MessageHandle, key: *const c_char, value: *const c_char) {
   if let Some(key) = convert_cstr("key", key) {
     let value = convert_cstr("value", value).unwrap_or_default();
@@ -2561,6 +2704,7 @@ pub extern fn pactffi_message_with_metadata(message_handle: MessageHandle, key: 
 /// # Safety
 /// The key and value parameters must be valid pointers to NULL terminated strings.
 #[no_mangle]
+#[deprecated(note = "Replaced with `pactffi_with_metadata`")]
 pub extern fn pactffi_message_with_metadata_v2(message_handle: MessageHandle, key: *const c_char, value: *const c_char) {
   if let Some(key) = convert_cstr("key", key) {
     let value = convert_cstr("value", value).unwrap_or_default();
@@ -3017,6 +3161,75 @@ mod tests {
     expect!(from_integration_json_v2(&mut rules, &mut generators, r#"{"value":["100","200"]}"#, path.clone(), "query", 0))
       .to(be_equal_to(Either::Right(vec!["100".to_string(), "200".to_string()])));
   }
+
+  #[test]
+  fn pactffi_with_metadata_async() {
+    let pact_handle = PactHandle::new("metadata-consumer", "metadata-provider");
+    let description = CString::new("metadata").unwrap();
+    let handle = pactffi_new_message_interaction(pact_handle, description.as_ptr());
+
+    let json = CString::new(r#"{"hello": "world"}"#).unwrap();
+    let content_type = CString::new("application/json").unwrap();
+    let name = CString::new("queue").unwrap();
+    let value = CString::new("test").unwrap();
+    assert!(pactffi_with_metadata(handle, name.as_ptr(), value.as_ptr(), InteractionPart::Request));
+    assert!(pactffi_with_body(handle, InteractionPart::Request, content_type.as_ptr(), json.as_ptr()));
+
+    let interaction = handle.with_interaction(&|_, _, inner| {
+      inner.as_v4_async_message().unwrap()
+    }).unwrap();
+
+    pactffi_free_pact_handle(pact_handle);
+
+    assert_eq!(
+      interaction.contents.metadata,
+      hashmap!{
+        "contentType".to_string() => serde_json::Value::String("application/json".to_string()),
+        "queue".to_string() => serde_json::Value::String("test".to_string())
+      }
+    );
+  }
+
+  #[test]
+  fn pactffi_with_metadata_sync() {
+    let pact_handle = PactHandle::new("metadata-consumer", "metadata-provider");
+    let description = CString::new("metadata").unwrap();
+    let handle = pactffi_new_sync_message_interaction(pact_handle, description.as_ptr());
+
+    let json = CString::new(r#"{"hello": "world"}"#).unwrap();
+    let content_type = CString::new("application/json").unwrap();
+    let name = CString::new("queue").unwrap();
+    let value = CString::new("test").unwrap();
+    assert!(pactffi_with_metadata(handle, name.as_ptr(), value.as_ptr(), InteractionPart::Request));
+    assert!(pactffi_with_body(handle, InteractionPart::Request, content_type.as_ptr(), json.as_ptr()));
+
+    let name = CString::new("id").unwrap();
+    let value = CString::new("123").unwrap();
+    assert!(pactffi_with_body(handle, InteractionPart::Response, content_type.as_ptr(), json.as_ptr()));
+    assert!(pactffi_with_metadata(handle, name.as_ptr(), value.as_ptr(), InteractionPart::Response));
+
+    let interaction = handle.with_interaction(&|_, _, inner| {
+      inner.as_v4_sync_message().unwrap()
+    }).unwrap();
+
+    pactffi_free_pact_handle(pact_handle);
+
+    assert_eq!(
+      interaction.request.metadata,
+      hashmap!{
+        "contentType".to_string() => serde_json::Value::String("application/json".to_string()),
+        "queue".to_string() => serde_json::Value::String("test".to_string()),
+      }
+    );
+    assert_eq!(
+      interaction.response.iter().map(|r| r.metadata.clone()).collect::<Vec<_>>(),
+      vec![hashmap!{
+        "contentType".to_string() => serde_json::Value::String("application/json".to_string()),
+        "id".to_string() => serde_json::Value::Number(123.into())
+      }]
+    );
+  }
+
 
   #[test]
   fn pactffi_with_header_v2_simple_header() {
