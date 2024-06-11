@@ -3,110 +3,82 @@
 set -e
 set -x
 
-RUST_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd )"
+RUST_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_NAME=libpact_ffi
 
 source "$RUST_DIR/scripts/gzip-and-sum.sh"
 ARTIFACTS_DIR=${ARTIFACTS_DIR:-"$RUST_DIR/release_artifacts"}
 mkdir -p "$ARTIFACTS_DIR"
-export CARGO_TARGET_DIR=${CARO_TARGET_DIR:-"$RUST_DIR/target"}
+install_cross() {
+    cargo install cross@0.2.5 --force
+}
+install_cross_latest() {
+    cargo install cross --git https://github.com/cross-rs/cross --force
+}
+clean_cargo_release_build() {
+    rm -rf $CARGO_TARGET_DIR/release/build
+}
+
+export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"$RUST_DIR/target"}
 
 # All flags passed to this script are passed to cargo.
-cargo_flags=( "$@" )
+case $1 in
+x86_64-unknown-linux-musl)
+    TARGET=$1
+    shift
+    ;;
+aarch64-unknown-linux-musl)
+    TARGET=$1
+    shift
+    ;;
+x86_64-unknown-linux-gnu)
+    TARGET=$1
+    shift
+    ;;
+aarch64-unknown-linux-gnu)
+    TARGET=$1
+    shift
+    ;;
+*) ;;
+esac
+cargo_flags=("$@")
 
-# Build the x86_64 GNU linux release
-build_x86_64_gnu() {
-    install_cross
-    cargo clean
-    cross build --target x86_64-unknown-linux-gnu "${cargo_flags[@]}"
+build_target() {
+    TARGET=$1
 
-    if [[ "${cargo_flags[*]}" =~ "--release" ]]; then
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release/libpact_ffi.a" \
-            "$ARTIFACTS_DIR/libpact_ffi-linux-x86_64.a.gz"
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release/libpact_ffi.so" \
-            "$ARTIFACTS_DIR/libpact_ffi-linux-x86_64.so.gz"
-    fi
-}
-
-build_x86_64_musl() {
-    sudo apt-get install -y musl-tools
-    cargo clean
-    cargo build --target x86_64-unknown-linux-musl "${cargo_flags[@]}"
-
-    if [[ "${cargo_flags[*]}" =~ "--release" ]]; then
-        BUILD_SCRIPT=$(cat <<EOM
-apk add --no-cache musl-dev gcc && \
-cd /scratch && \
-ar -x libpact_ffi.a && \
-gcc -shared *.o -o libpact_ffi.so && \
-rm -f *.o
-EOM
-        )
-
-        docker run \
-            --platform=linux/amd64 \
-            --rm \
-            -v "$CARGO_TARGET_DIR/x86_64-unknown-linux-musl/release:/scratch" \
-            alpine \
-            /bin/sh -c "$BUILD_SCRIPT"
-
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/x86_64-unknown-linux-musl/release/libpact_ffi.a" \
-            "$ARTIFACTS_DIR/libpact_ffi-linux-x86_64-musl.a.gz"
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/x86_64-unknown-linux-musl/release/libpact_ffi.so" \
-            "$ARTIFACTS_DIR/libpact_ffi-linux-x86_64-musl.so.gz"
-    fi
-}
-
-install_cross() {
-    cargo install cross@0.2.5
-}
-
-build_aarch64_gnu() {
-    install_cross
-    cargo clean
-    cross build --target aarch64-unknown-linux-gnu "${cargo_flags[@]}"
+    case $TARGET in
+    x86_64-unknown-linux-musl)
+        FILE_SUFFIX=linux-x86_64-musl
+        RUSTFLAGS="-C target-feature=-crt-static"
+        ;;
+    aarch64-unknown-linux-musl)
+        FILE_SUFFIX=linux-aarch64-musl
+        RUSTFLAGS="-C target-feature=-crt-static"
+        ;;
+    x86_64-unknown-linux-gnu)
+        FILE_SUFFIX=linux-x86_64
+        ;;
+    aarch64-unknown-linux-gnu)
+        FILE_SUFFIX=linux-aarch64
+        ;;
+    *)
+        echo unknown target $TARGET
+        exit 1
+        ;;
+    esac
+    RUSTFLAGS=${RUSTFLAGS:-""} cross build --target $TARGET "${cargo_flags[@]}"
 
     if [[ "${cargo_flags[*]}" =~ "--release" ]]; then
+        file "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.a"
+        file "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.so"
+        du -sh "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.a"
+        du -sh "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.so"
         gzip_and_sum \
-            "$CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/libpact_ffi.a" \
-            "$ARTIFACTS_DIR/libpact_ffi-linux-aarch64.a.gz"
+            "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.a" \
+            "$ARTIFACTS_DIR/$APP_NAME-$FILE_SUFFIX.a.gz"
         gzip_and_sum \
-            "$CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/libpact_ffi.so" \
-            "$ARTIFACTS_DIR/libpact_ffi-linux-aarch64.so.gz"
-    fi
-}
-
-build_aarch64_musl() {
-    install_cross
-    cargo clean
-    cross build --target aarch64-unknown-linux-musl "${cargo_flags[@]}"
-
-    if [[ "${cargo_flags[*]}" =~ "--release" ]]; then
-        BUILD_SCRIPT=$(cat <<EOM
-apk add --no-cache musl-dev gcc && \
-cd /scratch && \
-ar -x libpact_ffi.a && \
-gcc -shared *.o -o libpact_ffi.so && \
-rm -f *.o
-EOM
-        )
-
-        docker run \
-            --platform=linux/arm64 \
-            --rm \
-            -v "$CARGO_TARGET_DIR/aarch64-unknown-linux-musl/release:/scratch" \
-            alpine \
-            /bin/sh -c "$BUILD_SCRIPT"
-
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/aarch64-unknown-linux-musl/release/libpact_ffi.a" \
-            "$ARTIFACTS_DIR/libpact_ffi-linux-aarch64-musl.a.gz"
-        gzip_and_sum \
-            "$CARGO_TARGET_DIR/aarch64-unknown-linux-musl/release/libpact_ffi.so" \
-            "$ARTIFACTS_DIR/libpact_ffi-linux-aarch64-musl.so.gz"
+            "$CARGO_TARGET_DIR/$TARGET/release/$APP_NAME.so" \
+            "$ARTIFACTS_DIR/$APP_NAME-$FILE_SUFFIX.so.gz"
     fi
 }
 
@@ -122,8 +94,26 @@ build_header() {
         --output "$ARTIFACTS_DIR/pact-cpp.h"
 }
 
-build_x86_64_gnu
-build_x86_64_musl
-build_aarch64_gnu
-build_aarch64_musl
-build_header
+install_cross
+if [ ! -z "$TARGET" ]; then
+    echo building for target $TARGET
+    build_target $TARGET
+
+    # If we are building indiv targets, ensure we build the headers
+    # for at least 1 nominated target
+    if [ "$TARGET" == "x86_64-unknown-linux-gnu" ]; then
+        build_header
+    fi
+else
+    echo building for all targets
+    # clean release build to avoid conflicting symbols when building all targets 
+    clean_cargo_release_build
+    build_target x86_64-unknown-linux-gnu
+    clean_cargo_release_build
+    build_target aarch64-unknown-linux-gnu
+    clean_cargo_release_build
+    build_target x86_64-unknown-linux-musl
+    clean_cargo_release_build
+    build_target aarch64-unknown-linux-musl
+    build_header
+fi
