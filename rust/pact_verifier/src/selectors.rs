@@ -24,6 +24,7 @@ pub fn consumer_tags_to_selectors(tags: Vec<&str>) -> Vec<ConsumerVersionSelecto
       main_branch: None,
       environment: None,
       matching_branch: None,
+      fallback_branch: None,
     }
   }).collect()
 }
