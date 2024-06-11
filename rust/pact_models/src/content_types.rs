@@ -502,6 +502,13 @@ mod tests {
       sub_type: "xml".into(),
       .. ContentType::default()
     }));
+
+    let content_type = ContentType::parse("application/x-www-form-urlencoded").unwrap();
+    expect!(content_type.base_type()).to(be_equal_to(ContentType {
+      main_type: "application".into(),
+      sub_type: "x-www-form-urlencoded".into(),
+      .. ContentType::default()
+    }));
   }
 
   #[test]

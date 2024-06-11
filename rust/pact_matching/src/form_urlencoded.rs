@@ -3,6 +3,7 @@
 use itertools::Itertools;
 use pact_models::bodies::OptionalBody;
 use pact_models::http_parts::HttpPart;
+use tracing::debug;
 
 use crate::{MatchingContext, Mismatch};
 use crate::query::match_query_maps;
@@ -53,6 +54,7 @@ pub(crate) fn match_form_urlencoded(
         (Err(m), Ok(_)) => Err(vec![m]),
         (Ok(_), Err(m2)) => Err(vec![m2]),
         (Ok(e), Ok(a)) => {
+          debug!(expected=?e, actual=?a, "Comparing form post body");
           let expected_params = super::group_by(e, |(k, _)| k.clone())
             .iter()
             .map(|(k, v)| (k.clone(), v.iter().map(|(_, v)| Some(v.clone())).collect_vec()))

@@ -19,7 +19,7 @@ fn strip_comments(mut line: String) -> String {
 }
 
 fn main() -> io::Result<()> {
-  let parser = LineParser::new();
+  let parser = LineParser::default();
   let mut table = TableBuilder::new();
 
   for entry in fs::read_dir(Path::new("tzdata"))? {
