@@ -11,6 +11,10 @@ resolver = "2"
 [patch.crates-io]
 # Waiting on the next release of Onig crate
 onig = { git = "https://github.com/rust-onig/rust-onig", default-features = false, rev = "76bc1d29651bd17c7d5ecea9266bd2e0e83cb2e0" }
+# This needs to be the same version across all the libs (i.e. Pact FFI and plugin driver)
+tracing = { git = "https://github.com/tokio-rs/tracing.git", tag = "tracing-subscriber-0.3.18" }
+tracing-core = { git = "https://github.com/tokio-rs/tracing.git", tag = "tracing-subscriber-0.3.18" }
+tracing-subscriber = { git = "https://github.com/tokio-rs/tracing.git", tag = "tracing-subscriber-0.3.18" }
 
 [profile.release]
 strip = true
