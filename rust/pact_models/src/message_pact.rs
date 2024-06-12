@@ -308,7 +308,7 @@ impl ReadWritePact for MessagePact {
       let messages: Vec<Result<Message, String>> = self.messages.iter()
         .merge_join_by(pact.interactions().iter(), |a, b| {
           let cmp = Ord::cmp(&a.description, &b.description());
-          if cmp == Ordering::Equal {
+          if cmp == Ordering::Equal && ! &a.provider_states().is_empty(){
             Ord::cmp(&a.provider_states.iter().map(|p| p.name.clone()).collect::<Vec<String>>(),
                      &b.provider_states().iter().map(|p| p.name.clone()).collect::<Vec<String>>())
           } else {

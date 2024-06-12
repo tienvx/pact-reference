@@ -367,16 +367,21 @@ impl ReadWritePact for V4Pact {
               (_, _) => {
                 let type_a = a.type_of();
                 let type_b = b.type_of();
-                let cmp = Ord::cmp(&type_a, &type_b);
-                if cmp == Ordering::Equal {
+                let cmp = Ord::cmp(&a.description(), &b.description());
+                if cmp == Ordering::Equal && !a.provider_states().is_empty() {
                   let cmp = Ord::cmp(&a.provider_states().iter().map(|p| p.name.clone()).collect::<Vec<String>>(),
-                                     &b.provider_states().iter().map(|p| p.name.clone()).collect::<Vec<String>>());
+                  &b.provider_states().iter().map(|p| p.name.clone()).collect::<Vec<String>>());
                   if cmp == Ordering::Equal {
-                    Ord::cmp(&a.description(), &b.description())
-                  } else {
+                       Ord::cmp(&type_a, &type_b)
+                  } else
+                  {
                     cmp
                   }
-                } else {
+                }
+                else if cmp == Ordering::Equal && a.provider_states().is_empty() {
+                  Ord::cmp(&type_a, &type_b)
+                } 
+                 else {
                   cmp
                 }
               }
@@ -471,7 +476,7 @@ mod tests {
   use expectest::prelude::*;
   use maplit::*;
   use pretty_assertions::assert_eq;
-  use serde_json::json;
+  use serde_json::{json, Value};
 
   use crate::{Consumer, PACT_RUST_VERSION, PactSpecification, Provider};
   use crate::bodies::OptionalBody;
@@ -959,6 +964,204 @@ mod tests {
 }}"#, PACT_RUST_VERSION.unwrap())));
   }
 
+  // Issue #389
+  #[test]
+  fn merging_duplicate_http_interaction_without_state_with_pact_containing_two_http_interactions_does_not_duplicate() {
+    let existing_pact = V4Pact {
+      consumer: Consumer { name: "write_pact_test_consumer".into() },
+      provider: Provider { name: "write_pact_test_provider".into() },
+      interactions: vec![
+        Box::new(SynchronousHttp {
+          description: "description 1".into(),
+          provider_states: vec![ProviderState { name: "Good state to be in".into(), params: hashmap!{} }],
+          request: HttpRequest { headers: Some(hashmap!{
+            "Accept".to_string()=>vec!["application/json".to_string()]
+          }), .. HttpRequest::default() },
+          .. SynchronousHttp::default()
+        }),
+        Box::new(SynchronousHttp {
+          description: "description 2".into(),
+          request: HttpRequest { headers: Some(hashmap!{
+            "Accept".to_string()=>vec!["application/json".to_string()]
+          }), .. HttpRequest::default() },
+          .. SynchronousHttp::default()
+        })
+      ],
+      metadata: btreemap!{},
+      plugin_data: vec![]
+    };
+    let pact = V4Pact {
+      consumer: Consumer { name: "write_pact_test_consumer".into() },
+      provider: Provider { name: "write_pact_test_provider".into() },
+      interactions: vec![
+        Box::new(SynchronousHttp {
+          description: "description 2".into(),
+          request: HttpRequest { headers: Some(hashmap!{
+            "Accept".to_string()=>vec!["application/json".to_string()]
+          }), .. HttpRequest::default() },
+          .. SynchronousHttp::default()
+        })
+      ],
+      metadata: btreemap!{},
+      plugin_data: vec![]
+    };
+    let mut dir = env::temp_dir();
+    let x = rand::random::<u16>();
+    dir.push(format!("pact_test_{}", x));
+    dir.push(pact.default_file_name());
+
+    let existing_pact_result = write_pact(existing_pact.boxed(), dir.as_path(), PactSpecification::V4, false);
+    let result = write_pact(pact.boxed(), dir.as_path(), PactSpecification::V4, false);
+    let pact_file = read_pact_file(dir.as_path().to_str().unwrap()).unwrap_or_default();
+    let mut json: Value = serde_json::from_str(&pact_file).unwrap();
+    json["metadata"]["pactRust"] = Value::Null;
+
+    fs::remove_dir_all(dir.parent().unwrap()).unwrap_or(());
+
+    expect!(existing_pact_result).to(be_ok());
+    expect!(result).to(be_ok());
+    assert_eq!(serde_json::to_string_pretty(&json).unwrap(),r#"{
+  "consumer": {
+    "name": "write_pact_test_consumer"
+  },
+  "interactions": [
+    {
+      "description": "description 1",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "Good state to be in"
+        }
+      ],
+      "request": {
+        "headers": {
+          "Accept": [
+            "application/json"
+          ]
+        },
+        "method": "GET",
+        "path": "/"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "description 2",
+      "pending": false,
+      "request": {
+        "headers": {
+          "Accept": [
+            "application/json"
+          ]
+        },
+        "method": "GET",
+        "path": "/"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pactRust": null,
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "write_pact_test_provider"
+  }
+}"#);
+  }
+  
+  // Issue #389
+  #[test]
+  fn merging_duplicate_message_interaction_without_state_with_pact_containing_two_mixed_interactions_does_not_duplicate() {
+    let existing_pact = V4Pact {
+      consumer: Consumer { name: "write_pact_test_consumer".into() },
+      provider: Provider { name: "write_pact_test_provider".into() },
+      interactions: vec![
+        Box::new(SynchronousHttp {
+          description: "A1".into(),
+          provider_states: vec![ProviderState { name: "Good state to be in".into(), params: hashmap!{} }],
+          request: HttpRequest { headers: Some(hashmap!{
+            "Accept".to_string()=>vec!["application/json".to_string()]
+          }), .. HttpRequest::default() },
+          .. SynchronousHttp::default()
+        }),
+        Box::new(AsynchronousMessage::default())
+      ],
+      .. V4Pact::default() };
+    let pact = V4Pact {
+      consumer: Consumer { name: "write_pact_test_consumer".into() },
+      provider: Provider { name: "write_pact_test_provider".into() },
+      interactions: vec![
+        Box::new(AsynchronousMessage::default())
+      ],
+      metadata: btreemap!{},
+      plugin_data: vec![]
+    };
+    let mut dir = env::temp_dir();
+    let x = rand::random::<u16>();
+    dir.push(format!("pact_test_{}", x));
+    dir.push(pact.default_file_name());
+
+    let existing_pact_result = write_pact(existing_pact.boxed(), dir.as_path(), PactSpecification::V4, false);
+    let result = write_pact(pact.boxed(), dir.as_path(), PactSpecification::V4, false);
+    let pact_file = read_pact_file(dir.as_path().to_str().unwrap()).unwrap_or_default();
+    let mut json: Value = serde_json::from_str(&pact_file).unwrap();
+    json["metadata"]["pactRust"] = Value::Null;
+    fs::remove_dir_all(dir.parent().unwrap()).unwrap_or(());
+    expect!(existing_pact_result).to(be_ok());
+    expect!(result).to(be_ok());
+    assert_eq!(serde_json::to_string_pretty(&json).unwrap(),r#"{
+  "consumer": {
+    "name": "write_pact_test_consumer"
+  },
+  "interactions": [
+    {
+      "description": "A1",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "Good state to be in"
+        }
+      ],
+      "request": {
+        "headers": {
+          "Accept": [
+            "application/json"
+          ]
+        },
+        "method": "GET",
+        "path": "/"
+      },
+      "response": {
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "Asynchronous/Message Interaction",
+      "pending": false,
+      "type": "Asynchronous/Messages"
+    }
+  ],
+  "metadata": {
+    "pactRust": null,
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "write_pact_test_provider"
+  }
+}"#);
+  }
+  
   #[test]
   fn pact_merge_does_not_merge_different_consumers() {
     let pact = V4Pact { consumer: Consumer { name: "test_consumer".to_string() },
