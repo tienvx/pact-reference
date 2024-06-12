@@ -81,7 +81,8 @@ find_package(PactFfi REQUIRED CONFIG PATHS ${SEARCH_PATH})
 #################################################################################################
 find_package(CURL)
 if(CURL_FOUND)
-    add_definitions( -DCURL=1 )
+    # add_definitions( -DCURL=1 )
+    # Curl headers fail to compile
 endif()
 
 #################################################################################################
