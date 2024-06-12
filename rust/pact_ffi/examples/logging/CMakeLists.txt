@@ -75,6 +75,16 @@ set(SEARCH_PATH "${REAL_ROOT}/build/install/lib/cmake")
 find_package(PactFfi REQUIRED CONFIG PATHS ${SEARCH_PATH})
 
 #################################################################################################
+# FIND libcurl
+#
+# This is for the logging test for the mock server
+#################################################################################################
+find_package(CURL)
+if(CURL_FOUND)
+    add_definitions( -DCURL=1 )
+endif()
+
+#################################################################################################
 # BUILD
 #################################################################################################
 
@@ -83,7 +93,15 @@ add_executable(example src/main.c)
 
 # Link to pact matching FFI
 if(WIN32)
-    target_link_libraries(example PRIVATE PactFfi)
+    if(CURL_FOUND)
+        target_link_libraries(example PRIVATE PactFfi CURL::libcurl)
+    else()
+        target_link_libraries(example PRIVATE PactFfi)
+    endif()
 else()
-    target_link_libraries(example PRIVATE PactFfi pthread dl m)
+    if(CURL_FOUND)
+        target_link_libraries(example PRIVATE PactFfi pthread dl m CURL::libcurl)
+    else()
+        target_link_libraries(example PRIVATE PactFfi pthread dl m)
+    endif()
 endif()
