@@ -1,5 +1,13 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.1 - Bugfix Release
+
+* ab80cd2b - fix: merge pact duplicates with diff desc/same prov state fix: merge message / sync pacts with no provider state (Yousaf Nabi, Sat Jun 8 23:48:30 2024 +0100)
+* 19957df5 - chore: Lock tracing crates to the same version via cargo patch block (Ronald Holshausen, Tue Jun 11 16:00:04 2024 +1000)
+* 37d65469 - chore: add some debug logs + fix compiler warning (Ronald Holshausen, Tue Jun 11 15:12:26 2024 +1000)
+* b0fd7e2f - chore: refactor to preserve existing error messages (Yousaf Nabi, Wed May 29 03:31:11 2024 +0100)
+* 7ca9e223 - bump version to 1.2.1 (Ronald Holshausen, Tue Apr 23 10:23:09 2024 +1000)
+
 # 1.2.0 - Support query parameters with no values
 
 * f20bb77d - chore(pact_models): Bump minor version (Ronald Holshausen, Tue Apr 23 10:04:56 2024 +1000)
