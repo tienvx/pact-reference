@@ -160,7 +160,7 @@ use crate::mock_server::bodies::{
   get_content_type_hint,
   part_body_replace_marker
 };
-use crate::models::iterators::{PactMessageIterator, PactSyncHttpIterator, PactSyncMessageIterator};
+use crate::models::iterators::{PactAsyncMessageIterator, PactMessageIterator, PactSyncHttpIterator, PactSyncMessageIterator};
 use crate::ptr;
 
 #[derive(Debug, Clone)]
@@ -2481,6 +2481,32 @@ ffi_fn! {
           inner.pact.as_message_pact().unwrap()
         }).ok_or_else(|| anyhow!("Pact handle is not valid"))?;
         let iter = PactMessageIterator::new(message_pact);
+        ptr::raw_to(iter)
+    } {
+        std::ptr::null_mut()
+    }
+}
+
+ffi_fn! {
+    /// Get an iterator over all the asynchronous messages of the Pact.
+    /// The returned iterator needs to be freed with `pactffi_pact_async_message_iter_delete`.
+    ///
+    /// # Safety
+    ///
+    /// The iterator contains a copy of the Pact, so it is always safe to use.
+    ///
+    /// # Error Handling
+    ///
+    /// On failure, this function will return a NULL pointer.
+    ///
+    /// This function may fail if any of the Rust strings contain embedded
+    /// null ('\0') bytes.
+    fn pactffi_pact_handle_get_async_message_iter(pact: PactHandle) -> *mut PactAsyncMessageIterator {
+        let v4_pact = pact.with_pact(&|_, inner| {
+          // Ok to unwrap this, as any non-v4 pact will be upgraded
+          inner.pact.as_v4_pact().unwrap()
+        }).ok_or_else(|| anyhow!("Pact handle is not valid"))?;
+        let iter = PactAsyncMessageIterator::new(v4_pact);
         ptr::raw_to(iter)
     } {
         std::ptr::null_mut()
