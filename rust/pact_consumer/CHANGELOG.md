@@ -1,5 +1,16 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.2 - Maintenance Release
+
+* 29c3b5f0 - chore: Upgrade pact_matching to 1.2.4 (Ronald Holshausen, Fri Jun 14 10:18:26 2024 +1000)
+* 30998a95 - chore: Upgrade pact_models to 1.2.1 (Ronald Holshausen, Wed Jun 12 15:26:49 2024 +1000)
+* 5699cab7 - chore: Upgrade pact_mock_server to 1.2.8 (Ronald Holshausen, Thu May 30 16:53:17 2024 +1000)
+* a811b8a4 - chore: Update pact_matching to 1.2.3 (Ronald Holshausen, Thu May 30 15:57:32 2024 +1000)
+* 4f01a302 - chore: Fix project so build works (Ronald Holshausen, Thu May 30 12:01:44 2024 +1000)
+* 968be075 - feat: update content_type_matching logic for binary payloads (Yousaf Nabi, Tue May 28 23:25:07 2024 +0100)
+* 87e82e1b - fix(rust_consumer): correct term! documentation (Martijn Pieters, Mon May 20 15:35:51 2024 +0100)
+* d7d69964 - bump version to 1.2.2 (Ronald Holshausen, Wed May 8 11:42:08 2024 +1000)
+
 # 1.2.1 - Maintenance Release
 
 * f5ad729f - chore: Moved mock server crates to pact-foundation/pact-core-mock-server (Ronald Holshausen, Tue May 7 17:36:26 2024 +1000)
