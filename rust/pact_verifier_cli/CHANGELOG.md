@@ -1,5 +1,15 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.1.3 - Feature + Bugfix release
+
+* dad482f5 - chore: Upgrade pact_verifier to 1.2.2 (Ronald Holshausen, Fri Jun 14 11:21:54 2024 +1000)
+* 30998a95 - chore: Upgrade pact_models to 1.2.1 (Ronald Holshausen, Wed Jun 12 15:26:49 2024 +1000)
+* 582de5c9 - refactor: update pact_ffi/pact_verifier_cli release workflows macos (Yousaf Nabi, Sat Jun 8 02:48:40 2024 +0100)
+* c9443652 - refactor: update pact_ffi/pact_verifier_cli release workflows (Yousaf Nabi, Sat Jun 8 02:45:46 2024 +0100)
+* 0b759dea - fix(pact_verifier_cli): strip ANSI escapes from JUnit output (Martijn Pieters, Wed May 22 15:12:45 2024 +0100)
+* c68a0eea - feat: Add environment variables for most options (Martijn Pieters, Thu May 16 17:09:43 2024 +0100)
+* 955bcbdc - bump version to 1.1.3 (Ronald Holshausen, Wed May 8 15:58:06 2024 +1000)
+
 # 1.1.2 - Maintenance Release
 
 * 5a6b004a - chore: Upgrade reqwest to 0.12.4 (Ronald Holshausen, Wed May 8 15:42:28 2024 +1000)
