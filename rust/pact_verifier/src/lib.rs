@@ -1176,7 +1176,7 @@ pub fn interaction_mismatch_output(
   output.push(format!("{}) {}", i + 1, description));
 
   let mut j = 1;
-  for (_, mut mismatches) in &mismatches.into_iter().group_by(|m| m.mismatch_type()) {
+  for (_, mut mismatches) in &mismatches.into_iter().chunk_by(|m| m.mismatch_type()) {
     let mismatch = mismatches.next().unwrap();
     output.push(format!("    {}.{}) {}", i + 1, j, mismatch.summary()));
     output.push(format!("           {}", if coloured_output { mismatch.ansi_description() } else { mismatch.description() }));

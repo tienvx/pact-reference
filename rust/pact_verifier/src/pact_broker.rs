@@ -848,7 +848,7 @@ fn build_payload(
   match result {
     TestResult::Failed(mismatches) => {
       let values = mismatches.iter()
-        .group_by(|(id, _, _)| id.clone().unwrap_or_default())
+        .chunk_by(|(id, _, _)| id.clone().unwrap_or_default())
         .into_iter()
         .map(|(key, mismatches)| {
           let acc: (Vec<serde_json::Value>, Vec<serde_json::Value>, Option<String>) = (vec![], vec![], None);
