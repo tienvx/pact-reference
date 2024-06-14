@@ -17,7 +17,7 @@ tracing-core = { git = "https://github.com/tokio-rs/tracing.git", tag = "tracing
 tracing-subscriber = { git = "https://github.com/tokio-rs/tracing.git", tag = "tracing-subscriber-0.3.18" }
 # FFI Inmemory sink uses the global static `LOG_BUFFER` in the pact_matching crate. This is required to be the same
 # version across all crates (i.e. mock server crate).
-pact_matching = { version = "~1.2.3", path = "./pact_matching" }
+pact_matching = { version = "~1.2.4", path = "./pact_matching" }
 # Issue 389 - Pull change into other crates
 pact_models = { version = "~1.2.1", path = "./pact_models" }
 
