@@ -1,5 +1,12 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.4 - Maintenance Release
+
+* 30998a95 - chore: Upgrade pact_models to 1.2.1 (Ronald Holshausen, Wed Jun 12 15:26:49 2024 +1000)
+* 37d65469 - chore: add some debug logs + fix compiler warning (Ronald Holshausen, Tue Jun 11 15:12:26 2024 +1000)
+* a811b8a4 - chore: Update pact_matching to 1.2.3 (Ronald Holshausen, Thu May 30 15:57:32 2024 +1000)
+* 67c75a09 - bump version to 1.2.4 (Ronald Holshausen, Thu May 30 15:47:12 2024 +1000)
+
 # 1.2.3 - Supports content type detection on Windows
 
 * e0ffa61f - chore: refactor matching logic and add debug logs if text/plain detected, before we match (Yousaf Nabi, Wed May 29 20:42:15 2024 +0100)
