@@ -1,5 +1,16 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.2 - Feature Release
+
+* 7f741c7e - chore(pact_verifier): Update dependencies (Ronald Holshausen, Fri Jun 14 10:50:11 2024 +1000)
+* c32e07c8 - chore: Upgrade pact_consumer to 1.2.2 (Ronald Holshausen, Fri Jun 14 10:41:31 2024 +1000)
+* 29c3b5f0 - chore: Upgrade pact_matching to 1.2.4 (Ronald Holshausen, Fri Jun 14 10:18:26 2024 +1000)
+* 30998a95 - chore: Upgrade pact_models to 1.2.1 (Ronald Holshausen, Wed Jun 12 15:26:49 2024 +1000)
+* af347c25 - feat(verifier): support fallback_branch consumer version selector (Yousaf Nabi, Sun Jun 9 21:32:25 2024 +0100)
+* a811b8a4 - chore: Update pact_matching to 1.2.3 (Ronald Holshausen, Thu May 30 15:57:32 2024 +1000)
+* e44458a8 - chore(pact_verifier): Exclude parameters from the span which are included in the previous span (Ronald Holshausen, Mon May 13 14:15:18 2024 +1000)
+* fe92d88e - bump version to 1.2.2 (Ronald Holshausen, Wed May 8 15:13:26 2024 +1000)
+
 # 1.2.1 - Maintenance Release
 
 * c3cae83e - chore: Upgrade pact_consumer to 1.2.2 (Ronald Holshausen, Wed May 8 14:46:19 2024 +1000)
