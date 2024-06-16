@@ -7,6 +7,7 @@ use tracing::trace;
 use pact_models::message::Message;
 use pact_models::message_pact::MessagePact;
 use pact_models::v4::pact::V4Pact;
+use pact_models::v4::async_message::AsynchronousMessage;
 use pact_models::v4::sync_message::SynchronousMessage;
 use pact_models::v4::synch_http::SynchronousHttp;
 use pact_models::v4::V4InteractionType;
@@ -74,6 +75,74 @@ ffi_fn! {
       }
     } {
         std::ptr::null_mut()
+    }
+}
+
+/// An iterator over asynchronous messages in a V4 pact.
+#[derive(Debug)]
+#[allow(missing_copy_implementations)]
+pub struct PactAsyncMessageIterator {
+  current: usize,
+  messages: Vec<AsynchronousMessage>
+}
+
+impl PactAsyncMessageIterator {
+  /// Create a new iterator over all asynchronous messages in the pact
+  pub fn new(pact: V4Pact) -> Self {
+    PactAsyncMessageIterator {
+      current: 0,
+      messages: pact.filter_interactions(V4InteractionType::Asynchronous_Messages)
+        .iter()
+        .map(|i| i.as_v4_async_message().unwrap())
+        .collect()
+    }
+  }
+
+  /// Get the next message in the pact.
+  fn next(&mut self) -> Option<&mut AsynchronousMessage> {
+    let idx = self.current;
+    self.current += 1;
+    self.messages.get_mut(idx)
+  }
+}
+
+ffi_fn! {
+    /// Get the next asynchronous from the V4 pact. As the messages returned are
+    /// owned by the iterator, they do not need to be deleted but will be
+    /// cleaned up when the iterator is deleted.
+    ///
+    /// Will return a NULL pointer when the iterator has advanced past the end
+    /// of the list.
+    ///
+    /// # Safety
+    ///
+    /// This function is safe.
+    ///
+    /// Deleting a message returned by the iterator can lead to undefined
+    /// behaviour.
+    ///
+    /// # Error Handling
+    ///
+    /// This function will return a NULL pointer if passed a NULL pointer or if
+    /// an error occurs.
+    fn pactffi_pact_async_message_iter_next(iter: *mut PactAsyncMessageIterator) -> *mut AsynchronousMessage {
+        let iter = as_mut!(iter);
+        match iter.next() {
+          Some(message) => message as *mut AsynchronousMessage,
+          None => {
+            trace!("iter past the end of messages");
+            std::ptr::null_mut()
+          }
+      }
+    } {
+        std::ptr::null_mut()
+    }
+}
+
+ffi_fn! {
+    /// Free the iterator when you're done using it.
+    fn pactffi_pact_async_message_iter_delete(iter: *mut PactAsyncMessageIterator) {
+        ptr::drop_raw(iter);
     }
 }
 
