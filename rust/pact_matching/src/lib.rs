@@ -1662,7 +1662,7 @@ pub async fn match_request<'a>(
   pact: &Box<dyn Pact + Send + Sync + RefUnwindSafe + 'a>,
   interaction: &Box<dyn Interaction + Send + Sync + RefUnwindSafe>
 ) -> RequestMatchResult {
-  info!("comparing to expected {}", expected);
+  debug!("comparing to expected {}", expected);
   debug!("     body: '{}'", expected.body.display_string());
   debug!("     matching_rules: {:?}", expected.matching_rules);
   debug!("     generators: {:?}", expected.generators);
@@ -1737,7 +1737,7 @@ pub async fn match_response<'a>(
 ) -> Vec<Mismatch> {
   let mut mismatches = vec![];
 
-  info!("comparing to expected response: {}", expected);
+  debug!("comparing to expected response: {}", expected);
   #[allow(unused_mut, unused_assignments)] let mut plugin_data = hashmap!{};
   #[cfg(feature = "plugins")]
   {
@@ -1904,7 +1904,7 @@ pub async fn match_message<'a>(
   let mut mismatches = vec![];
 
   if expected.is_message() && actual.is_message() {
-    info!("comparing to expected message: {:?}", expected);
+    debug!("comparing to expected message: {:?}", expected);
     let expected_message = expected.as_message().unwrap();
     let actual_message = actual.as_message().unwrap();
 
@@ -1965,7 +1965,7 @@ pub async fn match_sync_message_request<'a>(
   actual: &SynchronousMessage,
   pact: &Box<dyn Pact + Send + Sync + RefUnwindSafe + 'a>
 ) -> Vec<Mismatch> {
-  info!("comparing to expected message request: {:?}", expected);
+  debug!("comparing to expected message request: {:?}", expected);
 
   let matching_rules = &expected.request.matching_rules;
   #[allow(unused_mut, unused_assignments)] let mut plugin_data = hashmap!{};
@@ -2002,7 +2002,7 @@ pub async fn match_sync_message_response<'a>(
   actual_responses: &[MessageContents],
   pact: &Box<dyn Pact + Send + Sync + RefUnwindSafe + 'a>
 ) -> Vec<Mismatch> {
-  info!("comparing to expected message responses: {:?}", expected_responses);
+  debug!("comparing to expected message responses: {:?}", expected_responses);
 
   let mut mismatches = vec![];
 
