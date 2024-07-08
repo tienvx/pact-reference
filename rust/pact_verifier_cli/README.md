@@ -380,7 +380,7 @@ plugin to be able to be loaded.
 ### Verifying both HTTP and message interactions
 
 V4 Pact files can support both HTTP and message-based interactions in the same file. In this case, the be able to 
-handle the verification both types of interactions you need to use the `--transports <transports>` option. This will
+handle the verification for both types of interactions you need to use the `--transports <transports>` option. This will
 allow configuring different ports to send the different requests to.
 
 For example, `--transports http:8080 message:8081` will send HTTP requests to port 8080 and message requests to port 8081.
