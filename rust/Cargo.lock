@@ -1430,9 +1430,9 @@ dependencies = [
 
 [[package]]
 name = "lazy_static"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lenient_semver"
@@ -1982,7 +1982,7 @@ dependencies = [
  "regex",
  "regex-syntax 0.6.29",
  "reqwest 0.12.5",
- "rstest",
+ "rstest 0.19.0",
  "serde",
  "serde_json",
  "sxd-document",
@@ -2032,7 +2032,7 @@ dependencies = [
  "quickcheck",
  "rand",
  "reqwest 0.12.5",
- "rstest",
+ "rstest 0.19.0",
  "semver",
  "serde",
  "serde_json",
@@ -2110,7 +2110,7 @@ dependencies = [
  "regex",
  "regex-syntax 0.6.29",
  "reqwest 0.11.27",
- "rstest",
+ "rstest 0.19.0",
  "semver",
  "serde",
  "serde_json",
@@ -2175,12 +2175,14 @@ dependencies = [
  "env_logger 0.11.3",
  "expectest",
  "junit-report",
+ "lazy_static",
  "log",
  "maplit",
  "pact_models",
  "pact_verifier",
  "regex",
  "reqwest 0.12.5",
+ "rstest 0.21.0",
  "serde_json",
  "strip-ansi-escapes",
  "time",
@@ -2792,7 +2794,19 @@ checksum = "9d5316d2a1479eeef1ea21e7f9ddc67c191d497abc8fc3ba2467857abbb68330"
 dependencies = [
  "futures",
  "futures-timer",
- "rstest_macros",
+ "rstest_macros 0.19.0",
+ "rustc_version",
+]
+
+[[package]]
+name = "rstest"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9afd55a67069d6e434a95161415f5beeada95a01c7b815508a82dcb0e1593682"
+dependencies = [
+ "futures",
+ "futures-timer",
+ "rstest_macros 0.21.0",
  "rustc_version",
 ]
 
@@ -2804,6 +2818,24 @@ checksum = "04a9df72cc1f67020b0d63ad9bfe4a323e459ea7eb68e03bd9824db49f9a4c25"
 dependencies = [
  "cfg-if",
  "glob",
+ "proc-macro2 1.0.85",
+ "quote 1.0.36",
+ "regex",
+ "relative-path",
+ "rustc_version",
+ "syn 2.0.66",
+ "unicode-ident",
+]
+
+[[package]]
+name = "rstest_macros"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4165dfae59a39dd41d8dec720d3cbfbc71f69744efb480a3920f5d4e0cc6798d"
+dependencies = [
+ "cfg-if",
+ "glob",
+ "proc-macro-crate",
  "proc-macro2 1.0.85",
  "quote 1.0.36",
  "regex",

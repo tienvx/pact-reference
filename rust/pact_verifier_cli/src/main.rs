@@ -611,14 +611,14 @@ fn setup_pretty_log(level: &str, coloured_output: bool) {
 
 #[allow(deprecated)]
 pub(crate) fn configure_provider(matches: &ArgMatches) -> ProviderInfo {
-  // It is ok to unwrap values here, as they have all been validated by the CLI
-  let transports = matches.get_many::<(String, u16)>("transports")
+  // It is ok to unwrap values here, as they have all been validated by the CLI parser
+  let transports = matches.get_many::<(String, u16, Option<String>)>("transports")
     .map(|values| {
-      values.map(|(transport, port)| {
+      values.map(|(transport, port, base_path)| {
         ProviderTransport {
           transport: transport.to_string(),
           port: Some(*port),
-          path: None,
+          path: base_path.clone(),
           scheme: None
         }
       }).collect()
