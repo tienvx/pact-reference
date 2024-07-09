@@ -384,7 +384,7 @@ use pact_models::v4::sync_message::SynchronousMessage;
 #[cfg(feature = "plugins")] use pact_plugin_driver::plugin_models::PluginInteractionConfig;
 use serde::__private::from_utf8_lossy;
 use serde_json::{json, Value};
-use tracing::{debug, error, info, instrument, trace, warn};
+#[allow(unused_imports)] use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::generators::DefaultVariantMatcher;
 use crate::generators::bodies::generators_process_body;
