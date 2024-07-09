@@ -1,9 +1,10 @@
-use std::env;
+use std::{env, thread};
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 use std::ptr::null;
+use std::time::Duration;
 
 use bytes::Bytes;
 use expectest::prelude::*;
@@ -30,6 +31,7 @@ use pact_ffi::mock_server::{
   pactffi_mock_server_mismatches,
   pactffi_write_pact_file,
   pactffi_mock_server_logs,
+  pactffi_create_mock_server_for_transport
 };
 #[allow(deprecated)]
 use pact_ffi::mock_server::handles::{
@@ -773,7 +775,6 @@ fn test_missing_plugin() {
 
 // Issue #299
 #[test_log::test]
-#[allow(deprecated)]
 fn each_value_matcher() {
   let consumer_name = CString::new("each_value_matcher-consumer").unwrap();
   let provider_name = CString::new("each_value_matcher-provider").unwrap();
@@ -796,7 +797,7 @@ fn each_value_matcher() {
     ]
   });
   let body = CString::new(json.to_string()).unwrap();
-  let address = CString::new("127.0.0.1:0").unwrap();
+  let address = CString::new("127.0.0.1").unwrap();
   let method = CString::new("PUT").unwrap();
 
   pactffi_upon_receiving(interaction.clone(), description.as_ptr());
@@ -804,7 +805,7 @@ fn each_value_matcher() {
   pactffi_with_body(interaction.clone(), InteractionPart::Request, content_type.as_ptr(), body.as_ptr());
   pactffi_response_status(interaction.clone(), 200);
 
-  let port = pactffi_create_mock_server_for_pact(pact_handle.clone(), address.as_ptr(), false);
+  let port = pactffi_create_mock_server_for_transport(pact_handle.clone(), address.as_ptr(), 0, null(), null());
 
   expect!(port).to(be_greater_than(0));
 
@@ -823,6 +824,7 @@ fn each_value_matcher() {
     }
   };
 
+  thread::sleep(Duration::from_millis(100)); // Give mock server some time to update events
   let mismatches = unsafe {
     CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
   };
@@ -838,7 +840,6 @@ fn each_value_matcher() {
 
 // Issue #301
 #[test_log::test]
-#[allow(deprecated)]
 fn each_key_matcher() {
   let consumer_name = CString::new("each_key_matcher-consumer").unwrap();
   let provider_name = CString::new("each_key_matcher-provider").unwrap();
@@ -862,7 +863,7 @@ fn each_key_matcher() {
     ]
   });
   let body = CString::new(json.to_string()).unwrap();
-  let address = CString::new("127.0.0.1:0").unwrap();
+  let address = CString::new("127.0.0.1").unwrap();
   let method = CString::new("PUT").unwrap();
 
   pactffi_upon_receiving(interaction.clone(), description.as_ptr());
@@ -870,7 +871,7 @@ fn each_key_matcher() {
   pactffi_with_body(interaction.clone(), InteractionPart::Request, content_type.as_ptr(), body.as_ptr());
   pactffi_response_status(interaction.clone(), 200);
 
-  let port = pactffi_create_mock_server_for_pact(pact_handle.clone(), address.as_ptr(), false);
+  let port = pactffi_create_mock_server_for_transport(pact_handle.clone(), address.as_ptr(), 0, null(), null());
 
   expect!(port).to(be_greater_than(0));
 
@@ -880,6 +881,7 @@ fn each_key_matcher() {
     .body(r#"{"1": "foo","not valid": 1,"key": "value","key2": "value"}"#)
     .send();
 
+  thread::sleep(Duration::from_millis(100)); // Give mock server some time to update events
   let mismatches = unsafe {
     CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
   };
