@@ -400,7 +400,6 @@ fn add_text_comment() {
 }
 
 #[test_log::test]
-#[allow(deprecated)]
 fn http_consumer_feature_test() {
   let consumer_name = CString::new("http-consumer").unwrap();
   let provider_name = CString::new("http-provider").unwrap();
@@ -416,7 +415,7 @@ fn http_consumer_feature_test() {
   let query_param_matcher = CString::new("{\"value\":\"bar\",\"pact:matcher:type\":\"regex\", \"regex\":\"(bar|baz|bat)\"}").unwrap();
   let request_body_with_matchers = CString::new("{\"id\": {\"value\":1,\"pact:matcher:type\":\"type\"}}").unwrap();
   let response_body_with_matchers = CString::new("{\"created\": {\"value\":\"maybe\",\"pact:matcher:type\":\"regex\", \"regex\":\"(yes|no|maybe)\"}}").unwrap();
-  let address = CString::new("127.0.0.1:0").unwrap();
+  let address = CString::new("127.0.0.1").unwrap();
   let description = CString::new("a request to test the FFI interface").unwrap();
   let method = CString::new("POST").unwrap();
   let query =  CString::new("foo").unwrap();
@@ -437,8 +436,8 @@ fn http_consumer_feature_test() {
   pactffi_with_header(interaction.clone(), InteractionPart::Response, special_header.as_ptr(), 0, value_header_with_matcher.as_ptr());
   pactffi_with_body(interaction.clone(), InteractionPart::Response, header.as_ptr(), response_body_with_matchers.as_ptr());
   pactffi_response_status(interaction.clone(), 200);
-  let port = pactffi_create_mock_server_for_pact(pact_handle.clone(), address.as_ptr(), false);
 
+  let port = pactffi_create_mock_server_for_transport(pact_handle.clone(), address.as_ptr(), 0, null(), null());
   expect!(port).to(be_greater_than(0));
 
   // Mock server has started, we can't now modify the pact
@@ -463,6 +462,7 @@ fn http_consumer_feature_test() {
     }
   };
 
+  thread::sleep(Duration::from_millis(100)); // Give mock server some time to update events
   let mismatches = unsafe {
     CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
   };
@@ -667,7 +667,7 @@ fn pactffi_with_binary_file_feature_test(specification: PactSpecification, expec
 
   let content_type = CString::new("image/gif").unwrap();
   let path = CString::new("/upload").unwrap();
-  let address = CString::new("127.0.0.1:0").unwrap();
+  let address = CString::new("127.0.0.1").unwrap();
   let description = CString::new("a request to test the FFI interface").unwrap();
   let method = CString::new("POST").unwrap();
 
@@ -686,8 +686,7 @@ fn pactffi_with_binary_file_feature_test(specification: PactSpecification, expec
   // will respond with...
   pactffi_response_status(interaction.clone(), 201);
 
-  let port = pactffi_create_mock_server_for_pact(pact_handle.clone(), address.as_ptr(), false);
-
+  let port = pactffi_create_mock_server_for_transport(pact_handle.clone(), address.as_ptr(), 0, null(), null());
   expect!(port).to(be_greater_than(0));
 
   let client = Client::default();
@@ -696,6 +695,7 @@ fn pactffi_with_binary_file_feature_test(specification: PactSpecification, expec
     .body(buffer)
     .send();
 
+  thread::sleep(Duration::from_millis(100)); // Give mock server some time to update events
   let mismatches = unsafe {
     CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
   };
