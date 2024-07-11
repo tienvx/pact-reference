@@ -13,6 +13,7 @@ use pact_models::pact::Pact;
 use tracing::{debug, warn};
 use url::Url;
 use uuid::Uuid;
+#[cfg(feature = "colour")] use yansi::Paint;
 
 use pact_matching::metrics::{MetricEvent, send_metrics};
 use pact_mock_server::matching::MatchResult;
@@ -239,40 +240,84 @@ impl ValidatingHttpMockServer {
       Ok(())
     } else {
       // Failure. Format our errors.
-      let size = termsize::get()
-        .map(|sz| if sz.cols > 2 { sz.cols - 2 } else { 0 })
-        .unwrap_or(78);
-      let pad = "-".repeat(size as usize);
-      let mut msg = format!(" {} \nMock server {} failed verification:\n", pad, self.description);
-      for mismatch in mismatches {
-        match mismatch {
-          MatchResult::RequestMatch(..) => {
-            warn!("list of mismatches contains a match");
-          }
-          MatchResult::RequestMismatch(request, _, mismatches) => {
-            let _ = writeln!(&mut msg, "\n  - request {}:\n", request);
-            for m in mismatches {
-              let _ = writeln!(&mut msg, "    - {}", m.description());
-            }
-          }
-          MatchResult::RequestNotFound(request) => {
-            let _ = writeln!(&mut msg, "\n  - received unexpected request {}:\n", short_description(&request));
-            let debug_str = format!("{:#?}", request);
-            let _ = writeln!(&mut msg, "{}", debug_str.lines().map(|ln| format!("      {}", ln)).join("\n"));
-          }
-          MatchResult::MissingRequest(request) => {
-            let _ = writeln!(
-              &mut msg,
-              "\n  - request {} expected, but never occurred:\n", short_description(&request),
-            );
-            let debug_str = format!("{:#?}", request);
-            let _ = writeln!(&mut msg, "{}", debug_str.lines().map(|ln| format!("      {}", ln)).join("\n"));
+      Err(self.display_errors(mismatches))
+    }
+  }
+
+  #[cfg(feature = "colour")]
+  fn display_errors(&self, mismatches: Vec<MatchResult>) -> String {
+    let size = termsize::get()
+      .map(|sz| if sz.cols > 2 { sz.cols - 2 } else { 0 })
+      .unwrap_or(78);
+    let pad = "-".repeat(size as usize);
+    let mut msg = format!(" {} \nMock server {} failed verification:\n", pad, self.description.white().bold());
+    for mismatch in mismatches {
+      match mismatch {
+        MatchResult::RequestMatch(..) => {
+          warn!("list of mismatches contains a match");
+        }
+        MatchResult::RequestMismatch(request, _, mismatches) => {
+          let _ = writeln!(&mut msg, "\n  - request {}:\n", request);
+          for m in mismatches {
+            let _ = writeln!(&mut msg, "    - {}", m.description());
           }
         }
+        MatchResult::RequestNotFound(request) => {
+          let _ = writeln!(&mut msg, "\n  - received unexpected request {}:\n", short_description(&request).white().bold());
+          let debug_str = format!("{:#?}", request);
+          let debug_padded = debug_str.lines().map(|ln| format!("      {}", ln)).join("\n");
+          let _ = writeln!(&mut msg, "{}", debug_padded.italic());
+        }
+        MatchResult::MissingRequest(request) => {
+          let _ = writeln!(
+            &mut msg,
+            "\n  - request {} expected, but never occurred:\n", short_description(&request).white().bold(),
+          );
+          let debug_str = format!("{:#?}", request);
+          let debug_padded = debug_str.lines().map(|ln| format!("      {}", ln)).join("\n");
+          let _ = writeln!(&mut msg, "{}", debug_padded.italic());
+        }
       }
-      let _ = writeln!(&mut msg, " {} ", pad);
-      Err(msg)
     }
+    let _ = writeln!(&mut msg, " {} ", pad);
+    msg
+  }
+
+  #[cfg(not(feature = "colour"))]
+  fn display_errors(&self, mismatches: Vec<MatchResult>) -> String {
+    let size = termsize::get()
+      .map(|sz| if sz.cols > 2 { sz.cols - 2 } else { 0 })
+      .unwrap_or(78);
+    let pad = "-".repeat(size as usize);
+    let mut msg = format!(" {} \nMock server {} failed verification:\n", pad, self.description);
+    for mismatch in mismatches {
+      match mismatch {
+        MatchResult::RequestMatch(..) => {
+          warn!("list of mismatches contains a match");
+        }
+        MatchResult::RequestMismatch(request, _, mismatches) => {
+          let _ = writeln!(&mut msg, "\n  - request {}:\n", request);
+          for m in mismatches {
+            let _ = writeln!(&mut msg, "    - {}", m.description());
+          }
+        }
+        MatchResult::RequestNotFound(request) => {
+          let _ = writeln!(&mut msg, "\n  - received unexpected request {}:\n", short_description(&request));
+          let debug_str = format!("{:#?}", request);
+          let _ = writeln!(&mut msg, "{}", debug_str.lines().map(|ln| format!("      {}", ln)).join("\n"));
+        }
+        MatchResult::MissingRequest(request) => {
+          let _ = writeln!(
+            &mut msg,
+            "\n  - request {} expected, but never occurred:\n", short_description(&request),
+          );
+          let debug_str = format!("{:#?}", request);
+          let _ = writeln!(&mut msg, "{}", debug_str.lines().map(|ln| format!("      {}", ln)).join("\n"));
+        }
+      }
+    }
+    let _ = writeln!(&mut msg, " {} ", pad);
+    msg
   }
 }
 
