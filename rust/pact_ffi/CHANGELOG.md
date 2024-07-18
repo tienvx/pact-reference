@@ -1,5 +1,21 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 0.4.22 - Bugfix Release
+
+* 4257ed1e - chore: Upgrade pact_verifier to 1.2.3 (Ronald Holshausen, Wed Jul 17 15:19:58 2024 +1000)
+* 3c96c31b - chore: Upgrade pact_mock_server to 1.2.9 (Ronald Holshausen, Wed Jul 17 14:54:40 2024 +1000)
+* 51c6cb05 - chore(ffi): deprecate `pactffi_with_binary_file` (JP-Ellis, Wed Jul 17 13:14:04 2024 +1000)
+* bb9fc1be - chore: Upgrade pact_matching to 1.2.5 (Ronald Holshausen, Wed Jul 17 14:34:04 2024 +1000)
+* 47754035 - fix(ffi): shared processing of body (JP-Ellis, Tue Jul 16 10:08:22 2024 +1000)
+* fd9ff70a - chore: Upgrade pact_models to 1.2.2 (Ronald Holshausen, Wed Jul 17 11:15:34 2024 +1000)
+* e8b62f98 - chore: Upgrade pact-plugin-driver to 0.7.0 (Ronald Holshausen, Wed Jul 17 10:45:34 2024 +1000)
+* cccd4285 - docs(FFI): Update doc comments to indicate how to enable publishing verification results (Ronald Holshausen, Wed Jul 10 17:16:35 2024 +1000)
+* f03cd0d3 - feat(pact_verifier_cli): Parse consumer version selector JSON when evaluating CLI args so errors are reported earlier (Ronald Holshausen, Wed Jul 10 12:13:11 2024 +1000)
+* b52007e2 - chore: Fix race condition in tests in CI (Ronald Holshausen, Tue Jul 9 14:46:57 2024 +1000)
+* fde1e2d1 - chore: Fix race condition in tests in CI (Ronald Holshausen, Tue Jul 9 14:43:10 2024 +1000)
+* efc54d26 - fix(FFI): update_provider_info was not setting the transport scheme correctly (Ronald Holshausen, Mon Jun 24 11:35:57 2024 +1000)
+* 45914c08 - bump version to 0.4.22 (Ronald Holshausen, Wed Jun 19 14:54:30 2024 +1000)
+
 # 0.4.21 - Bugfix Release
 
 * 3acc9ae5 - Merge pull request #443 from pact-foundation/feat/generate-contents (Ronald Holshausen, Wed Jun 19 14:21:50 2024 +1000)
