@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use pact_consumer::{json_pattern, json_pattern_internal, like, object_matching, matching_regex};
+use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
 
 /// This is supposed to be a doctest in mod, but it's breaking there, so
@@ -56,7 +57,7 @@ async fn mock_server_passing_validation() -> anyhow::Result<()> {
           // Return the interaction back to the pact framework
           i.clone()
         })
-        .start_mock_server(None);
+        .start_mock_server(None, None);
 
       // You would use your actual client code here.
       let mallory_url = alice_service.path("/mallory");
@@ -99,6 +100,33 @@ async fn mock_server_passing_validation() -> anyhow::Result<()> {
   Ok(())
 }
 
+#[test_log::test]
+fn mock_server_passing_validation_blocking() -> anyhow::Result<()> {
+  let alice_service = PactBuilder::new_v4("BlockingConsumer", "Alice Service")
+    .interaction("a retrieve Mallory request", "", |mut i| {
+      i.given("there is some good mallory");
+      i.request.path("/mallory");
+      i.request.header("content-type", "application/json");
+      i.response
+        .ok()
+        .content_type("text/plain")
+        .body("That is some good Mallory.");
+      i.clone()
+    })
+    .start_mock_server(None, None);
+
+  let mallory_url = alice_service.path("/mallory");
+  let client = reqwest::blocking::Client::new();
+  let response = client.get(mallory_url)
+    .header("content-type", "application/json")
+    .send()
+    .expect("could not fetch URL");
+  let body = response.text().expect("could not read response body");
+  assert_eq!(body, "That is some good Mallory.");
+
+  Ok(())
+}
+
 fn output_dir(path: &str) -> PathBuf {
   match Path::new(path).canonicalize() {
     Ok(path) => {
@@ -134,7 +162,8 @@ async fn mock_server_passing_validation_async_version() {
       i.clone()
     })
     .await
-    .start_mock_server(None);
+    .start_mock_server_async(None, None)
+    .await;
 
   // You would use your actual client code here.
   let mallory_url = alice_service.path("/mallory");
@@ -152,7 +181,7 @@ fn mock_server_failing_validation() {
           i.response.body("Hello!");
           i.clone()
         })
-      .start_mock_server(None);
+      .start_mock_server(None, None);
     // Call with the wrong URL, which should lead to a panic at the end of
     // the function.
     let url = hello_service.path("/goodbye");
@@ -180,7 +209,7 @@ async fn duplicate_interactions() {
         interaction
       })
       .with_output_dir(&output_dir)
-      .start_mock_server(None);
+      .start_mock_server(None, None);
 
     let mock_url = mock_service.url();
 
@@ -224,7 +253,7 @@ async fn test_two_interactions() {
           .json_body(json!({"count": 0, "results": []}));
         i
       })
-      .start_mock_server(None);
+      .start_mock_server(None, None);
 
     let mock_url = mock_service.url();
     Client::new().post(mock_url).json(&json!({"key": "i_dont_exist"})).send().await.unwrap();
@@ -243,7 +272,7 @@ async fn test_two_interactions() {
           .json_body(json!({"count": 1, "results": ["i_exist"]}));
         i
       })
-      .start_mock_server(None);
+      .start_mock_server(None, None);
 
     let mock_url = mock_service.url();
     Client::new().post(mock_url).json(&json!({"key": "i_exist"})).send().await.unwrap();
@@ -278,7 +307,7 @@ async fn post_json_with_incorrect_content_type() {
         .json_body(json_pattern!(like!(json!(Data::default()))));
       i.clone()
     })
-    .start_mock_server(None);
+    .start_mock_server(None, None);
 
   let response = reqwest::Client::new().post(pact.path("/"))
     .json(&Data::default())
@@ -309,7 +338,7 @@ async fn multi_value_headers()     {
 
       i.clone()
     })
-    .start_mock_server(None);
+    .start_mock_server(None, None);
 
   let mallory_url = alice_service.path("/mallory");
   let client = reqwest::Client::new();
@@ -342,7 +371,7 @@ fn each_key_matcher()     {
       i.response.ok();
       i
     })
-    .start_mock_server(None);
+    .start_mock_server(None, None);
 
   let url = service.path("/eachKeyMatches");
   let client = reqwest::blocking::Client::new();
