@@ -63,7 +63,7 @@ impl ValidatingHttpMockServer {
     // Start a tokio runtime to drive the mock server
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread()
       .enable_all()
-      .worker_threads(1)
+      .worker_threads(2)
       .build()
       .expect("Could not start a new Tokio runtime"));
 
