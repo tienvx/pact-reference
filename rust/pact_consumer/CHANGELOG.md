@@ -1,5 +1,11 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.3.0 - Update to 2.0 Pact mock server
+
+* d46af23e - feat(pact-consumer): Give each mock server 2 worker threads (Ronald Holshausen, Mon Jul 29 10:03:38 2024 +1000)
+* 111a18cd - Feat(pact_consumer): Upgrade pact_mock_server to the new 2.0.0 version (Ronald Holshausen, Thu Jul 18 17:12:55 2024 +1000)
+* 3665a921 - bump version to 1.2.4 (Ronald Holshausen, Wed Jul 17 15:25:27 2024 +1000)
+
 # 1.2.3 - Maintenance Release
 
 * 9659c982 - chore(pact_consumer): Update dependencies (Ronald Holshausen, Wed Jul 17 15:20:24 2024 +1000)
