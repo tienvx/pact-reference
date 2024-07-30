@@ -360,9 +360,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.1.6"
+version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2aba8f4e9906c7ce3c73463f62a7f0c65183ada1a2d47e397cc8810827f9694f"
+checksum = "26a5c3fd7bfa1ce3897a3a3501d362b2d87b7f2583ebcb4a949ec25911025cbc"
 dependencies = [
  "jobserver",
  "libc",
@@ -2010,7 +2010,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching",
+ "pact_matching 2.0.0-beta.0",
  "pact_mock_server 2.0.0",
  "pact_models",
  "pretty_assertions",
@@ -2056,7 +2056,7 @@ dependencies = [
  "onig",
  "os_info",
  "pact-plugin-driver",
- "pact_matching",
+ "pact_matching 2.0.0-beta.0",
  "pact_mock_server 1.2.9",
  "pact_models",
  "pact_verifier",
@@ -2079,7 +2079,7 @@ dependencies = [
  "tokio-rustls 0.24.1",
  "tracing",
  "tracing-core",
- "tracing-log 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tracing-log",
  "tracing-subscriber",
  "uuid",
  "zeroize",
@@ -2087,7 +2087,48 @@ dependencies = [
 
 [[package]]
 name = "pact_matching"
-version = "1.2.6"
+version = "1.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e6d54874f6eed13c7a81c3dbe0cb9141d8326aa4a410826805be57ce6d0dc4a"
+dependencies = [
+ "ansi_term",
+ "anyhow",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "difference",
+ "futures",
+ "hex",
+ "http 1.1.0",
+ "infer",
+ "itertools 0.12.1",
+ "lazy_static",
+ "lenient_semver",
+ "maplit",
+ "md5",
+ "mime",
+ "multer",
+ "nom",
+ "onig",
+ "pact-plugin-driver",
+ "pact_models",
+ "rand",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sxd-document",
+ "tokio",
+ "tracing",
+ "tracing-core",
+ "tree_magic_mini",
+ "uuid",
+]
+
+[[package]]
+name = "pact_matching"
+version = "2.0.0-beta.0"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -2148,7 +2189,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching",
+ "pact_matching 1.2.5",
  "pact_models",
  "rustls 0.21.12",
  "rustls-pemfile 1.0.4",
@@ -2180,7 +2221,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching",
+ "pact_matching 1.2.5",
  "pact_models",
  "rcgen",
  "rustls 0.23.12",
@@ -2266,7 +2307,7 @@ dependencies = [
  "mime",
  "pact-plugin-driver",
  "pact_consumer",
- "pact_matching",
+ "pact_matching 2.0.0-beta.0",
  "pact_models",
  "pretty_assertions",
  "quickcheck",
@@ -2309,7 +2350,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-core",
- "tracing-log 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tracing-log",
  "tracing-subscriber",
  "trycmd",
 ]
@@ -3808,7 +3849,8 @@ checksum = "b6bc1c9ce2b5135ac7f93c72918fc37feb872bdc6a5533a8b85eb4b86bfdae52"
 [[package]]
 name = "tracing"
 version = "0.1.40"
-source = "git+https://github.com/tokio-rs/tracing.git?tag=tracing-subscriber-0.3.18#8b7a1dde69797b33ecfa20da71e72eb5e61f0b25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3523ab5a71916ccf420eebdf5521fcef02141234bbc0b8a49f2fdc4544364ef"
 dependencies = [
  "log",
  "pin-project-lite",
@@ -3819,7 +3861,8 @@ dependencies = [
 [[package]]
 name = "tracing-attributes"
 version = "0.1.27"
-source = "git+https://github.com/tokio-rs/tracing.git?tag=tracing-subscriber-0.3.18#8b7a1dde69797b33ecfa20da71e72eb5e61f0b25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34704c8d6ebcbc939824180af020566b01a7c01f80641264eba0999f6c2b6be7"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.36",
@@ -3829,7 +3872,8 @@ dependencies = [
 [[package]]
 name = "tracing-core"
 version = "0.1.32"
-source = "git+https://github.com/tokio-rs/tracing.git?tag=tracing-subscriber-0.3.18#8b7a1dde69797b33ecfa20da71e72eb5e61f0b25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c06d3da6113f116aaee68e4d601191614c9053067f9ab7f6edbcb161237daa54"
 dependencies = [
  "once_cell",
  "valuable",
@@ -3847,19 +3891,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-log"
-version = "0.2.0"
-source = "git+https://github.com/tokio-rs/tracing.git?tag=tracing-subscriber-0.3.18#8b7a1dde69797b33ecfa20da71e72eb5e61f0b25"
-dependencies = [
- "log",
- "once_cell",
- "tracing-core",
-]
-
-[[package]]
 name = "tracing-subscriber"
 version = "0.3.18"
-source = "git+https://github.com/tokio-rs/tracing.git?tag=tracing-subscriber-0.3.18#8b7a1dde69797b33ecfa20da71e72eb5e61f0b25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad0f048c97dbd9faa9b7df56362b8ebcaa52adb06b498c050d2f4e32f90a7a8b"
 dependencies = [
  "matchers",
  "nu-ansi-term",
@@ -3870,7 +3905,7 @@ dependencies = [
  "thread_local",
  "tracing",
  "tracing-core",
- "tracing-log 0.2.0 (git+https://github.com/tokio-rs/tracing.git?tag=tracing-subscriber-0.3.18)",
+ "tracing-log",
 ]
 
 [[package]]
