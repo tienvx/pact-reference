@@ -409,6 +409,7 @@ pub mod logging;
 pub mod matchingrules;
 pub mod metrics;
 pub mod generators;
+pub mod engine;
 
 #[cfg(feature = "xml")] mod xml;
 pub mod binary_utils;
