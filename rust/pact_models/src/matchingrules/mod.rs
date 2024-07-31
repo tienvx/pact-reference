@@ -699,6 +699,15 @@ pub enum Category {
   METADATA
 }
 
+impl Category {
+  pub(crate) fn v2_form(&self) -> String {
+    match self {
+      Category::HEADER => "headers".to_string(),
+      _ => self.to_string()
+    }
+  }
+}
+
 impl FromStr for Category {
   type Err = String;
 
@@ -880,12 +889,12 @@ impl MatchingRuleCategory {
       }
       Category::HEADER | Category::QUERY => for (k, v) in &self.rules {
         let mut path = DocPath::root();
-        path.push_field(self.name.to_string());
+        path.push_field(self.name.v2_form());
         path.push_path(k);
         map.insert(path.to_string(), v.to_v2_json());
       }
       _ => for (k, v) in &self.rules {
-        map.insert(format!("$.{}.{}", self.name, k), v.to_v2_json());
+        map.insert(format!("$.{}.{}", self.name.v2_form(), k), v.to_v2_json());
       }
     };
 
@@ -1750,14 +1759,31 @@ mod tests {
   }
 
   #[test]
+  fn loads_v2_header_matching_rules_with_correct_pluralisation() {
+    let matching_rules_json = Value::from_str(r#"{"matchingRules": {
+      "$.headers.HEADERY": {"match": "include", "value": "ValueA"}
+    }}"#).unwrap();
+
+    let matching_rules = matchers_from_json(&matching_rules_json, &None).unwrap();
+
+    expect!(matching_rules.rules.iter()).to_not(be_empty());
+    expect!(matching_rules.categories()).to(be_equal_to(hashset!{ Category::HEADER }));
+    expect!(matching_rules.rules_for_category("header")).to(be_some().value(MatchingRuleCategory {
+      name: "header".into(),
+      rules: hashmap!{ DocPath::new_unwrap("HEADERY") => RuleList { rules: vec![
+        MatchingRule::Include("ValueA".to_string()) ], rule_logic: RuleLogic::And, cascaded: false } }
+    }));
+  }
+
+  #[test]
   fn load_from_v2_map_supports_headers_and_query_parameters_in_encoded_format() {
     let matching_rules_json = json!({
       "$.query.Q1": { "match": "regex", "regex": "1" },
       "$.query.x-test": { "match": "regex", "regex": "2" },
       "$.query['x-test-2']": { "match": "regex", "regex": "3" },
-      "$.header.HEADERY": { "match": "regex", "regex": "4" },
-      "$.header.x-test": { "match": "regex", "regex": "5" },
-      "$.header['x-test-2']": { "match": "regex", "regex": "6" }
+      "$.headers.HEADERY": { "match": "regex", "regex": "4" },
+      "$.headers.x-test": { "match": "regex", "regex": "5" },
+      "$.headers['x-test-2']": { "match": "regex", "regex": "6" }
     });
     let matching_rules_map = matching_rules_json.as_object().unwrap();
 
@@ -1903,8 +1929,8 @@ mod tests {
       it "generates V2 matcher format" {
         pretty_assertions::assert_eq!(matchers.to_v2_json().to_string(),
           "{\"$.body.a.b\":{\"match\":\"type\"},\
-          \"$.header.item1\":{\"match\":\"regex\",\"regex\":\"5\"},\
-          \"$.header['principal_identifier[account_id]']\":{\"match\":\"regex\",\"regex\":\"\\\\w+\"},\
+          \"$.headers.item1\":{\"match\":\"regex\",\"regex\":\"5\"},\
+          \"$.headers['principal_identifier[account_id]']\":{\"match\":\"regex\",\"regex\":\"\\\\w+\"},\
           \"$.path\":{\"match\":\"regex\",\"regex\":\"/path/\\\\d+\"},\
           \"$.query.a\":{\"match\":\"regex\",\"regex\":\"\\\\w+\"},\
           \"$.query['principal_identifier[account_id]']\":{\"match\":\"regex\",\"regex\":\"\\\\w+\"}\
@@ -2390,10 +2416,10 @@ mod tests {
 
     let json = matchers_to_json(&matching_rules, &PactSpecification::V2);
     assert_eq!(json, json!({
-      "$.header.A": {
+      "$.headers.A": {
         "match": "type"
       },
-      "$.header['se-token']": {
+      "$.headers['se-token']": {
         "match": "type"
       },
       "$.query.A": {
