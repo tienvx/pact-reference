@@ -1,6 +1,8 @@
 //! Structs and traits to support a general matching engine
 
 use std::panic::RefUnwindSafe;
+use pact_models::bodies::OptionalBody;
+use pact_models::content_types::TEXT;
 use pact_models::path_exp::DocPath;
 use pact_models::v4::http_parts::HttpRequest;
 use pact_models::v4::interaction::V4Interaction;
@@ -69,20 +71,32 @@ impl ExecutionPlanNode {
       PlanNodeType::CONTAINER(label) => {
         buffer.push_str(pad.as_str());
         buffer.push(':');
-        buffer.push_str(label.as_str());
-        buffer.push_str(" (\n");
-        self.pretty_form_children(buffer, indent);
-        buffer.push_str(pad.as_str());
-        buffer.push(')');
+        if label.contains(|ch: char| ch.is_whitespace()) {
+          buffer.push_str(format!("\"{}\"", label).as_str());
+        } else {
+          buffer.push_str(label.as_str());
+        }
+        if self.is_empty() {
+          buffer.push_str(" ()");
+        } else {
+          buffer.push_str(" (\n");
+          self.pretty_form_children(buffer, indent);
+          buffer.push_str(pad.as_str());
+          buffer.push(')');
+        }
       }
       PlanNodeType::ACTION(value) => {
         buffer.push_str(pad.as_str());
         buffer.push('%');
         buffer.push_str(value.as_str());
-        buffer.push_str(" (\n");
-        self.pretty_form_children(buffer, indent);
-        buffer.push_str(pad.as_str());
-        buffer.push(')');
+        if self.is_empty() {
+          buffer.push_str(" ()");
+        } else {
+          buffer.push_str(" (\n");
+          self.pretty_form_children(buffer, indent);
+          buffer.push_str(pad.as_str());
+          buffer.push(')');
+        }
       }
       PlanNodeType::VALUE(value) => {
         buffer.push_str(pad.as_str());
@@ -97,7 +111,6 @@ impl ExecutionPlanNode {
 
   fn pretty_form_children(&self, buffer: &mut String, indent: usize) {
     let len = self.children.len();
-    let pad = " ".repeat(indent);
     for (index, child) in self.children.iter().enumerate() {
       child.pretty_form(buffer, indent + 2);
       if index < len - 1 {
@@ -115,7 +128,11 @@ impl ExecutionPlanNode {
       PlanNodeType::EMPTY => {}
       PlanNodeType::CONTAINER(label) => {
         buffer.push(':');
-        buffer.push_str(label.as_str());
+        if label.contains(|ch: char| ch.is_whitespace()) {
+          buffer.push_str(format!("\"{}\"", label).as_str());
+        } else {
+          buffer.push_str(label.as_str());
+        }
         buffer.push('(');
         self.str_form_children(&mut buffer);
         buffer.push(')');
@@ -185,6 +202,13 @@ impl ExecutionPlanNode {
     self.children.push(node.into());
     self
   }
+
+  pub fn is_empty(&self) -> bool {
+    match self.node_type {
+      PlanNodeType::EMPTY => true,
+      _ => self.children.is_empty()
+    }
+  }
 }
 
 impl From<&mut ExecutionPlanNode> for ExecutionPlanNode {
@@ -202,6 +226,12 @@ impl ExecutionPlan {
   fn new(label: &str) -> ExecutionPlan {
     ExecutionPlan {
       plan_root: ExecutionPlanNode::container(label)
+    }
+  }
+
+  pub fn add(&mut self, node: ExecutionPlanNode) {
+    if !node.is_empty() {
+      self.plan_root.add(node);
     }
   }
 
@@ -243,16 +273,19 @@ pub fn build_request_plan(
 ) -> anyhow::Result<ExecutionPlan> {
   let mut plan = ExecutionPlan::new("request");
 
-  setup_method_plan(&mut plan.plan_root, expected, context)?;
+  plan.add(setup_method_plan(expected, context)?);
+  plan.add(setup_path_plan(expected, context)?);
+  plan.add(setup_query_plan(expected, context)?);
+  plan.add(setup_header_plan(expected, context)?);
+  plan.add(setup_body_plan(expected, context)?);
 
   Ok(plan)
 }
 
 fn setup_method_plan(
-  node: &mut ExecutionPlanNode,
   expected: &HttpRequest,
   context: &PlanMatchingContext
-) -> anyhow::Result<()> {
+) -> anyhow::Result<ExecutionPlanNode> {
   let mut method_container = ExecutionPlanNode::container("method");
 
   let mut match_method = ExecutionPlanNode::action("match:equality");
@@ -264,9 +297,104 @@ fn setup_method_plan(
   // TODO: Look at the matching rules and generators here
   method_container.add(match_method);
 
-  node.add(method_container);
+  Ok(method_container)
+}
 
-  Ok(())
+fn setup_path_plan(
+  expected: &HttpRequest,
+  context: &PlanMatchingContext
+) -> anyhow::Result<ExecutionPlanNode> {
+  // TODO: Look at the matching rules and generators here
+  let mut plan_node = ExecutionPlanNode::container("path");
+  plan_node
+    .add(
+      ExecutionPlanNode::action("match:equality")
+        .add(ExecutionPlanNode::resolve_value(DocPath::new("$.path")?))
+        .add(ExecutionPlanNode::value(expected.path.as_str()))
+    );
+  Ok(plan_node)
+}
+
+fn setup_query_plan(
+  expected: &HttpRequest,
+  context: &PlanMatchingContext
+) -> anyhow::Result<ExecutionPlanNode> {
+  // TODO: Look at the matching rules and generators here
+  let mut plan_node = ExecutionPlanNode::container("query parameters");
+
+  if let Some(query) = &expected.query {
+    if query.is_empty() {
+      plan_node
+        .add(
+          ExecutionPlanNode::action("expect:empty")
+            .add(ExecutionPlanNode::resolve_value(DocPath::new("$.query")?))
+        );
+    } else {
+      todo!()
+    }
+  } else {
+    plan_node
+      .add(
+        ExecutionPlanNode::action("expect:empty")
+          .add(ExecutionPlanNode::resolve_value(DocPath::new("$.query")?))
+      );
+  }
+
+  Ok(plan_node)
+}
+
+fn setup_header_plan(
+  expected: &HttpRequest,
+  context: &PlanMatchingContext
+) -> anyhow::Result<ExecutionPlanNode> {
+  // TODO: Look at the matching rules and generators here
+  let mut plan_node = ExecutionPlanNode::container("headers");
+
+  if let Some(headers) = &expected.headers {
+    if !headers.is_empty() {
+      todo!()
+    }
+  }
+
+  Ok(plan_node)
+}
+
+fn setup_body_plan(
+  expected: &HttpRequest,
+  context: &PlanMatchingContext
+) -> anyhow::Result<ExecutionPlanNode> {
+  // TODO: Look at the matching rules and generators here
+  let mut plan_node = ExecutionPlanNode::container("body");
+
+  match &expected.body {
+    OptionalBody::Missing => {
+      todo!()
+    }
+    OptionalBody::Empty => {
+      todo!()
+    }
+    OptionalBody::Null => {
+      todo!()
+    }
+    OptionalBody::Present(content, _, _) => {
+      let content_type = expected.content_type().unwrap_or_else(|| TEXT.clone());
+      let mut content_type_check_node = ExecutionPlanNode::action("if");
+      content_type_check_node
+        .add(
+          ExecutionPlanNode::action("match:equality")
+            .add(ExecutionPlanNode::action("content-type"))
+            .add(ExecutionPlanNode::value(content_type.to_string()))
+        );
+      if content_type.is_json() {
+
+      } else {
+        todo!()
+      }
+      plan_node.add(content_type_check_node);
+    }
+  }
+
+  Ok(plan_node)
 }
 
 pub fn execute_request_plan(
@@ -341,7 +469,7 @@ r#"(
       %if (
         %match:equality (
           %content-type (),
-          "application/json"
+          "application/json;charset=utf-8"
         ),
         :body:$ (
           :body:$:a (
@@ -369,7 +497,7 @@ r#"(
         :method (
           %match:equality (
             %upper-case (
-              $.method ~ "GET"
+              $.method ~ "POST"
             ),
             "POST" ~ OK
           )
@@ -382,7 +510,7 @@ r#"(
         ),
         :body (
           %if (
-            %match:equality (%content-type () ~ "application/json", "application/json") ~ OK,
+            %match:equality (%content-type () ~ "application/json", "application/json;charset=utf-8") ~ OK,
             :body:$ (
               :body:$:a (
                 %if (
