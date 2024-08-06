@@ -252,7 +252,7 @@ impl Generator {
       Generator::Time(_, _) => "Time",
       Generator::DateTime(_, _) => "DateTime",
       Generator::RandomBoolean => "RandomBoolean",
-      Generator::ProviderStateGenerator(_, _) => "ProviderStateGenerator",
+      Generator::ProviderStateGenerator(_, _) => "ProviderState",
       Generator::MockServerURL(_, _) => "MockServerURL",
       Generator::ArrayContains(_) => "ArrayContains",
     }.to_string()
@@ -2425,7 +2425,7 @@ mod tests2 {
   use serde_json::{json, Value};
 
   use crate::expression_parser::DataType;
-  use crate::generators::generate_value_from_context;
+  use crate::generators::{generate_value_from_context, Generator};
 
   #[rstest]
   //     expression, value,          data_type,               expected
@@ -2455,5 +2455,23 @@ mod tests2 {
     expect!(result.as_ref()).to(be_ok());
     let result_value = result.unwrap();
     expect!(result_value.as_json().unwrap()).to(be_equal_to(expected));
+  }
+
+  #[rstest]
+  #[case(Generator::RandomInt(0, 1), "RandomInt")]
+  #[case(Generator::Uuid(None), "Uuid")]
+  #[case(Generator::RandomDecimal(0), "RandomDecimal")]
+  #[case(Generator::RandomHexadecimal(0), "RandomHexadecimal")]
+  #[case(Generator::RandomString(0), "RandomString")]
+  #[case(Generator::Regex("".to_string()), "Regex")]
+  #[case(Generator::Date(None, None), "Date")]
+  #[case(Generator::Time(None, None), "Time")]
+  #[case(Generator::DateTime(None, None), "DateTime")]
+  #[case(Generator::RandomBoolean, "RandomBoolean")]
+  #[case(Generator::ProviderStateGenerator("".to_string(), None), "ProviderState")]
+  #[case(Generator::MockServerURL("".to_string(), "".to_string()), "MockServerURL")]
+  #[case(Generator::ArrayContains(vec![]), "ArrayContains")]
+  fn generator_name_test(#[case] generator: Generator, #[case] name: &str) {
+    expect!(generator.name()).to(be_equal_to(name));
   }
 }
