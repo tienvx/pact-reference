@@ -8,7 +8,7 @@ use either::Either;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_json::{Map, Value};
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, trace};
 
 use pact_models::bodies::OptionalBody;
 use pact_models::content_types::ContentTypeHint;
@@ -113,9 +113,11 @@ fn process_matcher(
             Value::Object(map) => {
               process_object(map, &mut category, &mut generators, DocPath::root(), false)
             }
+            Value::Array(arr) => {
+              process_array(arr, &mut category, &mut generators, DocPath::root(), false, false)
+            }
             _ => {
-              warn!("arrayContains: JSON for variant {} is not correctly formed: {}", index, variant);
-              Value::Null
+              variant.clone()
             }
           };
           json_values.push(value);
@@ -423,16 +425,19 @@ fn format_multipart_error(e: std::io::Error) -> String {
 
 #[cfg(test)]
 mod test {
-  use expectest::prelude::*;
+  use std::collections::HashMap;
+
+use expectest::prelude::*;
   use maplit::hashmap;
-  use pretty_assertions::assert_eq;
+  use pact_models::prelude::Category;
+use pretty_assertions::assert_eq;
   use rstest::rstest;
   use serde_json::json;
 
   use pact_models::{generators, HttpStatus, matchingrules_list};
   use pact_models::content_types::ContentType;
   use pact_models::generators::{Generator, Generators};
-  use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory};
+  use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory, RuleList};
   use pact_models::matchingrules::expressions::{MatchingRuleDefinition, ValueType};
   use pact_models::path_exp::DocPath;
 
@@ -860,6 +865,12 @@ mod test {
   #[case(json!({ "pact:matcher:type": "content-type", "value": "text/plain" }), vec![MatchingRule::ContentType("text/plain".to_string())])]
   #[case(json!({ "pact:matcher:type": "arrayContains", "variants": [] }), vec![MatchingRule::ArrayContains(vec![])])]
   #[case(json!({ "pact:matcher:type": "array-contains", "variants": [] }), vec![MatchingRule::ArrayContains(vec![])])]
+  #[case(json!({ "pact:matcher:type": "array-contains", "variants": ["Thing1", "Thing2"] }), vec![
+    MatchingRule::ArrayContains(vec![
+      (0, MatchingRuleCategory{name: Category::BODY, rules: HashMap::from([ (DocPath::empty(), RuleList::equality()) ]) }, std::collections::HashMap::default()),
+      (0, MatchingRuleCategory{name: Category::BODY, rules: HashMap::from([ (DocPath::empty(), RuleList::equality()) ]) }, std::collections::HashMap::default())
+    ])
+  ])]
   #[case(json!({ "pact:matcher:type": "values" }), vec![MatchingRule::Values])]
   #[case(json!({ "pact:matcher:type": "statusCode" }), vec![MatchingRule::StatusCode(HttpStatus::Success)])]
   #[case(json!({ "pact:matcher:type": "statusCode" }), vec![MatchingRule::StatusCode(HttpStatus::StatusCodes(vec![200]))])]
