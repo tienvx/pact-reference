@@ -1,5 +1,13 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.3 - Support for provider state injected values in plugins
+
+* 033a50ab - feat: Update the matching rule expression parser to support values from provider states (Ronald Holshausen, Fri Aug 2 10:06:52 2024 +1000)
+* 2ca9a9ae - chore(pact_models): Improve the matching rule expression parser error messages (Ronald Holshausen, Thu Aug 1 16:07:31 2024 +1000)
+* 77814aef - fix(pact_models):  fix: when writing pact specs in V2 format, header matchers must be pluralised #449 (Ronald Holshausen, Wed Jul 31 15:08:00 2024 +1000)
+* 3c96c31b - chore: Upgrade pact_mock_server to 1.2.9 (Ronald Holshausen, Wed Jul 17 14:54:40 2024 +1000)
+* 57f05775 - bump version to 1.2.3 (Ronald Holshausen, Wed Jul 17 11:10:27 2024 +1000)
+
 # 1.2.2 - Maintenance Release
 
 * 2e2580f6 - feat(pact_consumer): Improve the mock server error output (Ronald Holshausen, Wed Jul 10 15:23:48 2024 +1000)
