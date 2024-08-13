@@ -1,5 +1,17 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.4 - Bugfix Release
+
+* 978677cc - chore: Upgrade pact_matching to 1.2.6 (Ronald Holshausen, Tue Aug 13 15:27:49 2024 +1000)
+* 9a7eef75 - chore: Upgrade pact_models to 1.2.4 (Ronald Holshausen, Tue Aug 13 11:51:06 2024 +1000)
+* ae7d2a9c - fix(pact_verifier): Plugin feature was not enabled in the verifier (Ronald Holshausen, Tue Aug 13 11:13:51 2024 +1000)
+* 80b7bb58 - fix(pact_verifier): Provider state values should be passed to any plugins under a providerState key (Ronald Holshausen, Wed Aug 7 16:06:54 2024 +1000)
+* bcf4db6d - chore: Upgrade pact_models to 1.2.3 (Ronald Holshausen, Tue Aug 6 11:06:22 2024 +1000)
+* 111a18cd - Feat(pact_consumer): Upgrade pact_mock_server to the new 2.0.0 version (Ronald Holshausen, Thu Jul 18 17:12:55 2024 +1000)
+* 56c953b4 - chore: Upgrade pact_consumer to 1.2.3 (Ronald Holshausen, Wed Jul 17 15:28:49 2024 +1000)
+* 25fd9c56 - chore: Update release script (Ronald Holshausen, Wed Jul 17 15:12:37 2024 +1000)
+* c8d297f2 - bump version to 1.2.4 (Ronald Holshausen, Wed Jul 17 15:12:16 2024 +1000)
+
 # 1.2.3 - Bugfix Release
 
 * bb9fc1be - chore: Upgrade pact_matching to 1.2.5 (Ronald Holshausen, Wed Jul 17 14:34:04 2024 +1000)
