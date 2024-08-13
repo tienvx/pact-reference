@@ -1465,6 +1465,7 @@ fn group_by<I, F, K>(items: I, f: F) -> HashMap<K, Vec<I::Item>>
   m
 }
 
+#[instrument(level = "trace", ret, skip(expected, actual))]
 pub(crate) async fn compare_bodies(
   content_type: &ContentType,
   expected: &(dyn HttpPart + Send + Sync),
@@ -1472,6 +1473,8 @@ pub(crate) async fn compare_bodies(
   context: &(dyn MatchingContext + Send + Sync)
 ) -> BodyMatchResult {
   let mut mismatches = vec![];
+
+  trace!(?content_type, "Comparing bodies");
 
   #[cfg(feature = "plugins")]
   {
@@ -1579,6 +1582,7 @@ fn compare_bodies_core(
   mismatches
 }
 
+#[instrument(level = "trace", ret, skip(expected, actual))]
 async fn match_body_content(
   content_type: &ContentType,
   expected: &(dyn HttpPart + Send + Sync),
@@ -1793,7 +1797,7 @@ fn setup_plugin_config<'a>(
 }
 
 /// Matches the actual message contents to the expected one. This takes into account the content type of each.
-#[allow(unused_variables)]
+#[instrument(level = "trace")]
 pub async fn match_message_contents(
   expected: &MessageContents,
   actual: &MessageContents,
@@ -1835,6 +1839,7 @@ pub async fn match_message_contents(
 }
 
 /// Matches the actual message metadata to the expected one.
+#[instrument(level = "trace")]
 pub fn match_message_metadata(
   expected: &MessageContents,
   actual: &MessageContents,
