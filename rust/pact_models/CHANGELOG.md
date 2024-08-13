@@ -1,5 +1,11 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.4 - Bugfix Release
+
+* 50fc022c - fix(pact_models): Provider state values may be passed in under a "providerState" key (Ronald Holshausen, Thu Aug 8 11:53:23 2024 +1000)
+* 8387b9e1 - fix(pact_models): ProviderStateGenerator name was not correct (Ronald Holshausen, Tue Aug 6 11:49:19 2024 +1000)
+* 42911cfd - bump version to 1.2.4 (Ronald Holshausen, Tue Aug 6 10:54:23 2024 +1000)
+
 # 1.2.3 - Support for provider state injected values in plugins
 
 * 033a50ab - feat: Update the matching rule expression parser to support values from provider states (Ronald Holshausen, Fri Aug 2 10:06:52 2024 +1000)
