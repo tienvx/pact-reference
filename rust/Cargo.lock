@@ -2076,7 +2076,7 @@ dependencies = [
  "expectest",
  "futures",
  "home",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "lazy_static",
  "libc",
  "log",
@@ -2097,7 +2097,7 @@ dependencies = [
  "regex",
  "regex-syntax 0.6.29",
  "reqwest",
- "rstest 0.19.0",
+ "rstest 0.22.0",
  "serde",
  "serde_json",
  "sxd-document",
@@ -2147,7 +2147,7 @@ dependencies = [
  "quickcheck",
  "rand",
  "reqwest",
- "rstest 0.19.0",
+ "rstest 0.22.0",
  "semver",
  "serde",
  "serde_json",
@@ -2331,7 +2331,7 @@ dependencies = [
  "pact_verifier",
  "regex",
  "reqwest",
- "rstest 0.21.0",
+ "rstest 0.22.0",
  "serde_json",
  "strip-ansi-escapes",
  "time",
@@ -2913,13 +2913,13 @@ dependencies = [
 
 [[package]]
 name = "rstest"
-version = "0.21.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9afd55a67069d6e434a95161415f5beeada95a01c7b815508a82dcb0e1593682"
+checksum = "7b423f0e62bdd61734b67cd21ff50871dfaeb9cc74f869dcd6af974fbcb19936"
 dependencies = [
  "futures",
  "futures-timer",
- "rstest_macros 0.21.0",
+ "rstest_macros 0.22.0",
  "rustc_version",
 ]
 
@@ -2942,9 +2942,9 @@ dependencies = [
 
 [[package]]
 name = "rstest_macros"
-version = "0.21.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4165dfae59a39dd41d8dec720d3cbfbc71f69744efb480a3920f5d4e0cc6798d"
+checksum = "c5e1711e7d14f74b12a58411c542185ef7fb7f2e7f8ee6e2940a883628522b42"
 dependencies = [
  "cfg-if",
  "glob",
