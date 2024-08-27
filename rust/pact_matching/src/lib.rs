@@ -367,6 +367,11 @@ use bytes::Bytes;
 use itertools::{Either, Itertools};
 use lazy_static::*;
 use maplit::{hashmap, hashset};
+#[cfg(feature = "plugins")] use pact_plugin_driver::catalogue_manager::find_content_matcher;
+#[cfg(feature = "plugins")] use pact_plugin_driver::plugin_models::PluginInteractionConfig;
+use serde_json::{json, Value};
+#[allow(unused_imports)] use tracing::{debug, error, info, instrument, trace, warn};
+
 use pact_models::bodies::OptionalBody;
 use pact_models::content_types::ContentType;
 use pact_models::generators::{apply_generators, GenerateValue, GeneratorCategory, GeneratorTestMode, VariantMatcher};
@@ -380,18 +385,14 @@ use pact_models::path_exp::DocPath;
 use pact_models::v4::http_parts::{HttpRequest, HttpResponse};
 use pact_models::v4::message_parts::MessageContents;
 use pact_models::v4::sync_message::SynchronousMessage;
-#[cfg(feature = "plugins")] use pact_plugin_driver::catalogue_manager::find_content_matcher;
-#[cfg(feature = "plugins")] use pact_plugin_driver::plugin_models::PluginInteractionConfig;
-use serde::__private::from_utf8_lossy;
-use serde_json::{json, Value};
-#[allow(unused_imports)] use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::generators::DefaultVariantMatcher;
 use crate::generators::bodies::generators_process_body;
+use crate::generators::DefaultVariantMatcher;
 use crate::headers::{match_header_value, match_headers};
 #[cfg(feature = "plugins")] use crate::json::match_json;
 use crate::matchers::*;
 use crate::matchingrules::DisplayForMismatch;
+#[cfg(feature = "plugins")] use crate::plugin_support::{InteractionPart, setup_plugin_config};
 use crate::query::match_query_maps;
 
 /// Simple macro to convert a string slice to a `String` struct.
@@ -415,6 +416,7 @@ pub mod binary_utils;
 pub mod headers;
 pub mod query;
 pub mod form_urlencoded;
+#[cfg(feature = "plugins")] mod plugin_support;
 
 #[cfg(not(feature = "plugins"))]
 #[derive(Clone, Debug, PartialEq)]
@@ -859,8 +861,8 @@ impl From<Mismatch> for CommonMismatch {
       },
       Mismatch::BodyMismatch { path, expected, actual, mismatch } => CommonMismatch {
         path: path.clone(),
-        expected: from_utf8_lossy(expected.unwrap_or_default().as_ref()).to_string(),
-        actual: from_utf8_lossy(actual.unwrap_or_default().as_ref()).to_string(),
+        expected: String::from_utf8_lossy(expected.unwrap_or_default().as_ref()).to_string(),
+        actual: String::from_utf8_lossy(actual.unwrap_or_default().as_ref()).to_string(),
         description: mismatch.clone()
       },
       Mismatch::MetadataMismatch { key, expected, actual, mismatch } => CommonMismatch {
@@ -1674,7 +1676,7 @@ pub async fn match_request<'a>(
   #[allow(unused_mut, unused_assignments)] let mut plugin_data = hashmap!{};
   #[cfg(feature = "plugins")]
   {
-    plugin_data = setup_plugin_config(pact, interaction);
+    plugin_data = setup_plugin_config(pact, interaction, InteractionPart::Request);
   };
   trace!("plugin_data = {:?}", plugin_data);
 
@@ -1745,7 +1747,7 @@ pub async fn match_response<'a>(
   #[allow(unused_mut, unused_assignments)] let mut plugin_data = hashmap!{};
   #[cfg(feature = "plugins")]
   {
-    plugin_data = setup_plugin_config(pact, interaction);
+    plugin_data = setup_plugin_config(pact, interaction, InteractionPart::Response);
   };
   trace!("plugin_data = {:?}", plugin_data);
 
@@ -1776,24 +1778,6 @@ pub async fn match_response<'a>(
     trace!(?mismatches, "match response");
 
   mismatches
-}
-
-#[cfg(feature = "plugins")]
-fn setup_plugin_config<'a>(
-  pact: &Box<dyn Pact + Send + Sync + RefUnwindSafe + 'a>,
-  interaction: &Box<dyn Interaction + Send + Sync + RefUnwindSafe>
-) -> HashMap<String, PluginInteractionConfig> {
-  pact.plugin_data().iter().map(|data| {
-    let interaction_config = if let Some(v4_interaction) = interaction.as_v4() {
-      v4_interaction.plugin_config().get(&data.name).cloned().unwrap_or_default()
-    } else {
-      hashmap! {}
-    };
-    (data.name.clone(), PluginInteractionConfig {
-      pact_configuration: data.configuration.clone(),
-      interaction_configuration: interaction_config
-    })
-  }).collect()
 }
 
 /// Matches the actual message contents to the expected one. This takes into account the content type of each.
@@ -1917,7 +1901,7 @@ pub async fn match_message<'a>(
     #[allow(unused_mut, unused_assignments)] let mut plugin_data = hashmap!{};
     #[cfg(feature = "plugins")]
     {
-      plugin_data = setup_plugin_config(pact, expected);
+      plugin_data = setup_plugin_config(pact, expected, InteractionPart::None);
     };
 
     let body_context = if expected.is_v4() {
@@ -1976,7 +1960,7 @@ pub async fn match_sync_message_request<'a>(
   #[allow(unused_mut, unused_assignments)] let mut plugin_data = hashmap!{};
   #[cfg(feature = "plugins")]
   {
-    plugin_data = setup_plugin_config(pact, &expected.boxed());
+    plugin_data = setup_plugin_config(pact, &expected.boxed(), InteractionPart::None);
   };
 
   let body_context = CoreMatchingContext {
@@ -2034,7 +2018,7 @@ pub async fn match_sync_message_response<'a>(
     #[allow(unused_mut, unused_assignments)] let mut plugin_data = hashmap!{};
     #[cfg(feature = "plugins")]
     {
-      plugin_data = setup_plugin_config(pact, &expected.boxed());
+      plugin_data = setup_plugin_config(pact, &expected.boxed(), InteractionPart::None);
     };
     for (expected_response, actual_response) in expected_responses.iter().zip(actual_responses) {
       let matching_rules = &expected_response.matching_rules;
