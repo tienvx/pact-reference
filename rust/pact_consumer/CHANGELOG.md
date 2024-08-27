@@ -1,5 +1,16 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.3.1 - Bugfix Release
+
+* 941e4455 - fix(pact_consumer): Plugin config needs to be stored for both the request and response part of HTTP interactions (Ronald Holshausen, Tue Aug 27 15:35:16 2024 +1000)
+* dae427a7 - chore: Upgrade pact_mock_server to 2.0.1 (Ronald Holshausen, Tue Aug 27 15:23:18 2024 +1000)
+* dc441709 - chore: Upgrade pact_matching to 1.2.7 (Ronald Holshausen, Tue Aug 27 14:57:12 2024 +1000)
+* 978677cc - chore: Upgrade pact_matching to 1.2.6 (Ronald Holshausen, Tue Aug 13 15:27:49 2024 +1000)
+* 9a7eef75 - chore: Upgrade pact_models to 1.2.4 (Ronald Holshausen, Tue Aug 13 11:51:06 2024 +1000)
+* bcf4db6d - chore: Upgrade pact_models to 1.2.3 (Ronald Holshausen, Tue Aug 6 11:06:22 2024 +1000)
+* 00efcb56 - chore: Update readme (Ronald Holshausen, Mon Jul 29 11:01:32 2024 +1000)
+* c91bb0ca - bump version to 1.3.1 (Ronald Holshausen, Mon Jul 29 10:27:31 2024 +1000)
+
 # 1.3.0 - Update to 2.0 Pact mock server
 
 * d46af23e - feat(pact-consumer): Give each mock server 2 worker threads (Ronald Holshausen, Mon Jul 29 10:03:38 2024 +1000)
