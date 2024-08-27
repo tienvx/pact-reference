@@ -1260,7 +1260,12 @@ impl MatchingRules {
           map.insert(name.to_string(), rules.to_v3_json());
         }
         _ => {
-          map.insert(name.to_string(), sub_category.to_v3_json());
+          let value = sub_category.to_v3_json();
+          if let Some(values) = value.as_object() {
+            if !values.is_empty() {
+              map.insert(name.to_string(), value);
+            }
+          }
         }
       }
       map
@@ -1922,7 +1927,8 @@ mod tests {
           "header" => {
             "item1" => [ MatchingRule::Regex("5".to_string()) ],
             "$['principal_identifier[account_id]']" => [ MatchingRule::Regex("\\w+".to_string()) ]
-          }
+          },
+          "metadata" => {}
         };
       }
 
