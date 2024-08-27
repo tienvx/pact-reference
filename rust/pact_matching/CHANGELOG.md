@@ -1,5 +1,10 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.7 - Bugfix Release
+
+* e6f8ae46 - fix(plugins): Plugin config needs to have seperate values for HTTP request and response parts (Ronald Holshausen, Tue Aug 27 14:32:37 2024 +1000)
+* 9f6a8c35 - bump version to 1.2.7 (Ronald Holshausen, Tue Aug 13 15:21:05 2024 +1000)
+
 # 1.2.6 - Maintenance Release
 
 * ab836e18 - chore(pact_matching): Update dependencies (Ronald Holshausen, Tue Aug 13 15:01:16 2024 +1000)
