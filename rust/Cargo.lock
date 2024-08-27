@@ -2047,7 +2047,7 @@ dependencies = [
  "maplit",
  "pact-plugin-driver",
  "pact_matching",
- "pact_mock_server 2.0.0",
+ "pact_mock_server 2.0.1",
  "pact_models",
  "pretty_assertions",
  "quickcheck",
@@ -2201,9 +2201,9 @@ dependencies = [
 
 [[package]]
 name = "pact_mock_server"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57011d5e96c0b2206ee618ed96671a46df19f2cd13bbf46648ffde3a3776b2ec"
+checksum = "35d2863820744a8c361fc23a8cafbc11798a6e5856410e0ec9c66a0d34599a71"
 dependencies = [
  "anyhow",
  "bytes",
