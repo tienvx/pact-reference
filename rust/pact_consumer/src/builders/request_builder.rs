@@ -36,7 +36,7 @@ struct PluginConfiguration {}
 #[derive(Clone, Debug)]
 pub struct RequestBuilder {
   request: HttpRequest,
-  #[allow(dead_code)] plugin_config: HashMap<String, PluginConfiguration>,
+  #[allow(dead_code)] pub(crate) plugin_config: HashMap<String, PluginConfiguration>,
   interaction_markup: InteractionMarkup
 }
 
@@ -208,7 +208,18 @@ impl RequestBuilder {
                         request.generators.add_generators(generators.clone());
                       }
                       if !contents.plugin_config.is_empty() {
-                        self.plugin_config.insert(matcher.plugin_name(), contents.plugin_config.clone());
+                        let plugin_config = PluginConfiguration {
+                          interaction_configuration: hashmap!{
+                            "request".to_string() => Value::Object(
+                              contents.plugin_config.interaction_configuration
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .collect()
+                            )
+                          },
+                          pact_configuration: contents.plugin_config.pact_configuration.clone(),
+                        };
+                        self.plugin_config.insert(matcher.plugin_name(), plugin_config);
                       }
                       self.interaction_markup = InteractionMarkup {
                         markup: contents.interaction_markup.clone(),

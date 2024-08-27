@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use maplit::hashmap;
+use serde_json::{json, Value};
+use tracing::debug;
+use pact_models::json_utils::json_deep_merge;
 use pact_models::provider_states::ProviderState;
 use pact_models::sync_interaction::RequestResponseInteraction;
 use pact_models::v4::synch_http::SynchronousHttp;
-use serde_json::{json, Value};
-use tracing::debug;
 
 use super::request_builder::RequestBuilder;
 use super::response_builder::ResponseBuilder;
@@ -162,13 +163,23 @@ impl InteractionBuilder {
       let request_config = self.request.plugin_config();
       if !request_config.is_empty() {
         for (key, value) in request_config {
-          config.insert(key.clone(), value.interaction_configuration.clone());
+          config.insert(key, value.interaction_configuration);
         }
       }
       let response_config = self.response.plugin_config();
       if !response_config.is_empty() {
         for (key, value) in response_config {
-          config.insert(key.clone(), value.interaction_configuration.clone());
+          let value_config = value.interaction_configuration.clone();
+          config.entry(key)
+            .and_modify(|entry| {
+              for (k, v) in value_config {
+                entry
+                  .entry(k)
+                  .and_modify(|e| *e = json_deep_merge(e, &v))
+                  .or_insert(v);
+              }
+            })
+            .or_insert(value.interaction_configuration);
         }
       }
     }
@@ -193,5 +204,59 @@ impl InteractionBuilder {
       }
     }
     config
+  }
+}
+
+#[cfg(all(test, feature = "plugins"))]
+mod plugin_tests {
+  use expectest::prelude::*;
+  use maplit::hashmap;
+  use pact_plugin_driver::content::PluginConfiguration;
+  use serde_json::json;
+
+  use crate::builders::InteractionBuilder;
+
+  #[test]
+  fn plugin_config_merges_config_from_request_and_response_parts() {
+    let mut builder = InteractionBuilder::new("test", "");
+    builder.request.plugin_config = hashmap!{
+      "plugin1".to_string() => PluginConfiguration {
+        interaction_configuration: hashmap!{
+          "other".to_string() => json!(100),
+          "request".to_string() => json!({
+            "descriptorKey": "d58838959e37498cddf51805bedf4dca",
+            "message": ".area_calculator.ShapeMessage"
+          })
+        },
+        pact_configuration: Default::default()
+      }
+    };
+    builder.response.plugin_config = hashmap!{
+      "plugin1".to_string() => PluginConfiguration {
+        interaction_configuration: hashmap!{
+          "other".to_string() => json!(200),
+          "response".to_string() => json!({
+            "descriptorKey": "d58838959e37498cddf51805bedf4dca",
+            "message": ".area_calculator.AreaResponse"
+          })
+        },
+        pact_configuration: Default::default()
+      }
+    };
+
+    let config = builder.plugin_config();
+    expect!(config).to(be_equal_to(hashmap!{
+      "plugin1".to_string() => hashmap!{
+        "other".to_string() => json!(200),
+        "request".to_string() => json!({
+          "descriptorKey": "d58838959e37498cddf51805bedf4dca",
+          "message": ".area_calculator.ShapeMessage"
+        }),
+        "response".to_string() => json!({
+          "descriptorKey": "d58838959e37498cddf51805bedf4dca",
+          "message": ".area_calculator.AreaResponse"
+        })
+      }
+    }));
   }
 }
