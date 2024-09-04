@@ -13,7 +13,7 @@ use pact_models::PactSpecification;
 use tracing::{debug, error, warn};
 use tracing_core::LevelFilter;
 use tracing_subscriber::FmtSubscriber;
-
+use pact_matching::logging::LOG_ID;
 use pact_verifier::*;
 use pact_verifier::callback_executors::HttpRequestProviderStateExecutor;
 use pact_verifier::metrics::VerificationMetrics;
@@ -247,7 +247,7 @@ async fn handle_matches(matches: &clap::ArgMatches<'_>) -> Result<(), i32> {
       debug!("Pact source to verify = {}", s);
     };
 
-    verify_provider_async(
+    LOG_ID.scope(format!("verify:{}", provider.name), verify_provider_async(
         provider,
         source,
         filter,
@@ -260,7 +260,7 @@ async fn handle_matches(matches: &clap::ArgMatches<'_>) -> Result<(), i32> {
           app_name: "unknown".to_string(),
           app_version: "unknown".to_string()
         })
-    ).await
+    )).await
       .map_err(|err| {
         error!("Verification failed with error: {}", err);
         2

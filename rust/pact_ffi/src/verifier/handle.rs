@@ -5,7 +5,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use serde_json::Value;
 use tracing::{debug, error};
-
+use pact_matching::logging::LOG_ID;
 use pact_models::prelude::HttpAuth;
 use pact_verifier::{ConsumerVersionSelector, FilterInfo, NullRequestFilterExecutor, PactSource, ProviderInfo, ProviderTransport, PublishOptions, VerificationOptions, verify_provider_async};
 use pact_verifier::callback_executors::HttpRequestProviderStateExecutor;
@@ -286,7 +286,7 @@ impl VerifierHandle {
     let (calling_app_name, calling_app_version) = self.calling_app.clone().unwrap_or_else(|| {
       ("pact_ffi".to_string(), env!("CARGO_PKG_VERSION").to_string())
     });
-    match RUNTIME.block_on(async {
+    match RUNTIME.block_on(LOG_ID.scope(format!("verify:{}", self.provider.name), async {
       verify_provider_async(
         self.provider.clone(),
         self.sources.clone(),
@@ -301,7 +301,7 @@ impl VerifierHandle {
           app_version: calling_app_version.clone()
         })
       ).await
-    }) {
+    })) {
       Ok(result) => {
         self.verifier_output = result.clone();
         if result.result { 0 } else { 1 }
