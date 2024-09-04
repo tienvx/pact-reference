@@ -2047,7 +2047,7 @@ dependencies = [
  "maplit",
  "pact-plugin-driver",
  "pact_matching",
- "pact_mock_server 2.0.1",
+ "pact_mock_server 2.0.2",
  "pact_models",
  "pretty_assertions",
  "quickcheck",
@@ -2093,7 +2093,7 @@ dependencies = [
  "os_info",
  "pact-plugin-driver",
  "pact_matching",
- "pact_mock_server 1.2.9",
+ "pact_mock_server 1.2.10",
  "pact_models",
  "pact_verifier",
  "panic-message",
@@ -2171,9 +2171,9 @@ dependencies = [
 
 [[package]]
 name = "pact_mock_server"
-version = "1.2.9"
+version = "1.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "392cbfdaa5a60b8edc1f53ae2cad06afce6a32a4f1667c53f4f2e342ed765539"
+checksum = "c5174092ffb815793abdbf8ade73f2d4aad4e4e21c247ee2f28ec783487eed3a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2201,9 +2201,9 @@ dependencies = [
 
 [[package]]
 name = "pact_mock_server"
-version = "2.0.1"
+version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35d2863820744a8c361fc23a8cafbc11798a6e5856410e0ec9c66a0d34599a71"
+checksum = "9edf52ddfc8b2d6c9a38066b66a7775e69b93aaaf6def1b23efa04cdd3d25554"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2649,9 +2649,9 @@ dependencies = [
 
 [[package]]
 name = "quinn"
-version = "0.11.4"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2d2fb862b7ba45e615c1429def928f2e15f815bdf933b27a2d3824e224c1f46"
+checksum = "8c7c5fdde3cdae7203427dc4f0a68fe0ed09833edc525a03456b153b79828684"
 dependencies = [
  "bytes",
  "pin-project-lite",
@@ -2667,9 +2667,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea0a9b3a42929fad8a7c3de7f86ce0814cfa893328157672680e9fb1145549c5"
+checksum = "fadfaed2cd7f389d0161bb73eeb07b7b78f8691047a6f3e73caaeae55310a4a6"
 dependencies = [
  "bytes",
  "rand",
@@ -2684,15 +2684,15 @@ dependencies = [
 
 [[package]]
 name = "quinn-udp"
-version = "0.5.4"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bffec3605b73c6f1754535084a85229fa8a30f86014e6c81aeec4abb68b0285"
+checksum = "4fe68c2e9e1a1234e218683dbdf9f9dfcb094113c5ac2b938dfcb9bab4c4140b"
 dependencies = [
  "libc",
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
