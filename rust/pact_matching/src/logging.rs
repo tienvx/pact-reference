@@ -17,7 +17,7 @@ lazy_static! {
   /// Accumulates the log entries against a task local ID. If the ID is not set, accumulates against
   /// the "global" ID.
   /// cbindgen:ignore
-  #[deprecated(note = "This must be moved to the FFI crate")]
+  #[deprecated(note = "Do not use this, it has been moved to the FFI crate")]
   static ref LOG_BUFFER: Mutex<HashMap<String, BytesMut>> = Mutex::new(HashMap::new());
 }
 
@@ -29,7 +29,7 @@ task_local! {
 }
 
 /// Fetches the contents from the id scoped in-memory buffer and empties the buffer.
-#[deprecated(note = "This must be moved to the FFI crate")]
+#[deprecated(note = "Do not use this function, it has been moved to the FFI crate")]
 pub fn fetch_buffer_contents(id: &str) -> Bytes {
   let mut inner = LOG_BUFFER.lock().unwrap();
   let buffer = inner.entry(id.to_string())
@@ -39,7 +39,7 @@ pub fn fetch_buffer_contents(id: &str) -> Bytes {
 
 /// Writes the provided bytes to the task local ID scoped in-memory buffer. If there is no
 /// task local ID set, will write to the "global" buffer.
-#[deprecated(note = "This must be moved to the FFI crate")]
+#[deprecated(note = "Do not use this function, it has been moved to the FFI crate")]
 pub fn write_to_log_buffer(buf: &[u8]) {
   let id = LOG_ID.try_with(|id| id.clone()).unwrap_or_else(|_| "global".into());
   let mut inner = LOG_BUFFER.lock().unwrap();
