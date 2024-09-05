@@ -17,3 +17,7 @@ pub use crate::log::ffi::{
     pactffi_log_to_file,
     pactffi_log_to_buffer
 };
+pub use crate::log::inmem_buffer::{
+    fetch_buffer_contents,
+    write_to_log_buffer
+};

@@ -63,7 +63,6 @@ use tokio_rustls::rustls::ServerConfig;
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use pact_matching::logging::fetch_buffer_contents;
 use pact_matching::metrics::{MetricEvent, send_metrics};
 use pact_mock_server::{MANAGER, mock_server_mismatches, MockServerError, tls::TlsConfigBuilder, WritePactFileErr};
 use pact_mock_server::mock_server::MockServerConfig;
@@ -72,6 +71,7 @@ use pact_models::generators::GeneratorCategory;
 use pact_models::matchingrules::{Category, MatchingRuleCategory};
 
 use crate::{convert_cstr, ffi_fn, safe_str};
+use crate::log::fetch_buffer_contents;
 use crate::mock_server::handles::{PactHandle, path_from_dir};
 use crate::string::optional_str;
 

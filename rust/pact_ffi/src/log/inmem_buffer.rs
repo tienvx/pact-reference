@@ -17,7 +17,7 @@ pub(crate) struct InMemBuffer { }
 
 impl Write for InMemBuffer {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    pact_matching::logging::write_to_log_buffer(buf);
+    write_to_log_buffer(buf);
     Ok(buf.len())
   }
 

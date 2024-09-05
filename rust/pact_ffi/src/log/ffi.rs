@@ -8,9 +8,8 @@ use std::str::from_utf8;
 use libc::{c_char, c_int};
 use log::{error, LevelFilter as LogLevelFilter};
 
-use pact_matching::logging::fetch_buffer_contents;
-
 use crate::error::set_error_msg;
+use crate::log::inmem_buffer::fetch_buffer_contents;
 use crate::log::level_filter::LevelFilter;
 use crate::log::logger::{add_sink, apply_logger, init_logger};
 use crate::log::sink::Sink;

@@ -16,10 +16,10 @@ use pact_models::prelude::HttpAuth;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use pact_matching::logging::fetch_buffer_contents;
 use pact_verifier::selectors::{consumer_tags_to_selectors, json_to_selectors};
 
 use crate::{as_mut, as_ref, ffi_fn, RUNTIME, safe_str};
+use crate::log::fetch_buffer_contents;
 use crate::ptr;
 use crate::util::string::{if_null, optional_str};
 
