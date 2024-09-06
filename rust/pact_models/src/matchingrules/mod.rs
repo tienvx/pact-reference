@@ -537,6 +537,8 @@ impl PartialEq for MatchingRule {
       (MatchingRule::Include(str1), MatchingRule::Include(str2)) => str1 == str2,
       (MatchingRule::ContentType(str1), MatchingRule::ContentType(str2)) => str1 == str2,
       (MatchingRule::ArrayContains(variants1), MatchingRule::ArrayContains(variants2)) => variants1 == variants2,
+      (MatchingRule::EachKey(definition1), MatchingRule::EachKey(definition2)) => definition1 == definition2,
+      (MatchingRule::EachValue(definition1), MatchingRule::EachValue(definition2)) => definition1 == definition2,
       _ => mem::discriminant(self) == mem::discriminant(other)
     }
   }
