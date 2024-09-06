@@ -31,7 +31,7 @@
 //!
 //! V3 specification matching is supported for both JSON and XML bodies, headers, query strings and request paths.
 //!
-//! To understand the basic rules of matching, see [Matching Gotchas](https://github.com/realestate-com-au/pact/wiki/Matching-gotchas).
+//! To understand the basic rules of matching, see [Matching Gotchas](https://docs.pact.io/getting_started/matching/gotchas).
 //! For example test cases for matching, see the [Pact Specification Project, version 3](https://github.com/bethesque/pact-specification/tree/version-3).
 //!
 //! By default, Pact will use string equality matching following Postel's Law. This means
