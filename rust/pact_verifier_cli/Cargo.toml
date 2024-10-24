@@ -1,6 +1,6 @@
 [package]
 name = "pact_verifier_cli"
-version = "1.1.4"
+version = "1.1.5"
 authors = ["Ronald Holshausen <ronald.holshausen@gmail.com>"]
 edition = "2021"
 description = "Standalone pact verifier for provider pact verification"
@@ -30,8 +30,8 @@ junit-report = { version = "0.8.3", optional = true }
 lazy_static = "1.5.0"
 log = "0.4.20"
 maplit = "1.0.2"
-pact_models = { version = "~1.2.2", default-features = false }
-pact_verifier = { version = "~1.2.3", path = "../pact_verifier", default-features = false }
+pact_models = { version = "~1.2.4", default-features = false }
+pact_verifier = { version = "~1.2.4", path = "../pact_verifier", default-features = false }
 regex = "1.10.2"
 reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls-native-roots", "blocking", "json"] }
 serde_json = "1.0.108"
@@ -45,5 +45,5 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter", "tracing-lo
 
 [dev-dependencies]
 expectest = "0.12.0"
-rstest = "0.21.0"
+rstest = "0.22.0"
 trycmd = "0.15.0"

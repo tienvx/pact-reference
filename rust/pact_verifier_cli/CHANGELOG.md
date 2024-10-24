@@ -1,5 +1,24 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.1.4 - Bugfix Release
+
+* fa02c30b - chore: Upgrade pact_verifier to 1.2.4 (Ronald Holshausen, Tue Aug 13 15:42:48 2024 +1000)
+* f50454ff - chore: Upgrade test dependencies (Ronald Holshausen, Tue Aug 13 11:54:59 2024 +1000)
+* 9a7eef75 - chore: Upgrade pact_models to 1.2.4 (Ronald Holshausen, Tue Aug 13 11:51:06 2024 +1000)
+* bcf4db6d - chore: Upgrade pact_models to 1.2.3 (Ronald Holshausen, Tue Aug 6 11:06:22 2024 +1000)
+* 4257ed1e - chore: Upgrade pact_verifier to 1.2.3 (Ronald Holshausen, Wed Jul 17 15:19:58 2024 +1000)
+* fd9ff70a - chore: Upgrade pact_models to 1.2.2 (Ronald Holshausen, Wed Jul 17 11:15:34 2024 +1000)
+* 5ba47b96 - docs(pact_verifier_cli): Update README with returning values from provider state callbacks #441 (Ronald Holshausen, Thu Jul 11 15:52:55 2024 +1000)
+* f03cd0d3 - feat(pact_verifier_cli): Parse consumer version selector JSON when evaluating CLI args so errors are reported earlier (Ronald Holshausen, Wed Jul 10 12:13:11 2024 +1000)
+* de31b4ea - fix(pact_verifier_cli): Allow transport base-paths to be defined from the CLI #418 (Ronald Holshausen, Mon Jul 8 17:19:37 2024 +1000)
+* a5ba0cb8 - doc(pact_verifier_cli): Update Rust docs from README content #418 (Ronald Holshausen, Mon Jul 8 16:37:48 2024 +1000)
+* a830e491 - doc(pact_verifier_cli): Fix grammar #418 (Ronald Holshausen, Mon Jul 8 16:27:57 2024 +1000)
+* 8cc4c148 - doc(pact_verifier_cli): Update docs for verifying mixed V4 Pacts #418 (Ronald Holshausen, Mon Jul 8 16:26:00 2024 +1000)
+* bab814c8 - doc(pact_verifier_cli): Fix grammar #418 (Ronald Holshausen, Mon Jul 8 15:43:21 2024 +1000)
+* fbb7825d - doc(pact_verifier_cli): Add some emphasis to example values #418 (Ronald Holshausen, Mon Jul 8 15:41:25 2024 +1000)
+* 4775fdfd - doc(pact_verifier_cli): Update the CLI docs to explain the provider state calls #418 (Ronald Holshausen, Mon Jul 8 15:25:23 2024 +1000)
+* 37bc38f1 - bump version to 1.1.4 (Ronald Holshausen, Fri Jun 14 11:51:24 2024 +1000)
+
 # 1.1.3 - Feature + Bugfix release
 
 * dad482f5 - chore: Upgrade pact_verifier to 1.2.2 (Ronald Holshausen, Fri Jun 14 11:21:54 2024 +1000)

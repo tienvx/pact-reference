@@ -635,7 +635,7 @@ mod tests {
 
     let error = pactffi_matcher_definition_error(result);
     let string = unsafe { CString::from_raw(error as *mut c_char) };
-    expect!(string.to_string_lossy()).to(be_equal_to("expected a primitive value"));
+    expect!(string.to_string_lossy().contains("expected a primitive value")).to(be_true());
 
     let value = pactffi_matcher_definition_value(result);
     expect!(value.is_null()).to(be_true());
@@ -647,7 +647,7 @@ mod tests {
     expect!(value_type).to(be_equal_to(ExpressionValueType::Unknown));
 
     let definition = unsafe { Box::from_raw(result as *mut MatchingRuleDefinitionResult) };
-    expect!(definition.result.left()).to(be_some().value("expected a primitive value"));
+    expect!(definition.result.left().unwrap().contains("expected a primitive value")).to(be_true());
   }
 
   #[test_log::test]

@@ -1,6 +1,6 @@
 [package]
 name = "pact_verifier"
-version = "1.2.4"
+version = "1.2.5"
 authors = ["Ronald Holshausen <ronald.holshausen@gmail.com>"]
 edition = "2021"
 description = "Pact-Rust support library that implements provider verification functions"
@@ -18,7 +18,7 @@ exclude = [
 default = ["datetime", "xml", "plugins", "multipart"]
 datetime = ["pact_models/datetime", "pact-plugin-driver?/datetime", "pact_matching/datetime"] # Support for date/time matchers and expressions
 xml = ["pact_models/xml", "pact-plugin-driver?/xml", "pact_matching/xml"] # support for matching XML documents
-plugins = ["dep:pact-plugin-driver"]
+plugins = ["dep:pact-plugin-driver", "pact_matching/plugins"]
 multipart = ["pact_matching/multipart"] # suport for MIME multipart bodies
 
 [dependencies]
@@ -36,8 +36,8 @@ lazy_static = "1.4.0"
 maplit = "1.0.2"
 mime = "0.3.17"
 pact_matching = { version = "~2.0.0-beta", path = "../pact_matching", default-features = false }
-pact_models = { version = "~1.2.2", default-features = false }
-pact-plugin-driver = { version = "~0.7.0", optional = true, default-features = false }
+pact_models = { version = "~1.2.4", default-features = false }
+pact-plugin-driver = { version = "~0.7.1", optional = true, default-features = false }
 regex = "1.10.4"
 reqwest = { version = "0.12.3", default-features = false, features = ["rustls-tls-native-roots", "blocking", "json"] }
 serde = "1.0.197"

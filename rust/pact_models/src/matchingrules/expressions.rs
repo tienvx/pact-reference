@@ -117,9 +117,11 @@ use bytes::{BufMut, BytesMut};
 use itertools::Either;
 use logos::{Lexer, Logos, Span};
 use semver::Version;
-use tracing::{trace, warn};
+use tracing::{instrument, trace, warn};
 
+use crate::expression_parser::DataType;
 use crate::generators::Generator;
+use crate::generators::Generator::ProviderStateGenerator;
 use crate::matchingrules::MatchingRule;
 use crate::matchingrules::MatchingRule::{MaxType, MinType, NotEmpty};
 
@@ -165,6 +167,19 @@ impl ValueType {
       (ValueType::Boolean, ValueType::Boolean) => ValueType::Boolean,
       (ValueType::String, _) => ValueType::String,
       (_, _) => other
+    }
+  }
+}
+
+impl Into<DataType> for ValueType {
+  fn into(self) -> DataType {
+    match self {
+      ValueType::Unknown => DataType::RAW,
+      ValueType::String => DataType::STRING,
+      ValueType::Number => DataType::DECIMAL,
+      ValueType::Integer => DataType::INTEGER,
+      ValueType::Decimal => DataType::DECIMAL,
+      ValueType::Boolean => DataType::BOOLEAN
     }
   }
 }
@@ -288,6 +303,7 @@ enum MatcherDefinitionToken {
 /// * `matching(type,'Name')` - type matcher
 /// * `matching(number,100)` - number matcher
 /// * `matching(datetime, 'yyyy-MM-dd','2000-01-01')` - datetime matcher with format string
+#[instrument(level = "debug", ret)]
 pub fn parse_matcher_def(v: &str) -> anyhow::Result<MatchingRuleDefinition> {
   if v.is_empty() {
     Err(anyhow!("Expected a matching rule definition, but got an empty string"))
@@ -370,12 +386,12 @@ fn matching_definition_exp(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> 
         })
       }
     } else if token == &MatcherDefinitionToken::NotEmpty {
-      let (value, value_type) = parse_not_empty(lex, v)?;
+      let (value, value_type, generator) = parse_not_empty(lex, v)?;
       Ok(MatchingRuleDefinition {
         value,
         value_type,
         rules: vec![Either::Left(NotEmpty)],
-        generator: None
+        generator
       })
     } else if token == &MatcherDefinitionToken::EachKey {
       let definition = parse_each_key(lex, v)?;
@@ -516,11 +532,14 @@ fn parse_each_key(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::R
 }
 
 // LEFT_BRACKET primitiveValue RIGHT_BRACKET
-fn parse_not_empty(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType)> {
-  let next = lex.next().ok_or_else(|| anyhow!("expected '('"))?;
+fn parse_not_empty(
+  lex: &mut Lexer<MatcherDefinitionToken>,
+  v: &str
+) -> anyhow::Result<(String, ValueType, Option<Generator>)> {
+  let next = lex.next().ok_or_else(|| end_of_expression(v, "'('"))?;
   if let Ok(MatcherDefinitionToken::LeftBracket) = next {
-    let result = parse_primitive_value(lex, v)?;
-    let next = lex.next().ok_or_else(|| anyhow!("expected ')'"))?;
+    let result = parse_primitive_value(lex, v, false)?;
+    let next = lex.next().ok_or_else(|| end_of_expression(v, "')'"))?;
     if let Ok(MatcherDefinitionToken::RightBracket) = next {
       Ok(result)
     } else {
@@ -533,17 +552,17 @@ fn parse_not_empty(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::
 
 // LEFT_BRACKET matchingRule RIGHT_BRACKET
 fn parse_matching(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
-  let next = lex.next().ok_or_else(|| anyhow!("expected '('"))?;
+  let next = lex.next().ok_or_else(|| end_of_expression(v, "'('"))?;
   if let Ok(MatcherDefinitionToken::LeftBracket) = next {
     let result = parse_matching_rule(lex, v)?;
-    let next = lex.next().ok_or_else(|| anyhow!("expected ')'"))?;
+    let next = lex.next().ok_or_else(|| end_of_expression(v, "')'"))?;
     if let Ok(MatcherDefinitionToken::RightBracket) = next {
       Ok(result)
     } else {
-      Err(anyhow!("expected closing bracket, got '{}'", lex.slice()))
+      Err(anyhow!(error_message(lex, v, "Expected a closing bracket", "Expected a closing bracket before this")?))
     }
   } else {
-    Err(anyhow!("expected '(', got '{}'", lex.remainder()))
+    Err(anyhow!(error_message(lex, v, "Expected an opening bracket", "Expected an opening bracket before this")?))
   }
 }
 
@@ -643,10 +662,13 @@ fn parse_semver(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Res
 }
 
 //     COMMA v=primitiveValue { $value = $v.value; $type = $v.type; } )
-fn parse_equality(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
+fn parse_equality(
+  lex: &mut Lexer<MatcherDefinitionToken>,
+  v: &str
+) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
-  let (value, value_type) = parse_primitive_value(lex, v)?;
-  Ok((value, value_type, Some(MatchingRule::Equality), None, None))
+  let (value, value_type, generator) = parse_primitive_value(lex, v, false)?;
+  Ok((value, value_type, Some(MatchingRule::Equality), generator, None))
 }
 
 // COMMA r=string COMMA s=string { $rule = new RegexMatcher($r.contents); $value = $s.contents; $type = ValueType.String; }
@@ -659,37 +681,64 @@ fn parse_regex(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Resu
 }
 
 // COMMA v=primitiveValue { $value = $v.value; $type = $v.type; } )
-fn parse_type(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
+fn parse_type(
+  lex: &mut Lexer<MatcherDefinitionToken>,
+  v: &str
+) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
-  let (value, value_type) = parse_primitive_value(lex, v)?;
-  Ok((value, value_type, Some(MatchingRule::Type), None, None))
+  let (value, value_type, generator) = parse_primitive_value(lex, v, false)?;
+  Ok((value, value_type, Some(MatchingRule::Type), generator, None))
 }
 
-// COMMA format=string COMMA s=string { $value = $s.contents; $type = ValueType.String; }
+// COMMA format=string COMMA s=(string | 'fromProviderState' fromProviderState)
 fn parse_datetime(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
   let format = parse_string(lex, v)?;
   parse_comma(lex, v)?;
-  let value = parse_string(lex, v)?;
-  Ok((value, ValueType::String, Some(MatchingRule::Timestamp(format.clone())), Some(Generator::DateTime(Some(format), None)), None))
+
+  let remainder = lex.remainder().trim_start();
+  let (value, value_type, generator) = if remainder.starts_with("fromProviderState") {
+    lex.next();
+    from_provider_state(lex, v)?
+  } else {
+    (parse_string(lex, v)?, ValueType::String, Some(Generator::DateTime(Some(format.clone()), None)))
+  };
+
+  Ok((value, value_type, Some(MatchingRule::Timestamp(format.clone())), generator, None))
 }
 
-// COMMA format=string COMMA s=string { $value = $s.contents; $type = ValueType.String; }
+// COMMA format=string COMMA s=(string | 'fromProviderState' fromProviderState)
 fn parse_date(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
   let format = parse_string(lex, v)?;
   parse_comma(lex, v)?;
-  let value = parse_string(lex, v)?;
-  Ok((value, ValueType::String, Some(MatchingRule::Date(format.clone())), Some(Generator::Date(Some(format), None)), None))
+
+  let remainder = lex.remainder().trim_start();
+  let (value, value_type, generator) = if remainder.starts_with("fromProviderState") {
+    lex.next();
+    from_provider_state(lex, v)?
+  } else {
+    (parse_string(lex, v)?, ValueType::String, Some(Generator::Date(Some(format.clone()), None)))
+  };
+
+  Ok((value, value_type, Some(MatchingRule::Date(format.clone())), generator, None))
 }
 
-// COMMA format=string COMMA s=string { $value = $s.contents; $type = ValueType.String; }
+// COMMA format=string COMMA s=(string | 'fromProviderState' fromProviderState)
 fn parse_time(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
   let format = parse_string(lex, v)?;
   parse_comma(lex, v)?;
-  let value = parse_string(lex, v)?;
-  Ok((value, ValueType::String, Some(MatchingRule::Time(format.clone())), Some(Generator::Time(Some(format), None)), None))
+
+  let remainder = lex.remainder().trim_start();
+  let (value, value_type, generator) = if remainder.starts_with("fromProviderState") {
+    lex.next();
+    from_provider_state(lex, v)?
+  } else {
+    (parse_string(lex, v)?, ValueType::String, Some(Generator::Time(Some(format.clone()), None)))
+  };
+
+  Ok((value, value_type, Some(MatchingRule::Time(format.clone())), generator, None))
 }
 
 // COMMA s=string { $rule = new IncludeMatcher($s.contents); $value = $s.contents; $type = ValueType.String; }
@@ -713,28 +762,31 @@ fn parse_content_type(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyho
 //   | v=DECIMAL_LITERAL { $value = $v.getText(); $type = ValueType.Decimal; }
 //   | v=INTEGER_LITERAL { $value = $v.getText(); $type = ValueType.Integer; }
 //   | v=BOOLEAN_LITERAL { $value = $v.getText(); $type = ValueType.Boolean; }
-//   ;
-// string returns [ String contents ] :
-//   STRING_LITERAL {
+//   | STRING_LITERAL {
 //     String contents = $STRING_LITERAL.getText();
 //     $contents = contents.substring(1, contents.length() - 1);
 //   }
 //   | 'null'
+//   | 'fromProviderState' fromProviderState
 //   ;
-fn parse_primitive_value(lex: &mut Lexer<MatcherDefinitionToken>, _v: &str) -> anyhow::Result<(String, ValueType)> {
-  let next = lex.next().ok_or_else(|| anyhow!("expected a primitive value"))?;
+fn parse_primitive_value(
+  lex: &mut Lexer<MatcherDefinitionToken>,
+  v: &str,
+  already_called: bool
+) -> anyhow::Result<(String, ValueType, Option<Generator>)> {
+  let next = lex.next().ok_or_else(|| end_of_expression(v, "expected a primitive value"))?;
   match next {
-    Ok(MatcherDefinitionToken::String) => Ok((lex.slice().trim_matches('\'').to_string(), ValueType::String)),
-    Ok(MatcherDefinitionToken::Null) => Ok((String::new(), ValueType::String)),
+    Ok(MatcherDefinitionToken::String) => Ok((lex.slice().trim_matches('\'').to_string(), ValueType::String, None)),
+    Ok(MatcherDefinitionToken::Null) => Ok((String::new(), ValueType::String, None)),
     Ok(MatcherDefinitionToken::Int(_)) => {
       // Logos is returning an INT token when a Decimal should match. We need to now parse the
       // remaining pattern if it is a decimal
       if lex.remainder().starts_with('.') {
         let int_part = lex.slice();
-        let _ = lex.next().ok_or_else(|| anyhow!("expected a number"))?;
-        Ok((format!("{}{}", int_part, lex.slice()), ValueType::Decimal))
+        let _ = lex.next().ok_or_else(|| end_of_expression(v, "expected a number"))?;
+        Ok((format!("{}{}", int_part, lex.slice()), ValueType::Decimal, None))
       } else {
-        Ok((lex.slice().to_string(), ValueType::Integer))
+        Ok((lex.slice().to_string(), ValueType::Integer, None))
       }
     },
     Ok(MatcherDefinitionToken::Num(_)) => {
@@ -742,23 +794,26 @@ fn parse_primitive_value(lex: &mut Lexer<MatcherDefinitionToken>, _v: &str) -> a
       // remaining pattern if it is a decimal
       if lex.remainder().starts_with('.') {
         let int_part = lex.slice();
-        let _ = lex.next().ok_or_else(|| anyhow!("expected a number"))?;
-        Ok((format!("{}{}", int_part, lex.slice()), ValueType::Decimal))
+        let _ = lex.next().ok_or_else(|| end_of_expression(v, "expected a number"))?;
+        Ok((format!("{}{}", int_part, lex.slice()), ValueType::Decimal, None))
       } else {
-        Ok((lex.slice().to_string(), ValueType::Integer))
+        Ok((lex.slice().to_string(), ValueType::Integer, None))
       }
     },
-    Ok(MatcherDefinitionToken::Decimal) => Ok((lex.slice().to_string(), ValueType::Decimal)),
-    Ok(MatcherDefinitionToken::Boolean) => Ok((lex.slice().to_string(), ValueType::Boolean)),
-    _ => Err(anyhow!("expected a primitive value, got '{}'", lex.slice()))
+    Ok(MatcherDefinitionToken::Decimal) => Ok((lex.slice().to_string(), ValueType::Decimal, None)),
+    Ok(MatcherDefinitionToken::Boolean) => Ok((lex.slice().to_string(), ValueType::Boolean, None)),
+    Ok(MatcherDefinitionToken::Id) if lex.slice() == "fromProviderState" && !already_called => {
+      from_provider_state(lex, v)
+    },
+    _ => Err(anyhow!(error_message(lex, v, "Expected a primitive value", "Expected a primitive value here")?))
   }
 }
 
-// COMMA val=( DECIMAL_LITERAL | INTEGER_LITERAL ) { $value = $val.getText(); $type = ValueType.Number; }
+// COMMA val=( DECIMAL_LITERAL | INTEGER_LITERAL | 'fromProviderState' fromProviderState)
 #[allow(clippy::if_same_then_else)]
 fn parse_number(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
-  let next = lex.next().ok_or_else(|| anyhow!("expected a number"))?;
+  let next = lex.next().ok_or_else(|| end_of_expression(v, "expected a number"))?;
   if let Ok(MatcherDefinitionToken::Decimal) = next {
     Ok((lex.slice().to_string(), ValueType::Number,  Some(MatchingRule::Number), None, None))
   } else if let Ok(MatcherDefinitionToken::Int(_) | MatcherDefinitionToken::Num(_)) = next {
@@ -766,24 +821,38 @@ fn parse_number(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Res
     // remaining pattern if it is a decimal
     if lex.remainder().starts_with('.') {
       let int_part = lex.slice();
-      let _ = lex.next().ok_or_else(|| anyhow!("expected a number"))?;
+      let _ = lex.next().ok_or_else(|| end_of_expression(v, "expected a number"))?;
       Ok((format!("{}{}", int_part, lex.slice()), ValueType::Number, Some(MatchingRule::Number), None, None))
     } else {
       Ok((lex.slice().to_string(), ValueType::Number, Some(MatchingRule::Number), None, None))
     }
+  } else if let Ok(MatcherDefinitionToken::Id) = next {
+    if lex.slice() == "fromProviderState" {
+      let (value, value_type, generator) = from_provider_state(lex, v)?;
+      Ok((value, value_type, Some(MatchingRule::Number), generator, None))
+    } else {
+      Err(anyhow!(error_message(lex, v, "Expected a number", "Expected a number here")?))
+    }
   } else {
-    Err(anyhow!("expected a number, got '{}'", lex.slice()))
+    Err(anyhow!(error_message(lex, v, "Expected a number", "Expected a number here")?))
   }
 }
 
 // COMMA val=INTEGER_LITERAL { $value = $val.getText(); $type = ValueType.Integer; }
 fn parse_integer(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
-  let next = lex.next().ok_or_else(|| anyhow!("expected an integer"))?;
+  let next = lex.next().ok_or_else(|| end_of_expression(v, "expected an integer"))?;
   if let Ok(MatcherDefinitionToken::Int(_) | MatcherDefinitionToken::Num(_)) = next {
     Ok((lex.slice().to_string(), ValueType::Integer, Some(MatchingRule::Integer), None, None))
+  } else if let Ok(MatcherDefinitionToken::Id) = next {
+    if lex.slice() == "fromProviderState" {
+      let (value, value_type, generator) = from_provider_state(lex, v)?;
+      Ok((value, value_type, Some(MatchingRule::Integer), generator, None))
+    } else {
+      Err(anyhow!(error_message(lex, v, "Expected an integer", "Expected an integer here")?))
+    }
   } else {
-    Err(anyhow!("expected an integer, got '{}'", lex.slice()))
+    Err(anyhow!(error_message(lex, v, "Expected an integer", "Expected an integer here")?))
   }
 }
 
@@ -791,32 +860,39 @@ fn parse_integer(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Re
 #[allow(clippy::if_same_then_else)]
 fn parse_decimal(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
-  let next = lex.next().ok_or_else(|| anyhow!("expected a decimal number"))?;
+  let next = lex.next().ok_or_else(|| end_of_expression(v, "expected a decimal number"))?;
   if let Ok(MatcherDefinitionToken::Int(_) | MatcherDefinitionToken::Num(_)) = next {
     // Logos is returning an INT token when a Decimal should match. We need to now parse the
     // remaining pattern if it is a decimal
     if lex.remainder().starts_with('.') {
       let int_part = lex.slice();
-      let _ = lex.next().ok_or_else(|| anyhow!("expected a number"))?;
+      let _ = lex.next().ok_or_else(|| end_of_expression(v, "expected a number"))?;
       Ok((format!("{}{}", int_part, lex.slice()), ValueType::Decimal, Some(MatchingRule::Decimal), None, None))
     } else {
       Ok((lex.slice().to_string(), ValueType::Decimal, Some(MatchingRule::Decimal), None, None))
     }
   } else if let Ok(MatcherDefinitionToken::Decimal) = next {
     Ok((lex.slice().to_string(), ValueType::Decimal, Some(MatchingRule::Decimal), None, None))
+  } else if let Ok(MatcherDefinitionToken::Id) = next {
+    if lex.slice() == "fromProviderState" {
+      let (value, value_type, generator) = from_provider_state(lex, v)?;
+      Ok((value, value_type, Some(MatchingRule::Number), generator, None))
+    } else {
+      Err(anyhow!(error_message(lex, v, "Expected a decimal number", "Expected a decimal number here")?))
+    }
   } else {
-    Err(anyhow!("expected a decimal number, got '{}'", lex.slice()))
+    Err(anyhow!(error_message(lex, v, "Expected a decimal number", "Expected a decimal number here")?))
   }
 }
 
 // COMMA BOOLEAN_LITERAL { $rule = BooleanMatcher.INSTANCE; $value = $BOOLEAN_LITERAL.getText(); $type = ValueType.Boolean; }
 fn parse_boolean(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<MatchingRule>, Option<Generator>, Option<MatchingReference>)> {
   parse_comma(lex, v)?;
-  let next = lex.next().ok_or_else(|| anyhow!("expected a boolean"))?;
+  let next = lex.next().ok_or_else(|| end_of_expression(v, "expected a boolean"))?;
   if let Ok(MatcherDefinitionToken::Boolean) = next {
     Ok((lex.slice().to_string(), ValueType::Boolean, Some(MatchingRule::Boolean), None, None))
   } else {
-    Err(anyhow!("expected a boolean, got '{}'", lex.slice()))
+    Err(anyhow!(error_message(lex, v, "Expected a boolean", "Expected a boolean here")?))
   }
 }
 
@@ -980,6 +1056,24 @@ fn parse_length_param(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyho
   }
 }
 
+// '(' exp=STRING_LITERAL COMMA v=primitiveValue ')'
+fn from_provider_state(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Result<(String, ValueType, Option<Generator>)> {
+  let next = lex.next().ok_or_else(|| end_of_expression(v, "'('"))?;
+  if let Ok(MatcherDefinitionToken::LeftBracket) = next {
+    let expression = parse_string(lex, v)?;
+    parse_comma(lex, v)?;
+    let (value, val_type, _) = parse_primitive_value(lex, v, true)?;
+    let next = lex.next().ok_or_else(|| end_of_expression(v, "')'"))?;
+    if let Ok(MatcherDefinitionToken::RightBracket) = next {
+      Ok((value, val_type, Some(ProviderStateGenerator(expression, Some(val_type.into())))))
+    } else {
+      Err(anyhow!(error_message(lex, v, "Expected a closing bracket", "Expected a closing bracket before this")?))
+    }
+  } else {
+    Err(anyhow!(error_message(lex, v, "Expected an opening bracket", "Expected an opening bracket before this")?))
+  }
+}
+
 #[cfg(test)]
 mod test {
   use expectest::prelude::*;
@@ -1006,12 +1100,15 @@ mod test {
 
   #[test]
   fn parse_type_matcher() {
-    expect!(super::parse_matcher_def("matching(type,'Name')").unwrap()).to(
+    expect!(parse_matcher_def("matching(type,'Name')").unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("Name".to_string(), ValueType::String, MatchingRule::Type, None)));
-    expect!(super::parse_matcher_def("matching( type, 'Name' )").unwrap()).to(
+    expect!(parse_matcher_def("matching( type, 'Name' )").unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("Name".to_string(), ValueType::String, MatchingRule::Type, None)));
-    expect!(super::parse_matcher_def("matching(type,123.4)").unwrap()).to(
+    expect!(parse_matcher_def("matching(type,123.4)").unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("123.4".to_string(), ValueType::Decimal, MatchingRule::Type, None)));
+    expect!(parse_matcher_def("matching(type, fromProviderState('exp', 3))").unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("3".to_string(), ValueType::Integer, MatchingRule::Type,
+        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))))));
   }
 
   #[test]
@@ -1026,6 +1123,9 @@ mod test {
       be_equal_to(MatchingRuleDefinition::new("100".to_string(), ValueType::Decimal, MatchingRule::Decimal, None)));
     expect!(super::parse_matcher_def("matching(decimal,100.22)").unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("100.22".to_string(), ValueType::Decimal, MatchingRule::Decimal, None)));
+    expect!(parse_matcher_def("matching(number, fromProviderState('exp', 3))").unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("3".to_string(), ValueType::Integer, MatchingRule::Number,
+        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))))));
   }
 
   #[test]
@@ -1045,6 +1145,11 @@ mod test {
                    ValueType::String,
                    MatchingRule::Time("HH:mm:ss".to_string()),
                    Some(Time(Some("HH:mm:ss".to_string()), None)))));
+    expect!(super::parse_matcher_def("matching(datetime, 'yyyy-MM-dd', fromProviderState('exp', '2000-01-01'))").unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("2000-01-01".to_string(),
+                   ValueType::String,
+                   MatchingRule::Timestamp("yyyy-MM-dd".to_string()),
+                   Some(ProviderStateGenerator("exp".to_string(), Some(DataType::STRING))))));
   }
 
   #[test]
@@ -1086,6 +1191,9 @@ mod test {
                                               ValueType::Decimal,
                                               MatchingRule::Equality,
                                               None)));
+    expect!(parse_matcher_def("matching(equalTo, fromProviderState('exp', 3))").unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("3".to_string(), ValueType::Integer, MatchingRule::Equality,
+        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))))));
   }
 
   #[test]
@@ -1109,6 +1217,9 @@ mod test {
                                               ValueType::Integer,
                                               MatchingRule::NotEmpty,
                                               None)));
+    expect!(parse_matcher_def("notEmpty(fromProviderState('exp', 3))").unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("3".to_string(), ValueType::Integer, MatchingRule::NotEmpty,
+        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))))));
   }
 
   #[test]

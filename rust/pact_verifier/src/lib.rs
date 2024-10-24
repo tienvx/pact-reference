@@ -38,7 +38,7 @@ use pact_models::v4::interaction::V4Interaction;
 #[cfg(feature = "plugins")] use pact_plugin_driver::verification::{InteractionVerificationData, InteractionVerificationDetails};
 use regex::Regex;
 use reqwest::Client;
-use serde_json::Value;
+use serde_json::{Map, Value};
 #[cfg(feature = "plugins")] use serde_json::json;
 use tracing::{debug, debug_span, error, info, Instrument, instrument, trace, warn};
 
@@ -518,9 +518,11 @@ async fn verify_interaction_using_transport<'a, F: RequestFilterExecutor>(
           context.insert("port".to_string(), json!(port));
         }
 
+        let mut psc = Map::new();
         for (k, v) in config {
-          context.insert(k.to_string(), v.clone());
+          psc.insert(k.to_string(), v.clone());
         }
+        context.insert("providerState".to_string(), Value::Object(psc));
 
         // Get plugin to prepare the request data
         let v4_interaction = interaction.as_v4().unwrap();

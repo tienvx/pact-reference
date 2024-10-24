@@ -19,6 +19,7 @@ use rand::prelude::*;
 #[cfg(target_family = "wasm")] use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use serde_json::Value::Object;
 use tracing::{debug, instrument, trace, warn};
 use uuid::Uuid;
 
@@ -252,7 +253,7 @@ impl Generator {
       Generator::Time(_, _) => "Time",
       Generator::DateTime(_, _) => "DateTime",
       Generator::RandomBoolean => "RandomBoolean",
-      Generator::ProviderStateGenerator(_, _) => "ProviderStateGenerator",
+      Generator::ProviderStateGenerator(_, _) => "ProviderState",
       Generator::MockServerURL(_, _) => "MockServerURL",
       Generator::ArrayContains(_) => "ArrayContains",
     }.to_string()
@@ -825,11 +826,21 @@ impl GenerateValue<u16> for Generator {
   ) -> anyhow::Result<u16> {
     match self {
       &Generator::RandomInt(min, max) => Ok(rand::thread_rng().gen_range(min as u16..(max as u16).saturating_add(1))),
-      &Generator::ProviderStateGenerator(ref exp, ref dt) =>
-        match generate_value_from_context(exp, context, dt) {
+      &Generator::ProviderStateGenerator(ref exp, ref dt) => {
+        // Provider state values may come under a "providerState" key
+        let provider_state_config = if let Some(Object(psc)) = context.get("providerState") {
+          psc
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.clone()))
+            .collect()
+        } else {
+          context.clone()
+        };
+        match generate_value_from_context(exp, &provider_state_config, dt) {
           Ok(val) => u16::try_from(val),
           Err(err) => Err(err)
-        },
+        }
+      }
       _ => Err(anyhow!("Could not generate a u16 value from {} using {:?}", value, self))
     }
   }
@@ -973,8 +984,18 @@ impl GenerateValue<String> for Generator {
         }
       }
       Generator::RandomBoolean => Ok(format!("{}", rnd.gen::<bool>())),
-      Generator::ProviderStateGenerator(ref exp, ref dt) =>
-        generate_value_from_context(exp, context, dt).map(|val| val.to_string()),
+      Generator::ProviderStateGenerator(ref exp, ref dt) => {
+        // Provider state values may come under a "providerState" key
+        let provider_state_config = if let Some(Object(psc)) = context.get("providerState") {
+          psc
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.clone()))
+            .collect()
+        } else {
+          context.clone()
+        };
+        generate_value_from_context(exp, &provider_state_config, dt).map(|val| val.to_string())
+      }
       Generator::MockServerURL(example, regex) => if let Some(mock_server_details) = context.get("mockServer") {
         debug!("Generating URL from Mock Server details");
         match mock_server_details.as_object() {
@@ -1140,11 +1161,21 @@ impl GenerateValue<Value> for Generator {
         }
       },
       Generator::RandomBoolean => Ok(json!(rand::thread_rng().gen::<bool>())),
-      Generator::ProviderStateGenerator(ref exp, ref dt) =>
-        match generate_value_from_context(exp, context, dt) {
+      Generator::ProviderStateGenerator(ref exp, ref dt) => {
+        // Provider state values may come under a "providerState" key
+        let provider_state_config = if let Some(Object(psc)) = context.get("providerState") {
+          psc
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.clone()))
+            .collect()
+        } else {
+          context.clone()
+        };
+        match generate_value_from_context(exp, &provider_state_config, dt) {
           Ok(val) => val.as_json(),
           Err(err) => Err(err)
-        },
+        }
+      }
       Generator::MockServerURL(example, regex) => {
         debug!("context = {:?}", context);
         if let Some(mock_server_details) = context.get("mockServer") {
@@ -2425,7 +2456,7 @@ mod tests2 {
   use serde_json::{json, Value};
 
   use crate::expression_parser::DataType;
-  use crate::generators::generate_value_from_context;
+  use crate::generators::{generate_value_from_context, Generator};
 
   #[rstest]
   //     expression, value,          data_type,               expected
@@ -2455,5 +2486,23 @@ mod tests2 {
     expect!(result.as_ref()).to(be_ok());
     let result_value = result.unwrap();
     expect!(result_value.as_json().unwrap()).to(be_equal_to(expected));
+  }
+
+  #[rstest]
+  #[case(Generator::RandomInt(0, 1), "RandomInt")]
+  #[case(Generator::Uuid(None), "Uuid")]
+  #[case(Generator::RandomDecimal(0), "RandomDecimal")]
+  #[case(Generator::RandomHexadecimal(0), "RandomHexadecimal")]
+  #[case(Generator::RandomString(0), "RandomString")]
+  #[case(Generator::Regex("".to_string()), "Regex")]
+  #[case(Generator::Date(None, None), "Date")]
+  #[case(Generator::Time(None, None), "Time")]
+  #[case(Generator::DateTime(None, None), "DateTime")]
+  #[case(Generator::RandomBoolean, "RandomBoolean")]
+  #[case(Generator::ProviderStateGenerator("".to_string(), None), "ProviderState")]
+  #[case(Generator::MockServerURL("".to_string(), "".to_string()), "MockServerURL")]
+  #[case(Generator::ArrayContains(vec![]), "ArrayContains")]
+  fn generator_name_test(#[case] generator: Generator, #[case] name: &str) {
+    expect!(generator.name()).to(be_equal_to(name));
   }
 }

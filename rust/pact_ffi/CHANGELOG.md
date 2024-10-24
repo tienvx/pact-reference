@@ -1,5 +1,20 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 0.4.23 - Bugfix Release
+
+* 3cb09550 - chore(pact_ffi): Update dependencies (Ronald Holshausen, Wed Sep 4 11:09:27 2024 +1000)
+* c1a00dd8 - chore: Upgrade pact-plugin-driver to 0.7.1 (Ronald Holshausen, Tue Sep 3 15:47:22 2024 +1000)
+* eb687a55 - fix(ffi): annotate body in raw body branch (JP-Ellis, Fri Aug 30 13:01:02 2024 +1000)
+* dc441709 - chore: Upgrade pact_matching to 1.2.7 (Ronald Holshausen, Tue Aug 27 14:57:12 2024 +1000)
+* fa02c30b - chore: Upgrade pact_verifier to 1.2.4 (Ronald Holshausen, Tue Aug 13 15:42:48 2024 +1000)
+* 978677cc - chore: Upgrade pact_matching to 1.2.6 (Ronald Holshausen, Tue Aug 13 15:27:49 2024 +1000)
+* f50454ff - chore: Upgrade test dependencies (Ronald Holshausen, Tue Aug 13 11:54:59 2024 +1000)
+* 9a7eef75 - chore: Upgrade pact_models to 1.2.4 (Ronald Holshausen, Tue Aug 13 11:51:06 2024 +1000)
+* bcf4db6d - chore: Upgrade pact_models to 1.2.3 (Ronald Holshausen, Tue Aug 6 11:06:22 2024 +1000)
+* 4d7295a4 - feat: allow non-object matchers for array-contains (M. J. W-H. Campman, Sat Aug 3 13:49:18 2024 -0400)
+* 033a50ab - feat: Update the matching rule expression parser to support values from provider states (Ronald Holshausen, Fri Aug 2 10:06:52 2024 +1000)
+* fd1ba0c3 - bump version to 0.4.23 (Ronald Holshausen, Thu Jul 18 15:51:48 2024 +1000)
+
 # 0.4.22 - Bugfix Release
 
 * 4257ed1e - chore: Upgrade pact_verifier to 1.2.3 (Ronald Holshausen, Wed Jul 17 15:19:58 2024 +1000)
