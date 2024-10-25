@@ -1,32 +1,43 @@
 //! Structs and traits to support a general matching engine
 
 use std::panic::RefUnwindSafe;
+
 use pact_models::bodies::OptionalBody;
-use pact_models::content_types::TEXT;
+use pact_models::content_types::{ContentType, TEXT};
 use pact_models::path_exp::DocPath;
 use pact_models::v4::http_parts::HttpRequest;
 use pact_models::v4::interaction::V4Interaction;
 use pact_models::v4::pact::V4Pact;
 use pact_models::v4::synch_http::SynchronousHttp;
 
+/// Enum for the type of Plan Node
 #[derive(Clone, Debug, Default)]
 pub enum PlanNodeType {
+  /// Default plan node is empty
   #[default]
   EMPTY,
+  /// Container node with a label
   CONTAINER(String),
+  /// Action node with a function reference
   ACTION(String),
+  /// Leaf node that contains a value
   VALUE(NodeValue),
+  /// Leaf node that stores an expression to resolve against the test context
   RESOLVE(DocPath),
 }
 
+/// Enum for the value stored in a leaf node
 #[derive(Clone, Debug, Default)]
 pub enum NodeValue {
+  /// Default is no value
   #[default]
   NULL,
+  /// A string value
   STRING(String),
 }
 
 impl NodeValue {
+  /// Returns the encoded string form of the node value
   pub fn str_form(&self) -> String {
     match self {
       NodeValue::NULL => "NULL".to_string(),
@@ -47,22 +58,31 @@ impl From<&str> for NodeValue {
   }
 }
 
+/// Enum to store the result of executing a node
 #[derive(Clone, Debug, Default)]
 pub enum NodeResult {
+  /// Default value to make a node as successfully executed
   #[default]
   OK,
+  /// Marks a node as successfully executed with a result
   VALUE(NodeValue),
+  /// Marks a node as unsuccessfully executed with an error
   ERROR(String)
 }
 
+/// Node in an executable plan tree
 #[derive(Clone, Debug, Default)]
 pub struct ExecutionPlanNode {
+  /// Type of the node
   pub node_type: PlanNodeType,
+  /// Any result associated with the node
   pub result: Option<NodeResult>,
+  /// Child nodes
   pub children: Vec<ExecutionPlanNode>
 }
 
 impl ExecutionPlanNode {
+  /// Returns the human-readable text from of the node
   pub fn pretty_form(&self, buffer: &mut String, indent: usize) {
     let pad = " ".repeat(indent);
 
@@ -120,6 +140,7 @@ impl ExecutionPlanNode {
     }
   }
 
+  /// Returns the serialised text form of the node
   pub fn str_form(&self) -> String {
     let mut buffer = String::new();
     buffer.push('(');
@@ -166,6 +187,7 @@ impl ExecutionPlanNode {
     }
   }
 
+  /// Constructor for a container node
   pub fn container(label: &str) -> ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: PlanNodeType::CONTAINER(label.to_string()),
@@ -174,6 +196,7 @@ impl ExecutionPlanNode {
     }
   }
 
+  /// Constructor for an action node
   pub fn action(value: &str) -> ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: PlanNodeType::ACTION(value.to_string()),
@@ -182,6 +205,7 @@ impl ExecutionPlanNode {
     }
   }
 
+  /// Constructor for a value node
   pub fn value<T: Into<NodeValue>>(value: T) -> ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: PlanNodeType::VALUE(value.into()),
@@ -190,6 +214,7 @@ impl ExecutionPlanNode {
     }
   }
 
+  /// Constructor for a resolve node
   pub fn resolve_value<T: Into<DocPath>>(resolve_str: T) -> ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: PlanNodeType::RESOLVE(resolve_str.into()),
@@ -198,11 +223,13 @@ impl ExecutionPlanNode {
     }
   }
 
+  /// Adds the node as a child
   pub fn add<N>(&mut self, node: N) -> &mut Self where N: Into<ExecutionPlanNode> {
     self.children.push(node.into());
     self
   }
 
+  /// If the node is a leaf node
   pub fn is_empty(&self) -> bool {
     match self.node_type {
       PlanNodeType::EMPTY => true,
@@ -217,24 +244,28 @@ impl From<&mut ExecutionPlanNode> for ExecutionPlanNode {
   }
 }
 
+/// An executable plan that contains a tree of execution nodes
 #[derive(Clone, Debug, Default)]
 pub struct ExecutionPlan {
   pub plan_root: ExecutionPlanNode
 }
 
 impl ExecutionPlan {
+  /// Creates a new empty execution plan with a single root container
   fn new(label: &str) -> ExecutionPlan {
     ExecutionPlan {
       plan_root: ExecutionPlanNode::container(label)
     }
   }
 
+  /// Adds the node as the root node if the node is not empty (i.e. not a leaf node).
   pub fn add(&mut self, node: ExecutionPlanNode) {
     if !node.is_empty() {
       self.plan_root.add(node);
     }
   }
 
+  /// Returns the serialised text form of the execution  plan.
   pub fn str_form(&self) -> String {
     let mut buffer = String::new();
     buffer.push('(');
@@ -243,6 +274,7 @@ impl ExecutionPlan {
     buffer
   }
 
+  /// Returns the human-readable text form of the execution plan.
   pub fn pretty_form(&self) -> String {
     let mut buffer = String::new();
     buffer.push_str("(\n");
@@ -252,9 +284,12 @@ impl ExecutionPlan {
   }
 }
 
+/// Context to store data for use in executing an execution plan.
 #[derive(Clone, Debug)]
 pub struct PlanMatchingContext {
+  /// Pact the plan is for
   pub pact: V4Pact,
+  /// Interaction that the plan id for
   pub interaction: Box<dyn V4Interaction + Send + Sync + RefUnwindSafe>
 }
 
@@ -267,6 +302,7 @@ impl Default for PlanMatchingContext {
   }
 }
 
+/// Constructs an execution plan for the HTTP request part.
 pub fn build_request_plan(
   expected: &HttpRequest,
   context: &PlanMatchingContext
