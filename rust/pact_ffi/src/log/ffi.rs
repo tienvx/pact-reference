@@ -262,6 +262,12 @@ pub unsafe extern "C" fn pactffi_logger_attach_sink(
 ///
 /// This function will install a global tracing subscriber. Any attempts to modify the logger
 /// after the call to `logger_apply` will fail.
+///
+/// # Error Handling
+///
+/// The return error codes are as follows:
+///
+/// - `-1`: Can't set logger (applying the logger failed, perhaps because one is applied already).
 #[no_mangle]
 pub extern "C" fn pactffi_logger_apply() -> c_int {
     let status = match apply_logger() {
