@@ -1,14 +1,35 @@
 //! Structs and traits to support a general matching engine
 
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::fmt::{Debug, Display, Formatter};
 use std::panic::RefUnwindSafe;
 
+use anyhow::anyhow;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
+use itertools::Itertools;
+use onig::EncodedChars;
+use snailquote::escape;
+use tracing::{instrument, Level, trace};
+
 use pact_models::bodies::OptionalBody;
-use pact_models::content_types::{ContentType, TEXT};
+use pact_models::content_types::TEXT;
+use pact_models::matchingrules::MatchingRule;
 use pact_models::path_exp::DocPath;
 use pact_models::v4::http_parts::HttpRequest;
 use pact_models::v4::interaction::V4Interaction;
 use pact_models::v4::pact::V4Pact;
 use pact_models::v4::synch_http::SynchronousHttp;
+
+use crate::engine::bodies::{get_body_plan_builder, PlainTextBuilder, PlanBodyBuilder};
+use crate::engine::context::PlanMatchingContext;
+use crate::engine::value_resolvers::{HttpRequestValueResolver, ValueResolver};
+use crate::matchers::Matches;
+
+mod bodies;
+mod value_resolvers;
+mod context;
 
 /// Enum for the type of Plan Node
 #[derive(Clone, Debug, Default)]
@@ -27,13 +48,21 @@ pub enum PlanNodeType {
 }
 
 /// Enum for the value stored in a leaf node
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum NodeValue {
   /// Default is no value
   #[default]
   NULL,
   /// A string value
   STRING(String),
+  /// Boolean value
+  BOOL(bool),
+  /// Multi-string map (String key to one or more string values)
+  MMAP(HashMap<String, Vec<String>>),
+  /// List of String values
+  SLIST(Vec<String>),
+  /// Byte Array
+  BARRAY(Vec<u8>)
 }
 
 impl NodeValue {
@@ -41,7 +70,76 @@ impl NodeValue {
   pub fn str_form(&self) -> String {
     match self {
       NodeValue::NULL => "NULL".to_string(),
-      NodeValue::STRING(str) => format!("\"{}\"", str)
+      NodeValue::STRING(str) => {
+        Self::escape_string(str)
+      }
+      NodeValue::BOOL(b) => {
+        format!("BOOL({})", b)
+      }
+      NodeValue::MMAP(map) => {
+        let mut buffer = String::new();
+        buffer.push('{');
+
+        let mut first = true;
+        for (key, values) in map {
+          if first {
+            first = false;
+          } else {
+            buffer.push_str(", ");
+          }
+          buffer.push_str(Self::escape_string(key).as_str());
+          if values.is_empty() {
+            buffer.push_str(": []");
+          } else if values.len() == 1 {
+            buffer.push_str(": ");
+            buffer.push_str(Self::escape_string(&values[0]).as_str());
+          } else {
+            buffer.push_str(": [");
+            buffer.push_str(values.iter().map(|v| Self::escape_string(v)).join(", ").as_str());
+            buffer.push(']');
+          }
+        }
+
+        buffer.push('}');
+        buffer
+      }
+      NodeValue::SLIST(list) => {
+        let mut buffer = String::new();
+        buffer.push('[');
+        buffer.push_str(list.iter().map(|v| Self::escape_string(v)).join(", ").as_str());
+        buffer.push(']');
+        buffer
+      }
+      NodeValue::BARRAY(bytes) => {
+        let mut buffer = String::new();
+        buffer.push_str("BYTES(");
+        buffer.push_str(bytes.len().to_string().as_str());
+        buffer.push_str(", ");
+        buffer.push_str(BASE64.encode(bytes).as_str());
+        buffer.push(')');
+        buffer
+      }
+    }
+  }
+
+  fn escape_string(str: &String) -> String {
+    let escaped_str = escape(str);
+    if let Cow::Borrowed(_) = &escaped_str {
+      format!("'{}'", escaped_str)
+    } else {
+      escaped_str.to_string()
+    }
+  }
+
+  /// Returns the type of the value
+  pub fn value_type(&self) -> &str {
+    match self {
+      NodeValue::NULL => "NULL",
+      NodeValue::STRING(_) => "String",
+      NodeValue::BOOL(_) => "Boolean",
+      NodeValue::MMAP(_) => "Multi-Value String Map",
+      NodeValue::SLIST(_) => "String List",
+      NodeValue::BARRAY(_) => "Byte Array"
     }
   }
 }
@@ -58,8 +156,42 @@ impl From<&str> for NodeValue {
   }
 }
 
+impl Matches<NodeValue> for NodeValue {
+  fn matches_with(&self, actual: NodeValue, matcher: &MatchingRule, cascaded: bool) -> anyhow::Result<()> {
+    match matcher {
+      MatchingRule::Equality => if self == &actual {
+        Ok(())
+      } else {
+        Err(anyhow!("Expected {} to equal {}", self.str_form(), actual.str_form()))
+      }
+      MatchingRule::Regex(_) => todo!(),
+      MatchingRule::Type => todo!(),
+      MatchingRule::MinType(_) => todo!(),
+      MatchingRule::MaxType(_) => todo!(),
+      MatchingRule::MinMaxType(_, _) => todo!(),
+      MatchingRule::Timestamp(_) => todo!(),
+      MatchingRule::Time(_) => todo!(),
+      MatchingRule::Date(_) => todo!(),
+      MatchingRule::Include(_) => todo!(),
+      MatchingRule::Number => todo!(),
+      MatchingRule::Integer => todo!(),
+      MatchingRule::Decimal => todo!(),
+      MatchingRule::Null => todo!(),
+      MatchingRule::ContentType(_) => todo!(),
+      MatchingRule::ArrayContains(_) => todo!(),
+      MatchingRule::Values => todo!(),
+      MatchingRule::Boolean => todo!(),
+      MatchingRule::StatusCode(_) => todo!(),
+      MatchingRule::NotEmpty => todo!(),
+      MatchingRule::Semver => todo!(),
+      MatchingRule::EachKey(_) => todo!(),
+      MatchingRule::EachValue(_) => todo!()
+    }
+  }
+}
+
 /// Enum to store the result of executing a node
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum NodeResult {
   /// Default value to make a node as successfully executed
   #[default]
@@ -68,6 +200,80 @@ pub enum NodeResult {
   VALUE(NodeValue),
   /// Marks a node as unsuccessfully executed with an error
   ERROR(String)
+}
+
+impl NodeResult {
+  /// Return the OR of this result with the given one
+  pub fn or(&self, option: &Option<NodeResult>) -> NodeResult {
+    if let Some(result) = option {
+      match result {
+        NodeResult::OK => match self {
+          NodeResult::OK => NodeResult::OK,
+          NodeResult::VALUE(_) => NodeResult::OK,
+          NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())
+        },
+        NodeResult::VALUE(_) => match self {
+          NodeResult::OK => NodeResult::OK,
+          NodeResult::VALUE(_) => NodeResult::OK,
+          NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())
+        }
+        NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())
+      }
+    } else {
+      self.clone()
+    }
+  }
+
+  /// Converts the result value to a string
+  pub fn as_string(&self) -> Option<String> {
+    match self {
+      NodeResult::OK => None,
+      NodeResult::VALUE(val) => match val {
+        NodeValue::NULL => Some("".to_string()),
+        NodeValue::STRING(s) => Some(s.clone()),
+        NodeValue::BOOL(b) => Some(b.to_string()),
+        NodeValue::MMAP(m) => Some(format!("{:?}", m)),
+        NodeValue::SLIST(list) => Some(format!("{:?}", list)),
+        NodeValue::BARRAY(bytes) => Some(BASE64.encode(bytes))
+      }
+      NodeResult::ERROR(_) => None
+    }
+  }
+
+  /// Returns the associated value if there is one
+  pub fn as_value(&self) -> Option<NodeValue> {
+    match self {
+      NodeResult::OK => None,
+      NodeResult::VALUE(val) => Some(val.clone()),
+      NodeResult::ERROR(_) => None
+    }
+  }
+
+  /// If this value represents a truthy value (not NULL, false ot empty)
+  pub fn is_truthy(&self) -> bool {
+    match self {
+      NodeResult::OK => true,
+      NodeResult::VALUE(v) => match v {
+        NodeValue::NULL => false,
+        NodeValue::STRING(s) => !s.is_empty(),
+        NodeValue::BOOL(b) => *b,
+        NodeValue::MMAP(m) => !m.is_empty(),
+        NodeValue::SLIST(l) => !l.is_empty(),
+        NodeValue::BARRAY(b) => !b.is_empty()
+      }
+      NodeResult::ERROR(_) => false
+    }
+  }
+}
+
+impl Display for NodeResult {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    match self {
+      NodeResult::OK => write!(f, "OK"),
+      NodeResult::VALUE(val) => write!(f, "{}", val.str_form()),
+      NodeResult::ERROR(err) => write!(f, "ERROR({})", err),
+    }
+  }
 }
 
 /// Node in an executable plan tree
@@ -117,14 +323,29 @@ impl ExecutionPlanNode {
           buffer.push_str(pad.as_str());
           buffer.push(')');
         }
+
+        if let Some(result) = &self.result {
+          buffer.push_str(" ~ ");
+          buffer.push_str(result.to_string().as_str());
+        }
       }
       PlanNodeType::VALUE(value) => {
         buffer.push_str(pad.as_str());
         buffer.push_str(value.str_form().as_str());
+
+        if let Some(result) = &self.result {
+          buffer.push_str(" ~ ");
+          buffer.push_str(result.to_string().as_str());
+        }
       }
       PlanNodeType::RESOLVE(str) => {
         buffer.push_str(pad.as_str());
         buffer.push_str(str.to_string().as_str());
+
+        if let Some(result) = &self.result {
+          buffer.push_str(" ~ ");
+          buffer.push_str(result.to_string().as_str());
+        }
       }
     }
   }
@@ -164,12 +385,27 @@ impl ExecutionPlanNode {
         buffer.push('(');
         self.str_form_children(&mut buffer);
         buffer.push(')');
+
+        if let Some(result) = &self.result {
+          buffer.push('~');
+          buffer.push_str(result.to_string().as_str());
+        }
       }
       PlanNodeType::VALUE(value) => {
         buffer.push_str(value.str_form().as_str());
+
+        if let Some(result) = &self.result {
+          buffer.push('~');
+          buffer.push_str(result.to_string().as_str());
+        }
       }
       PlanNodeType::RESOLVE(str) => {
         buffer.push_str(str.to_string().as_str());
+
+        if let Some(result) = &self.result {
+          buffer.push('~');
+          buffer.push_str(result.to_string().as_str());
+        }
       }
     }
 
@@ -206,7 +442,7 @@ impl ExecutionPlanNode {
   }
 
   /// Constructor for a value node
-  pub fn value<T: Into<NodeValue>>(value: T) -> ExecutionPlanNode {
+  pub fn value_node<T: Into<NodeValue>>(value: T) -> ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: PlanNodeType::VALUE(value.into()),
       result: None,
@@ -236,6 +472,11 @@ impl ExecutionPlanNode {
       _ => self.children.is_empty()
     }
   }
+
+  /// Returns the value for the node
+  pub fn value(&self) -> Option<NodeResult> {
+    self.result.clone()
+  }
 }
 
 impl From<&mut ExecutionPlanNode> for ExecutionPlanNode {
@@ -247,6 +488,7 @@ impl From<&mut ExecutionPlanNode> for ExecutionPlanNode {
 /// An executable plan that contains a tree of execution nodes
 #[derive(Clone, Debug, Default)]
 pub struct ExecutionPlan {
+  /// Root node for the plan tree
   pub plan_root: ExecutionPlanNode
 }
 
@@ -284,24 +526,6 @@ impl ExecutionPlan {
   }
 }
 
-/// Context to store data for use in executing an execution plan.
-#[derive(Clone, Debug)]
-pub struct PlanMatchingContext {
-  /// Pact the plan is for
-  pub pact: V4Pact,
-  /// Interaction that the plan id for
-  pub interaction: Box<dyn V4Interaction + Send + Sync + RefUnwindSafe>
-}
-
-impl Default for PlanMatchingContext {
-  fn default() -> Self {
-    PlanMatchingContext {
-      pact: Default::default(),
-      interaction: Box::new(SynchronousHttp::default())
-    }
-  }
-}
-
 /// Constructs an execution plan for the HTTP request part.
 pub fn build_request_plan(
   expected: &HttpRequest,
@@ -328,7 +552,7 @@ fn setup_method_plan(
   match_method
     .add(ExecutionPlanNode::action("upper-case")
       .add(ExecutionPlanNode::resolve_value(DocPath::new("$.method")?)))
-    .add(ExecutionPlanNode::value(expected.method.as_str()));
+    .add(ExecutionPlanNode::value_node(expected.method.as_str()));
 
   // TODO: Look at the matching rules and generators here
   method_container.add(match_method);
@@ -346,7 +570,7 @@ fn setup_path_plan(
     .add(
       ExecutionPlanNode::action("match:equality")
         .add(ExecutionPlanNode::resolve_value(DocPath::new("$.path")?))
-        .add(ExecutionPlanNode::value(expected.path.as_str()))
+        .add(ExecutionPlanNode::value_node(expected.path.as_str()))
     );
   Ok(plan_node)
 }
@@ -418,13 +642,14 @@ fn setup_body_plan(
       content_type_check_node
         .add(
           ExecutionPlanNode::action("match:equality")
-            .add(ExecutionPlanNode::action("content-type"))
-            .add(ExecutionPlanNode::value(content_type.to_string()))
+            .add(ExecutionPlanNode::resolve_value(DocPath::new("$.content-type")?))
+            .add(ExecutionPlanNode::value_node(content_type.to_string()))
         );
-      if content_type.is_json() {
-
+      if let Some(plan_builder) = get_body_plan_builder(&content_type) {
+        content_type_check_node.add(plan_builder.build_plan(content, context)?);
       } else {
-        todo!()
+        let plan_builder = PlainTextBuilder::new();
+        content_type_check_node.add(plan_builder.build_plan(content, context)?);
       }
       plan_node.add(content_type_check_node);
     }
@@ -433,26 +658,259 @@ fn setup_body_plan(
   Ok(plan_node)
 }
 
+/// Executes the request plan against the actual request.
 pub fn execute_request_plan(
   plan: &ExecutionPlan,
   actual: &HttpRequest,
-  context: &PlanMatchingContext
+  context: &mut PlanMatchingContext
 ) -> anyhow::Result<ExecutionPlan> {
-  Ok(ExecutionPlan::default())
+  let value_resolver = HttpRequestValueResolver {
+    request: actual.clone()
+  };
+  let path = vec![];
+  let executed_tree = walk_tree(&path, &plan.plan_root, &value_resolver, context)?;
+  Ok(ExecutionPlan {
+    plan_root: executed_tree
+  })
+}
+
+fn walk_tree(
+  path: &[String],
+  node: &ExecutionPlanNode,
+  value_resolver: &dyn ValueResolver,
+  context: &mut PlanMatchingContext
+) -> anyhow::Result<ExecutionPlanNode> {
+  match &node.node_type {
+    PlanNodeType::EMPTY => {
+      trace!(?path, "Empty node");
+      Ok(node.clone())
+    },
+    PlanNodeType::CONTAINER(label) => {
+      trace!(?path, %label, "Container node");
+      let mut result = vec![];
+
+      let mut child_path = path.to_vec();
+      child_path.push(label.clone());
+      let mut status = NodeResult::OK;
+      for child in &node.children {
+        let child_result = walk_tree(&child_path, child, value_resolver, context)?;
+        status = status.or(&child_result.result);
+        result.push(child_result);
+      }
+
+      Ok(ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: Some(status),
+        children: result
+      })
+    }
+    PlanNodeType::ACTION(action) => {
+      trace!(?path, %action, "Action node");
+
+      let mut child_path = path.to_vec();
+      child_path.push(action.clone());
+      let mut result = vec![];
+      for child in &node.children {
+        let child_result = walk_tree(&child_path, child, value_resolver, context)?;
+        result.push(child_result);
+      }
+      match context.execute_action(action.as_str(), &result) {
+        Ok(val) => {
+          Ok(ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(val.clone()),
+            children: result.clone()
+          })
+        }
+        Err(err) => {
+          Ok(ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: result.clone()
+          })
+        }
+      }
+    }
+    PlanNodeType::VALUE(val) => {
+      trace!(?path, ?val, "Value node");
+      Ok(ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: Some(NodeResult::VALUE(val.clone())),
+        children: vec![]
+      })
+    }
+    PlanNodeType::RESOLVE(resolve_path) => {
+      match value_resolver.resolve(resolve_path, context) {
+        Ok(val) => {
+          trace!(?path, %resolve_path, ?val, "Resolve node");
+          Ok(ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::VALUE(val.clone())),
+            children: vec![]
+          })
+        }
+        Err(err) => {
+          trace!(?path, %resolve_path, %err, "Resolve node failed");
+          Ok(ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: vec![]
+          })
+        }
+      }
+    }
+  }
 }
 
 #[cfg(test)]
 mod tests {
   use expectest::prelude::*;
-  use serde_json::json;
-  use pact_models::bodies::OptionalBody;
-  use pact_models::v4::http_parts::HttpRequest;
   use pretty_assertions::assert_eq;
+  use rstest::rstest;
+  use serde_json::json;
 
-  use crate::engine::{build_request_plan, execute_request_plan, ExecutionPlan, PlanMatchingContext};
+  use pact_models::bodies::OptionalBody;
+  use pact_models::content_types::TEXT;
+  use pact_models::v4::http_parts::HttpRequest;
 
-  #[test]
+  use crate::engine::{build_request_plan, execute_request_plan, NodeResult, NodeValue, PlanMatchingContext};
+
+  #[rstest(
+    case("", "''"),
+    case("simple", "'simple'"),
+    case("simple sentence", "'simple sentence'"),
+    case("\"quoted sentence\"", "'\"quoted sentence\"'"),
+    case("'quoted sentence'", "\"'quoted sentence'\""),
+    case("new\nline", "\"new\\nline\""),
+  )]
+  fn node_value_str_form_escapes_strings(#[case] input: &str, #[case] expected: &str) {
+    let node = NodeValue::STRING(input.to_string());
+    expect!(node.str_form()).to(be_equal_to(expected));
+  }
+
+  #[rstest(
+    case(NodeResult::OK, None, NodeResult::OK),
+    case(NodeResult::VALUE(NodeValue::NULL), None, NodeResult::VALUE(NodeValue::NULL)),
+    case(NodeResult::ERROR("".to_string()), None, NodeResult::ERROR("".to_string())),
+    case(NodeResult::OK, Some(NodeResult::OK), NodeResult::OK),
+    case(NodeResult::OK, Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::OK),
+    case(NodeResult::OK, Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
+    case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::OK), NodeResult::OK),
+    case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::OK),
+    case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
+    case(NodeResult::ERROR("".to_string()), Some(NodeResult::OK), NodeResult::ERROR("One or more children failed".to_string())),
+    case(NodeResult::ERROR("".to_string()), Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::ERROR("One or more children failed".to_string())),
+    case(NodeResult::ERROR("".to_string()), Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
+  )]
+  fn node_result_or(#[case] a: NodeResult, #[case] b: Option<NodeResult>, #[case] result: NodeResult) {
+    expect!(a.or(&b)).to(be_equal_to(result));
+  }
+
+  #[test_log::test]
   fn simple_match_request_test() -> anyhow::Result<()> {
+    let request = HttpRequest {
+      method: "put".to_string(),
+      path: "/test".to_string(),
+      body: OptionalBody::Present("Some nice bit of text".into(), Some(TEXT.clone()), None),
+      .. Default::default()
+    };
+    let expected_request = HttpRequest {
+      method: "POST".to_string(),
+      path: "/test".to_string(),
+      query: None,
+      headers: None,
+      body: OptionalBody::Present("Some nice bit of text".into(), Some(TEXT.clone()), None),
+      .. Default::default()
+    };
+    let mut context = PlanMatchingContext::default();
+    let plan = build_request_plan(&expected_request, &context)?;
+
+    assert_eq!(plan.pretty_form(),
+r#"(
+  :request (
+    :method (
+      %match:equality (
+        %upper-case (
+          $.method
+        ),
+        'POST'
+      )
+    ),
+    :path (
+      %match:equality (
+        $.path,
+        '/test'
+      )
+    ),
+    :"query parameters" (
+      %expect:empty (
+        $.query
+      )
+    ),
+    :body (
+      %if (
+        %match:equality (
+          $.content-type,
+          'text/plain'
+        ),
+        %match:equality (
+          %convert:UTF8 (
+            $.body
+          ),
+          'Some nice bit of text'
+        )
+      )
+    )
+  )
+)
+"#);
+
+    let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
+    assert_eq!(executed_plan.pretty_form(),
+r#"(
+  :request (
+    :method (
+      %match:equality (
+        %upper-case (
+          $.method ~ 'put'
+        ) ~ 'PUT',
+        'POST' ~ 'POST'
+      ) ~ ERROR(Expected 'PUT' to equal 'POST')
+    ),
+    :path (
+      %match:equality (
+        $.path ~ '/test',
+        '/test' ~ '/test'
+      ) ~ BOOL(true)
+    ),
+    :"query parameters" (
+      %expect:empty (
+        $.query ~ {}
+      ) ~ BOOL(true)
+    ),
+    :body (
+      %if (
+        %match:equality (
+          $.content-type ~ 'text/plain',
+          'text/plain' ~ 'text/plain'
+        ) ~ BOOL(true),
+        %match:equality (
+          %convert:UTF8 (
+            $.body ~ BYTES(21, U29tZSBuaWNlIGJpdCBvZiB0ZXh0)
+          ) ~ 'Some nice bit of text',
+          'Some nice bit of text' ~ 'Some nice bit of text'
+        ) ~ BOOL(true)
+      ) ~ BOOL(true)
+    )
+  )
+)
+"#);
+
+    Ok(())
+  }
+
+  #[test_log::test]
+  fn simple_json_match_request_test() -> anyhow::Result<()> {
     let request = HttpRequest {
       method: "POST".to_string(),
       path: "/test".to_string(),
@@ -476,7 +934,7 @@ mod tests {
       matching_rules: Default::default(),
       generators: Default::default(),
     };
-    let context = PlanMatchingContext::default();
+    let mut context = PlanMatchingContext::default();
     let plan = build_request_plan(&expected_request, &context)?;
 
     assert_eq!(plan.pretty_form(),
@@ -487,13 +945,13 @@ r#"(
         %upper-case (
           $.method
         ),
-        "POST"
+        'POST'
       )
     ),
     :path (
       %match:equality (
         $.path,
-        "/test"
+        '/test'
       )
     ),
     :"query parameters" (
@@ -505,7 +963,7 @@ r#"(
       %if (
         %match:equality (
           %content-type (),
-          "application/json;charset=utf-8"
+          'application/json;charset=utf-8'
         ),
         :body:$ (
           :body:$:a (
@@ -527,7 +985,7 @@ r#"(
 )
 "#);
 
-    let executed_plan = execute_request_plan(&plan, &request, &context)?;
+    let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
     assert_eq!(executed_plan.pretty_form(), r#"(
       :request (
         :method (
