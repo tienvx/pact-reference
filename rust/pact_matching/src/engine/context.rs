@@ -98,7 +98,7 @@ impl PlanMatchingContext {
         if first.is_truthy() {
           Ok(second)
         } else {
-          Ok(NodeResult::VALUE(NodeValue::BOOL(false)))
+          Ok(first)
         }
       }
       _ => Err(anyhow!("'{}' is not a valid action", action))
