@@ -2795,11 +2795,14 @@ pub extern fn pactffi_message_given(message: MessageHandle, description: *const 
   }
 }
 
-/// Adds a provider state to the Message with a parameter key and value.
+/// Adds a parameter key and value to a provider state to the Message. If the provider state
+/// does not exist, a new one will be created, otherwise the parameter will be merged into the
+/// existing one. The parameter value will be parsed as JSON.
 ///
+/// # Parameters
 /// * `description` - The provider state description. It needs to be unique.
 /// * `name` - Parameter name.
-/// * `value` - Parameter value.
+/// * `value` - Parameter value as JSON.
 #[no_mangle]
 pub extern fn pactffi_message_given_with_param(message: MessageHandle, description: *const c_char,
                                                name: *const c_char, value: *const c_char) {
