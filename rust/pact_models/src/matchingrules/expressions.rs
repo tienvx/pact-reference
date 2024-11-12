@@ -418,7 +418,7 @@ fn matching_definition_exp(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> 
     } else {
       let mut buffer = BytesMut::new().writer();
       let span = lex.span();
-      let report = Report::build(ReportKind::Error, "expression", span.start)
+      let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
         .with_config(Config::default().with_color(false))
         .with_message(format!("Expected a type of matching rule definition, but got '{}'", lex.slice()))
         .with_label(Label::new(("expression", span)).with_message("Expected a matching rule definition here"))
@@ -431,7 +431,7 @@ fn matching_definition_exp(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> 
   } else {
     let mut buffer = BytesMut::new().writer();
     let span = lex.span();
-    let report = Report::build(ReportKind::Error, "expression", span.start)
+    let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
       .with_config(Config::default().with_color(false))
       .with_message(format!("Expected a type of matching rule definition but got the end of the expression"))
       .with_label(Label::new(("expression", span)).with_message("Expected a matching rule definition here"))
@@ -467,7 +467,7 @@ fn parse_each_value(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow:
   } else {
     let mut buffer = BytesMut::new().writer();
     let span = lex.span();
-    let report = Report::build(ReportKind::Error, "expression", span.start)
+    let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
       .with_config(Config::default().with_color(false))
       .with_message(format!("Expected an opening bracket, got '{}'", lex.slice()))
       .with_label(Label::new(("expression", span)).with_message("Expected an opening bracket before this"))
@@ -481,7 +481,7 @@ fn parse_each_value(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow:
 fn error_message(lex: &mut Lexer<MatcherDefinitionToken>, v: &str, error: &str, additional: &str) -> Result<String, Error> {
   let mut buffer = BytesMut::new().writer();
   let span = lex.span();
-  let report = Report::build(ReportKind::Error, "expression", span.start)
+  let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
     .with_config(Config::default().with_color(false))
     .with_message(format!("{}, got '{}'", error, lex.slice()))
     .with_label(Label::new(("expression", span)).with_message(additional))
@@ -508,7 +508,7 @@ fn parse_each_key(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::R
     } else {
       let mut buffer = BytesMut::new().writer();
       let span = lex.span();
-      let report = Report::build(ReportKind::Error, "expression", span.start)
+      let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
         .with_config(Config::default().with_color(false))
         .with_message(format!("Expected a closing bracket, got '{}'", lex.slice()))
         .with_label(Label::new(("expression", span)).with_message("Expected a closing bracket before this"))
@@ -520,7 +520,7 @@ fn parse_each_key(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::R
   } else {
     let mut buffer = BytesMut::new().writer();
     let span = lex.span();
-    let report = Report::build(ReportKind::Error, "expression", span.start)
+    let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
       .with_config(Config::default().with_color(false))
       .with_message(format!("Expected an opening bracket, got '{}'", lex.slice()))
       .with_label(Label::new(("expression", span)).with_message("Expected an opening bracket before this"))
@@ -607,7 +607,7 @@ fn parse_matching_rule(lex: &mut logos::Lexer<MatcherDefinitionToken>, v: &str) 
       _ => {
         let mut buffer = BytesMut::new().writer();
         let span = lex.span();
-        let report = Report::build(ReportKind::Error, "expression", span.start)
+        let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
           .with_config(Config::default().with_color(false))
           .with_message(format!("Expected the type of matcher, got '{}'", lex.slice()))
           .with_label(Label::new(("expression", span)).with_message("This is not a valid matcher type"))
@@ -623,7 +623,7 @@ fn parse_matching_rule(lex: &mut logos::Lexer<MatcherDefinitionToken>, v: &str) 
   } else {
     let mut buffer = BytesMut::new().writer();
     let span = lex.span();
-    let report = Report::build(ReportKind::Error, "expression", span.start)
+    let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
       .with_config(Config::default().with_color(false))
       .with_message(format!("Expected the type of matcher, got '{}'", lex.slice()))
       .with_label(Label::new(("expression", span)).with_message("Expected a matcher (equalTo, regex, etc.) here"))
@@ -649,7 +649,7 @@ fn parse_semver(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Res
     Err(err) => {
       let mut buffer = BytesMut::new().writer();
       let span = lex.span();
-      let report = Report::build(ReportKind::Error, "expression", span.start)
+      let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
         .with_config(Config::default().with_color(false))
         .with_message(format!("Expected a semver compatible string, got {} - {}", lex.slice(), err))
         .with_label(Label::new(("expression", span)).with_message("This is not a valid semver value"))
@@ -905,7 +905,7 @@ fn parse_string(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Res
   } else {
     let mut buffer = BytesMut::new().writer();
     let span = lex.span();
-    let report = Report::build(ReportKind::Error, "expression", span.start)
+    let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
       .with_config(Config::default().with_color(false))
       .with_message(format!("Expected a string value, got {}", lex.slice()))
       .with_label(Label::new(("expression", span.clone())).with_message("Expected this to be a string"))
@@ -976,7 +976,7 @@ fn process_raw_string(raw_str: &str, span: Span, v: &str) -> anyhow::Result<Stri
 
 fn string_error(err: &dyn std::error::Error, span: &Span, v: &str) -> anyhow::Result<String> {
   let mut buffer = BytesMut::new().writer();
-  let report = Report::build(ReportKind::Error, "expression", span.start)
+  let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
     .with_config(Config::default().with_color(false))
     .with_message(format!("Invalid unicode character escape sequence: {}", err))
     .with_label(Label::new(("expression", span.clone())).with_message("This string contains an invalid escape sequence"))
@@ -992,7 +992,7 @@ fn char_or_error(ch: Option<char>, span: &Span, v: &str) -> anyhow::Result<char>
     Some(ch) => Ok(ch),
     None => {
       let mut buffer = BytesMut::new().writer();
-      let report = Report::build(ReportKind::Error, "expression", span.start)
+      let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
         .with_config(Config::default().with_color(false))
         .with_message("Invalid unicode character escape sequence")
         .with_label(Label::new(("expression", span.clone())).with_message("This string contains an invalid escape sequence"))
@@ -1012,7 +1012,7 @@ fn parse_comma(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Resu
   } else {
     let mut buffer = BytesMut::new().writer();
     let span = lex.span();
-    let report = Report::build(ReportKind::Error, "expression", span.start)
+    let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
       .with_config(Config::default().with_color(false))
       .with_message(format!("Expected a comma, got '{}'", lex.slice()))
       .with_label(Label::new(("expression", span)).with_message("Expected a comma before this"))
@@ -1026,7 +1026,7 @@ fn parse_comma(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::Resu
 fn end_of_expression(v: &str, expected: &str) -> Error {
   let mut buffer = BytesMut::new().writer();
   let i = v.len();
-  let report = Report::build(ReportKind::Error, "expression", i)
+  let report = Report::build(ReportKind::Error, ("expression", i..i))
     .with_config(Config::default().with_color(false))
     .with_message(format!("Expected {}, got the end of the expression", expected))
     .with_label(Label::new(("expression", i..i)).with_message(format!("Expected {} here", expected)))

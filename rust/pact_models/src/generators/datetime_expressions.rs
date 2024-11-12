@@ -401,7 +401,7 @@ pub(crate) fn error(exp: &str, expected: &str, span: Option<Span>) -> anyhow::Er
     }
     Some(span) => span
   };
-  let report = Report::build(ReportKind::Error, "expression", span.start)
+  let report = Report::build(ReportKind::Error, ("expression", span.start..span.start))
     .with_config(Config::default().with_color(false))
     .with_message(format!("Expected {}", expected))
     .with_label(Label::new(("expression", span)).with_message(format!("Expected {} here", expected)))

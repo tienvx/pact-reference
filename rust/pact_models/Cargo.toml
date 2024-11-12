@@ -20,8 +20,8 @@ datetime = ["dep:chrono", "dep:chrono-tz", "dep:gregorian"] # Support for date/t
 xml = ["dep:sxd-document"] # support for matching XML documents
 
 [dependencies]
-ariadne = "0.3.0"
-anyhow = "1.0.71"
+ariadne = "0.5.0"
+anyhow = "1.0.93"
 base64 = "0.21.2"
 bytes = { version = "1.4.0", features = ["serde"] }
 chrono = { version = "0.4.22", features = ["std", "clock"], default-features = false, optional = true }
