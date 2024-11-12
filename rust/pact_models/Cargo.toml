@@ -23,15 +23,15 @@ xml = ["dep:sxd-document"] # support for matching XML documents
 ariadne = "0.5.0"
 anyhow = "1.0.93"
 base64 = "0.22.1"
-bytes = { version = "1.4.0", features = ["serde"] }
-chrono = { version = "0.4.22", features = ["std", "clock"], default-features = false, optional = true }
+bytes = { version = "1.8.0", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["std", "clock"], default-features = false, optional = true }
 chrono-tz = { version = "0.10.0", optional = true }
 gregorian = { version = "0.2.4", optional = true }
 hashers = "1.0.1"
 hex = "0.4.3"
-indextree = "4.6.0"
+indextree = "4.7.3"
 itertools = "0.13.0"
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 lenient_semver = "0.4.2"
 logos = "0.14.2"
 maplit = "1.0.2"
@@ -39,11 +39,11 @@ mime = "0.3.17"
 nom = "7.1.3"
 rand = "0.8.5"
 rand_regex = "0.17.0"
-regex = "1.8.4"
+regex = "1.11.1"
 regex-syntax = "0.8.5"
-semver = "1.0.17"
-serde = { version = "1.0.163", features = ["derive"] }
-serde_json = "1.0.96"
+semver = "1.0.23"
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.132"
 sxd-document = { version = "0.3.2", optional = true }
 tracing = "0.1.40" # This needs to be the same version across all the libs (i.e. Pact FFI and plugin driver)
 
@@ -58,15 +58,15 @@ uuid = { version = "1.3.3", features = ["v4"] }
 
 [dev-dependencies]
 expectest = "0.12.0"
-env_logger = "0.11.3"
+env_logger = "0.11.5"
 hamcrest2 = "0.3.0"
-pretty_assertions = "1.3.0"
+pretty_assertions = "1.4.1"
 rstest = "0.23.0"
 speculate = "0.1.2"
-test-log = { version = "0.2.11", features = ["trace"] }
+test-log = { version = "0.2.16", features = ["trace"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "tracing-log", "fmt"] }
 trim-margin = "0.1.0"
 
 [build-dependencies]
-parse-zoneinfo = "0.3.0"
+parse-zoneinfo = "0.3.1"
 maplit = "1.0.2"
