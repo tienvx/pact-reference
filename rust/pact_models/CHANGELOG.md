@@ -1,5 +1,15 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.5 - Maintenance Release
+
+* e485190f - chore(pact-models): Updated dependencies (Ronald Holshausen, Wed Nov 13 10:29:10 2024 +1100)
+* 234cbaf0 - chore(pact-models): Upgraded rand_regex to 0.17.0 (Ronald Holshausen, Wed Nov 13 10:25:55 2024 +1100)
+* 04f5d1ac - chore(pact-models): Updated dependencies (Ronald Holshausen, Wed Nov 13 09:58:06 2024 +1100)
+* 0aaa3fb5 - chore(pact-models): Upgrade ariadne to 0.5.0 (Ronald Holshausen, Wed Nov 13 09:49:21 2024 +1100)
+* c6aff26f - feat: Add join_index to DocPath (Ronald Holshausen, Fri Nov 1 17:03:10 2024 +1100)
+* 9cc38a2f - chore: do not write empty matching rules to the Pact file (Ronald Holshausen, Tue Aug 27 11:23:43 2024 +1000)
+* 60ce3bc6 - bump version to 1.2.5 (Ronald Holshausen, Tue Aug 13 11:45:30 2024 +1000)
+
 # 1.2.4 - Bugfix Release
 
 * 50fc022c - fix(pact_models): Provider state values may be passed in under a "providerState" key (Ronald Holshausen, Thu Aug 8 11:53:23 2024 +1000)
