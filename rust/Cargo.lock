@@ -409,17 +409,6 @@ dependencies = [
 
 [[package]]
 name = "chrono-tz"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d59ae0466b83e838b81a54256c39d5d7c20b9d7daa10510a242d9b75abd5936e"
-dependencies = [
- "chrono",
- "chrono-tz-build 0.2.1",
- "phf",
-]
-
-[[package]]
-name = "chrono-tz"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93698b29de5e97ad0ae26447b344c482a7284c737d9ddc5f9e52b74a336671bb"
@@ -430,14 +419,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "chrono-tz-build"
-version = "0.2.1"
+name = "chrono-tz"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "433e39f13c9a060046954e0592a8d0a4bcb1040125cbf91cb8ee58964cfb350f"
+checksum = "cd6dd8046d00723a59a2f8c5f295c515b9bb9a331ee4f8f3d4dd49e428acd3b6"
 dependencies = [
- "parse-zoneinfo",
+ "chrono",
+ "chrono-tz-build 0.4.0",
  "phf",
- "phf_codegen",
 ]
 
 [[package]]
@@ -448,6 +437,16 @@ checksum = "0c088aee841df9c3041febbb73934cfc39708749bf96dc827e3359cd39ef11b1"
 dependencies = [
  "parse-zoneinfo",
  "phf",
+ "phf_codegen",
+]
+
+[[package]]
+name = "chrono-tz-build"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e94fea34d77a245229e7746bd2beb786cd2a896f306ff491fb8cecb3074b10a7"
+dependencies = [
+ "parse-zoneinfo",
  "phf_codegen",
 ]
 
@@ -1535,7 +1534,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "477e2e7ec7379407656293ff74902caea786a1dda427ca1f84b923c4fdeb7659"
 dependencies = [
  "either",
- "itertools 0.13.0",
+ "itertools",
  "proc-macro2 1.0.89",
  "quote 1.0.37",
  "strum",
@@ -1585,15 +1584,6 @@ name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
-
-[[package]]
-name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
 
 [[package]]
 name = "itertools"
@@ -1728,32 +1718,33 @@ checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
 name = "logos"
-version = "0.13.0"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c000ca4d908ff18ac99b93a062cb8958d331c3220719c52e77cb19cc6ac5d2c1"
+checksum = "1c6b6e02facda28ca5fb8dbe4b152496ba3b1bd5a4b40bb2b1b2d8ad74e0f39b"
 dependencies = [
  "logos-derive",
 ]
 
 [[package]]
 name = "logos-codegen"
-version = "0.13.0"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc487311295e0002e452025d6b580b77bb17286de87b57138f3b5db711cded68"
+checksum = "b32eb6b5f26efacd015b000bfc562186472cd9b34bdba3f6b264e2a052676d10"
 dependencies = [
  "beef",
  "fnv",
+ "lazy_static",
  "proc-macro2 1.0.89",
  "quote 1.0.37",
- "regex-syntax 0.6.29",
+ "regex-syntax 0.8.5",
  "syn 2.0.87",
 ]
 
 [[package]]
 name = "logos-derive"
-version = "0.13.0"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbfc0d229f1f42d790440136d941afd806bc9e949e2bcb8faa813b0f00d1267e"
+checksum = "3e5d0c5463c911ef55624739fc353238b4e310f0144be1f875dc42fec6bfd5ec"
 dependencies = [
  "logos-codegen",
 ]
@@ -2121,7 +2112,7 @@ dependencies = [
  "futures-util",
  "home",
  "indicatif",
- "itertools 0.13.0",
+ "itertools",
  "lazy_static",
  "log",
  "maplit",
@@ -2158,7 +2149,7 @@ dependencies = [
  "env_logger 0.11.5",
  "expectest",
  "futures",
- "itertools 0.13.0",
+ "itertools",
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
@@ -2199,7 +2190,7 @@ dependencies = [
  "expectest",
  "futures",
  "home",
- "itertools 0.13.0",
+ "itertools",
  "lazy_static",
  "libc",
  "log",
@@ -2254,7 +2245,7 @@ dependencies = [
  "hex",
  "http 1.1.0",
  "infer",
- "itertools 0.13.0",
+ "itertools",
  "lazy_static",
  "lenient_semver",
  "maplit",
@@ -2296,7 +2287,7 @@ dependencies = [
  "futures",
  "hyper 0.14.31",
  "hyper-rustls 0.24.2",
- "itertools 0.13.0",
+ "itertools",
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
@@ -2328,7 +2319,7 @@ dependencies = [
  "hyper 1.5.0",
  "hyper-rustls 0.27.3",
  "hyper-util",
- "itertools 0.13.0",
+ "itertools",
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
@@ -2355,10 +2346,10 @@ version = "1.2.5"
 dependencies = [
  "anyhow",
  "ariadne",
- "base64 0.21.7",
+ "base64 0.22.1",
  "bytes",
  "chrono",
- "chrono-tz 0.8.6",
+ "chrono-tz 0.10.0",
  "env_logger 0.11.5",
  "expectest",
  "fs2",
@@ -2367,7 +2358,7 @@ dependencies = [
  "hashers",
  "hex",
  "indextree",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "lenient_semver",
  "logos",
@@ -2382,7 +2373,7 @@ dependencies = [
  "regex",
  "regex-syntax 0.6.29",
  "reqwest",
- "rstest 0.19.0",
+ "rstest 0.23.0",
  "semver",
  "serde",
  "serde_json",
@@ -2412,7 +2403,7 @@ dependencies = [
  "futures",
  "http 1.1.0",
  "humantime",
- "itertools 0.13.0",
+ "itertools",
  "lazy_static",
  "maplit",
  "mime",
@@ -2708,7 +2699,7 @@ checksum = "0c1318b19085f08681016926435853bbf7858f9c082d0999b80550ff5d9abe15"
 dependencies = [
  "bytes",
  "heck",
- "itertools 0.13.0",
+ "itertools",
  "log",
  "multimap",
  "once_cell",
@@ -2728,7 +2719,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools",
  "proc-macro2 1.0.89",
  "quote 1.0.37",
  "syn 2.0.87",
@@ -3025,18 +3016,6 @@ dependencies = [
 
 [[package]]
 name = "rstest"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d5316d2a1479eeef1ea21e7f9ddc67c191d497abc8fc3ba2467857abbb68330"
-dependencies = [
- "futures",
- "futures-timer",
- "rstest_macros 0.19.0",
- "rustc_version",
-]
-
-[[package]]
-name = "rstest"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b423f0e62bdd61734b67cd21ff50871dfaeb9cc74f869dcd6af974fbcb19936"
@@ -3048,13 +3027,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "rstest_macros"
-version = "0.19.0"
+name = "rstest"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04a9df72cc1f67020b0d63ad9bfe4a323e459ea7eb68e03bd9824db49f9a4c25"
+checksum = "0a2c585be59b6b5dd66a9d2084aa1d8bd52fbdb806eafdeffb52791147862035"
+dependencies = [
+ "futures",
+ "futures-timer",
+ "rstest_macros 0.23.0",
+ "rustc_version",
+]
+
+[[package]]
+name = "rstest_macros"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e1711e7d14f74b12a58411c542185ef7fb7f2e7f8ee6e2940a883628522b42"
 dependencies = [
  "cfg-if",
  "glob",
+ "proc-macro-crate",
  "proc-macro2 1.0.89",
  "quote 1.0.37",
  "regex",
@@ -3066,9 +3058,9 @@ dependencies = [
 
 [[package]]
 name = "rstest_macros"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5e1711e7d14f74b12a58411c542185ef7fb7f2e7f8ee6e2940a883628522b42"
+checksum = "825ea780781b15345a146be27eaefb05085e337e869bff01b4306a4fd4a9ad5a"
 dependencies = [
  "cfg-if",
  "glob",
