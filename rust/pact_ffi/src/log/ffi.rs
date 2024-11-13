@@ -215,7 +215,7 @@ pub extern "C" fn pactffi_logger_init() {
 /// - `-1`: Can't set logger (applying the logger failed, perhaps because one is applied already).
 /// - `-2`: No logger has been initialized (call `pactffi_logger_init` before any other log function).
 /// - `-3`: The sink specifier was not UTF-8 encoded.
-/// - `-4`: The sink type specified is not a known type (known types: "stdout", "stderr", or "file /some/path").
+/// - `-4`: The sink type specified is not a known type (known types: "stdout", "stderr", "buffer", or "file /some/path").
 /// - `-5`: No file path was specified in a file-type sink specification.
 /// - `-6`: Opening a sink to the specified file path failed (check permissions).
 ///
@@ -262,6 +262,12 @@ pub unsafe extern "C" fn pactffi_logger_attach_sink(
 ///
 /// This function will install a global tracing subscriber. Any attempts to modify the logger
 /// after the call to `logger_apply` will fail.
+///
+/// # Error Handling
+///
+/// The return error codes are as follows:
+///
+/// - `-1`: Can't set logger (applying the logger failed, perhaps because one is applied already).
 #[no_mangle]
 pub extern "C" fn pactffi_logger_apply() -> c_int {
     let status = match apply_logger() {

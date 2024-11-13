@@ -201,6 +201,27 @@ impl DocPath {
     path
   }
 
+  /// Creates a new path by cloning this one and joining the index onto the end. Paths that end
+  /// with `*` will have the `*` replaced with the index.
+  pub fn join_index(&self, index: usize) -> Self {
+    let mut path = self.clone();
+    match self.path_tokens.last() {
+      Some(PathToken::Root) => { path.push_index(index); }
+      Some(PathToken::Field(_)) => { path.push_index(index); }
+      Some(PathToken::Index(_)) => { path.push_index(index); }
+      Some(PathToken::Star) | Some(PathToken::StarIndex) => {
+        if let Some(part) = path.path_tokens.last_mut() {
+          *part = PathToken::Index(index);
+          path.expr = path.build_expr();
+        } else {
+          path.push_index(index);
+        }
+      }
+      None => { path.push_index(index); }
+    }
+    path
+  }
+
   /// Mutates this path by pushing a field value onto the end.
   pub fn push_field(&mut self, field: impl Into<String>) -> &mut Self {
     let field = field.into();
@@ -614,9 +635,8 @@ pub fn parse_path_exp(path: &str) -> Result<Vec<PathToken>, String> {
 
 #[cfg(test)]
 mod tests {
-  use expectest::expect;
   use expectest::prelude::*;
-
+  use rstest::rstest;
   use super::*;
 
   #[test]
@@ -961,5 +981,19 @@ mod tests {
     expect!(something.join("*").as_json_pointer()).to(be_err());
     expect!(something.push(PathToken::Index(101)).as_json_pointer().unwrap())
       .to(be_equal_to("/something/101"));
+  }
+
+  #[rstest(
+    case("", "[0]"),
+    case("$", "$[0]"),
+    case("$.a", "$.a[0]"),
+    case("$.a[1]", "$.a[1][0]"),
+    case("$.a.*", "$.a[0]"),
+    case("$.a[*]", "$.a[0]")
+  )]
+  fn join_index_test(#[case] base: &'static str, #[case] result: &str) {
+    let base_path = DocPath::new_unwrap(base);
+    let result_path = base_path.join_index(0);
+    expect!(result_path.to_string()).to(be_equal_to(result));
   }
 }
