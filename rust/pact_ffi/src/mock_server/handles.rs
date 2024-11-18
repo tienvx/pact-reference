@@ -1123,11 +1123,14 @@ ffi_fn! {
   }
 }
 
-/// Sets the additional metadata on the Pact file. Common uses are to add the client library details such as the name and version
-/// Returns false if the interaction or Pact can't be modified (i.e. the mock server for it has already started)
+const PROTECTED_NAMES: [&str; 2] = ["pactRust", "pactSpecification"];
+
+/// Sets the additional metadata on the Pact file. Common uses are to add the client library
+/// details such as the name and version. Returns false if the interaction or Pact can't be
+/// modified (i.e. the mock server for it has already started) or the namespace is readonly.
 ///
 /// * `pact` - Handle to a Pact model
-/// * `namespace` - the top level metadat key to set any key values on
+/// * `namespace` - the top level metadata key to set any key values on
 /// * `name` - the key to set
 /// * `value` - the value to set
 #[no_mangle]
@@ -1143,11 +1146,29 @@ pub extern fn pactffi_with_pact_metadata(
     let value = convert_cstr("value", value).unwrap_or_default();
 
     if !namespace.is_empty() {
-      inner.pact.metadata.insert(namespace.to_string(), json!({ name: value }));
+      if PROTECTED_NAMES.contains(&namespace) {
+        warn!("'{}' is a readonly namespace and can't be modified", namespace);
+        false
+      } else {
+        match inner.pact.metadata.entry(namespace.to_string()) {
+          std::collections::btree_map::Entry::Vacant(entry) => {
+            entry.insert(json!({ name: value }));
+          }
+          std::collections::btree_map::Entry::Occupied(mut entry) => {
+            let metadata_entry = entry.get_mut();
+            if let Some(md) = metadata_entry.as_object_mut() {
+              md.insert(name.to_string(), Value::String(value.to_string()));
+            }  else {
+              *metadata_entry = json!({ name: value });
+            }
+          }
+        }
+        !inner.mock_server_started
+      }
     } else {
       warn!("no namespace provided for metadata {:?} => {:?}. Ignoring", name, value);
+      false
     }
-    !inner.mock_server_started
   }).unwrap_or(false)
 }
 
@@ -4314,8 +4335,8 @@ mod tests {
     });
     }
 
-    /// See https://github.com/pact-foundation/pact-php/pull/626
-    /// and https://github.com/pact-foundation/pact-reference/pull/461
+    // See https://github.com/pact-foundation/pact-php/pull/626
+    // and https://github.com/pact-foundation/pact-reference/pull/461
     #[test]
     fn annotate_raw_body_branch() {
         let pact_handle = PactHandle::new("Consumer", "Provider");
@@ -4348,5 +4369,58 @@ mod tests {
             interaction.request.body.value(),
             Some(Bytes::from("a=1&b=2&c=3"))
         )
+  }
+
+  // Issue #466
+  #[test]
+  fn pactffi_with_pact_metadata_test() {
+    let pact_handle = PactHandle::new("Consumer", "Provider");
+    let namespace1 = CString::new("namespace1").unwrap();
+    let var_1 = CString::new("var_1").unwrap();
+    let value_1 = CString::new("value_1").unwrap();
+    let result_1 = pactffi_with_pact_metadata(pact_handle, namespace1.as_ptr(), var_1.as_ptr(), value_1.as_ptr());
+    let var_2 = CString::new("var_2").unwrap();
+    let value_2 = CString::new("value_2").unwrap();
+    let result_2 = pactffi_with_pact_metadata(pact_handle, namespace1.as_ptr(), var_2.as_ptr(), value_2.as_ptr());
+    let namespace2 = CString::new("namespace2").unwrap();
+    let result_3 = pactffi_with_pact_metadata(pact_handle, namespace2.as_ptr(), var_1.as_ptr(), value_1.as_ptr());
+    let result_4 = pactffi_with_pact_metadata(pact_handle, namespace2.as_ptr(), var_2.as_ptr(), value_2.as_ptr());
+
+    let pact = pact_handle.with_pact(&|_, inner| inner.pact.clone()).unwrap();
+
+    pactffi_free_pact_handle(pact_handle);
+
+    expect!(result_1).to(be_true());
+    expect!(result_2).to(be_true());
+    expect!(result_3).to(be_true());
+    expect!(result_4).to(be_true());
+
+    expect!(pact.metadata.get("namespace1").unwrap()).to(be_equal_to(&json!({
+      "var_1": "value_1",
+      "var_2": "value_2"
+    })));
+    expect!(pact.metadata.get("namespace2").unwrap()).to(be_equal_to(&json!({
+      "var_1": "value_1",
+      "var_2": "value_2"
+    })));
+  }
+
+  // Issue #466
+  #[test]
+  fn pactffi_with_pact_metadata_with_readonly_namespace() {
+    let pact_handle = PactHandle::new("Consumer", "Provider");
+    let namespace1 = CString::new("pactRust").unwrap();
+    let var_1 = CString::new("var_1").unwrap();
+    let value_1 = CString::new("value_1").unwrap();
+    let result_1 = pactffi_with_pact_metadata(pact_handle, namespace1.as_ptr(), var_1.as_ptr(), value_1.as_ptr());
+    let namespace2 = CString::new("pactSpecification").unwrap();
+    let result_2 = pactffi_with_pact_metadata(pact_handle, namespace2.as_ptr(), var_1.as_ptr(), value_1.as_ptr());
+
+    let pact = pact_handle.with_pact(&|_, inner| inner.pact.clone()).unwrap();
+
+    pactffi_free_pact_handle(pact_handle);
+
+    expect!(result_1).to(be_false());
+    expect!(result_2).to(be_false());
   }
 }
