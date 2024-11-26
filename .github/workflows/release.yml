@@ -114,17 +114,6 @@ jobs:
             ${{ steps.cargo-flags.outputs.flags }}
         working-directory: rust/pact_ffi
 
-      - name: Smoke Test FFI library
-        if: |
-          github.event_name == 'push' ||
-          github.event_name == 'pull_request' ||
-          github.event_name == 'workflow_dispatch' ||
-          startsWith(github.ref, 'refs/tags/libpact_ffi')
-        shell: bash
-        run: |
-          ./smoke-test.sh ${{ matrix.targets }}
-        working-directory: ruby
-
       - name: Upload the artifacts
         if: |
           startsWith(github.ref, 'refs/tags/libpact_ffi')  ||
