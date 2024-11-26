@@ -4,10 +4,11 @@
 [![Pact-Rust FFI Build](https://github.com/pact-foundation/pact-reference/actions/workflows/build-ffi.yml/badge.svg)](https://github.com/pact-foundation/pact-reference/actions/workflows/build-ffi.yml)
 
 # Pact Reference Implementation
-> Reference implementations for Pact Specification written in Rust
 
-This project contains a reference implementation of the [Pact specifications](https://github.com/pact-foundation/pact-specification)
-written in Rust, as well as example projects in JavaScript and C (and a few others) that use the mock server library.
+> Reference implementations for the Pact Specification written in Rust
+
+This project contains a reference implementation of the [Pact specification](https://github.com/pact-foundation/pact-specification)
+written in Rust, often referred to as the Pact Core.
 
 ## Usage
 
@@ -18,6 +19,8 @@ readme](rust/README.md). Requires minimum Rust 1.71.0.
 
 ### Other languages
 
+#### FFI
+
 This project contains dynamic libraries that expose the core functionality through FFI (Foreign Function Interface).
 
 For examples:
@@ -25,8 +28,10 @@ For examples:
 * [C - Consumer](c/consumer-verification)
 * [C - Provider](c/provider-verification)
 * [Various Languages](https://github.com/YOU54F/hello_ffi)
-  
+
 For implementations:
+
+[Ecosystem graph](https://docs.pact.io/diagrams/ecosystem#rust-ffi-consumers-goldberg-machine)
 
 * [Javascript via pact-js-core](https://github.com/pact-foundation/pact-js-core)
 * [Ruby via pact-ruby-ffi](https://github.com/YOU54F/pact-ruby-ffi)
@@ -37,6 +42,16 @@ For implementations:
 * [Dart via pact-dart](https://github.com/matthewshirley/pact_dart)
 * [C++ via pact-cplusplus](https://github.com/pact-foundation/pact-cplusplus)
 * [Python via pact-python](https://github.com/pact-foundation/pact-python)
+
+#### CLI
+
+This project contains code to support exposing the core functionality through CLI (Command Line Interface).
+
+* [pact_mock_server_cli](https://github.com/pact-foundation/pact-core-mock-server/tree/main/pact_mock_server_cli)
+* [pact_verifier_cli](https://github.com/pact-foundation/pact-reference/tree/master/rust/pact_verifier_cli)
+* [pact-stub-server-cli](https://github.com/pact-foundation/pact-stub-server)
+
+They are distributed in binary & Docker formats.
 
 ## Building
 
