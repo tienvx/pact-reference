@@ -21,10 +21,22 @@ readme](rust/README.md). Requires minimum Rust 1.71.0.
 This project contains dynamic libraries that expose the core functionality through FFI (Foreign Function Interface).
 
 For examples:
-* [Javascript](javascript)
-* [C](c/consumer-verification)
-* [Ruby](ruby/example_consumer_spec)
-* [PHP](php)
+
+* [C - Consumer](c/consumer-verification)
+* [C - Provider](c/provider-verification)
+* [Various Languages](https://github.com/YOU54F/hello_ffi)
+  
+For implementations:
+
+* [Javascript via pact-js-core](https://github.com/pact-foundation/pact-js-core)
+* [Ruby via pact-ruby-ffi](https://github.com/YOU54F/pact-ruby-ffi)
+* [PHP via pact-php](https://github.com/pact-foundation/pact-php)
+* [GoLang via pact-go](https://github.com/pact-foundation/pact-go)
+* [.NET via pact-net](https://github.com/pact-foundation/pact-net)
+* [Swift via pact-swift](https://github.com/surpher/PactSwift)
+* [Dart via pact-dart](https://github.com/matthewshirley/pact_dart)
+* [C++ via pact-cplusplus](https://github.com/pact-foundation/pact-cplusplus)
+* [Python via pact-python](https://github.com/pact-foundation/pact-python)
 
 ## Building
 
