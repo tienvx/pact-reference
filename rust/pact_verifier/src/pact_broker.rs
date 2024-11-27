@@ -495,6 +495,7 @@ impl HALClient {
       .header("Content-Type", "application/json")
       .header("Accept", "application/hal+json")
       .header("Accept", "application/json")
+      .header("Accept-Charset", "utf-8")
       .body(body.to_string());
 
     let response = with_retries(self.retries, request_builder).await;
