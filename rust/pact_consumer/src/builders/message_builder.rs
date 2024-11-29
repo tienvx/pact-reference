@@ -87,12 +87,18 @@ impl InteractionContents {
   #[cfg(feature = "plugins")]
   /// Create a new struct from a plugin specific one
   pub fn from(contents: &pact_plugin_driver::content::InteractionContents) -> Self {
+    let metadata = contents.metadata.as_ref()
+      .map(|md| {
+        md.iter()
+          .map(|(k, v)| (k.clone(), v.clone()))
+          .collect()
+      });
     InteractionContents {
       part_name: contents.part_name.clone(),
       body: contents.body.clone(),
       rules: contents.rules.clone(),
       generators: contents.generators.clone(),
-      metadata: contents.metadata.clone(),
+      metadata,
       metadata_rules: contents.metadata_rules.clone(),
       plugin_config: PluginConfiguration::from(&contents.plugin_config),
       interaction_markup: contents.interaction_markup.clone(),
@@ -226,6 +232,9 @@ impl MessageInteractionBuilder {
       };
     }
 
+    let metadata = self.message_contents.metadata.as_ref()
+      .map(|md| md.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+      .unwrap_or_default();
     AsynchronousMessage {
       id: None,
       key: self.key.clone(),
@@ -233,7 +242,7 @@ impl MessageInteractionBuilder {
       provider_states: self.provider_states.clone(),
       contents: MessageContents {
         contents: self.message_contents.body.clone(),
-        metadata: self.message_contents.metadata.as_ref().cloned().unwrap_or_default(),
+        metadata,
         matching_rules: rules,
         generators: self.message_contents.generators.as_ref().cloned().unwrap_or_default()
       },
@@ -256,15 +265,18 @@ impl MessageInteractionBuilder {
     rules.add_category("body")
       .add_rules(self.message_contents.rules.as_ref().cloned().unwrap_or_default());
 
-        Message {
+    let metadata = self.message_contents.metadata.as_ref()
+      .map(|md| md.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+      .unwrap_or_default();
+    Message {
       id: None,
       description: self.description.clone(),
       provider_states: self.provider_states.clone(),
       contents: self.message_contents.body.clone(),
-          metadata: self.message_contents.metadata.as_ref().cloned().unwrap_or_default(),
-          matching_rules: rules,
-          generators: self.message_contents.generators.as_ref().cloned().unwrap_or_default()
-        }
+      metadata,
+      matching_rules: rules,
+      generators: self.message_contents.generators.as_ref().cloned().unwrap_or_default()
+    }
   }
 
   /// Configure the interaction contents from a map
@@ -427,7 +439,7 @@ impl MessageInteractionBuilder {
   }
 
   /// Specify the message payload and content type
-  pub fn body<B:  Into<Bytes>>(&mut self, body: B, content_type: Option<String>) -> &mut Self {
+  pub fn body<B: Into<Bytes>>(&mut self, body: B, content_type: Option<String>) -> &mut Self {
     let message_body = OptionalBody::Present(
       body.into(),
       content_type.as_ref().map(|ct| ct.into()),
