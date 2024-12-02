@@ -2390,6 +2390,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "speculate",
  "sxd-document",
  "test-log",
