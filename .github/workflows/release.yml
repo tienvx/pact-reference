@@ -37,7 +37,7 @@ jobs:
             targets: x86_64-pc-windows-msvc
           - operating-system: windows-2019
             targets: aarch64-pc-windows-msvc
-          - operating-system: macos-12
+          - operating-system: macos-13
             targets: x86_64-apple-darwin
           - operating-system: macos-14
             targets: aarch64-apple-darwin
