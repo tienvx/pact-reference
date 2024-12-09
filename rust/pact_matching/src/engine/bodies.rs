@@ -136,8 +136,8 @@ r#"-> (
     $.body
   ),
   %match:equality (
-    %apply (),
-    json:null
+    json:null,
+    %apply ()
   )
 )"#);
   }
@@ -156,8 +156,8 @@ r#"-> (
     $.body
   ),
   %match:equality (
-    %apply (),
-    json:true
+    json:true,
+    %apply ()
   )
 )"#);
   }
