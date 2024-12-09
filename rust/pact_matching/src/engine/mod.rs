@@ -66,7 +66,9 @@ pub enum NodeValue {
   /// Byte Array
   BARRAY(Vec<u8>),
   /// Namespaced value
-  NAMESPACED(String, String)
+  NAMESPACED(String, String),
+  /// Unsigned integer
+  UINT(u64)
 }
 
 impl NodeValue {
@@ -130,6 +132,7 @@ impl NodeValue {
         buffer.push_str(value);
         buffer
       }
+      NodeValue::UINT(i) => format!("UINT({})", i)
     }
   }
 
@@ -151,7 +154,8 @@ impl NodeValue {
       NodeValue::MMAP(_) => "Multi-Value String Map",
       NodeValue::SLIST(_) => "String List",
       NodeValue::BARRAY(_) => "Byte Array",
-      NodeValue::NAMESPACED(_, _) => "Namespaced Value"
+      NodeValue::NAMESPACED(_, _) => "Namespaced Value",
+      NodeValue::UINT(_) => "Unsigned Integer"
     }
   }
 }
@@ -165,6 +169,18 @@ impl From<String> for NodeValue {
 impl From<&str> for NodeValue {
   fn from(value: &str) -> Self {
     NodeValue::STRING(value.to_string())
+  }
+}
+
+impl From<usize> for NodeValue {
+  fn from(value: usize) -> Self {
+    NodeValue::UINT(value as u64)
+  }
+}
+
+impl From<u64> for NodeValue {
+  fn from(value: u64) -> Self {
+    NodeValue::UINT(value)
   }
 }
 
@@ -247,7 +263,8 @@ impl NodeResult {
         NodeValue::MMAP(m) => Some(format!("{:?}", m)),
         NodeValue::SLIST(list) => Some(format!("{:?}", list)),
         NodeValue::BARRAY(bytes) => Some(BASE64.encode(bytes)),
-        NodeValue::NAMESPACED(name, value) => Some(format!("{}:{}", name, value))
+        NodeValue::NAMESPACED(name, value) => Some(format!("{}:{}", name, value)),
+        NodeValue::UINT(ui) => Some(ui.to_string())
       }
       NodeResult::ERROR(_) => None
     }
@@ -273,7 +290,8 @@ impl NodeResult {
         NodeValue::MMAP(m) => !m.is_empty(),
         NodeValue::SLIST(l) => !l.is_empty(),
         NodeValue::BARRAY(b) => !b.is_empty(),
-        NodeValue::NAMESPACED(_, _) => false // TODO: Need a way to resolve this
+        NodeValue::NAMESPACED(_, _) => false, // TODO: Need a way to resolve this
+        NodeValue::UINT(ui) => *ui != 0
       }
       NodeResult::ERROR(_) => false
     }
@@ -589,11 +607,11 @@ pub fn build_request_plan(
 ) -> anyhow::Result<ExecutionPlan> {
   let mut plan = ExecutionPlan::new("request");
 
-  plan.add(setup_method_plan(expected, context)?);
-  plan.add(setup_path_plan(expected, context)?);
-  plan.add(setup_query_plan(expected, context)?);
-  plan.add(setup_header_plan(expected, context)?);
-  plan.add(setup_body_plan(expected, context)?);
+  plan.add(setup_method_plan(expected, &context.for_method())?);
+  plan.add(setup_path_plan(expected, &context.for_path())?);
+  plan.add(setup_query_plan(expected, &context.for_query())?);
+  plan.add(setup_header_plan(expected, &context.for_headers())?);
+  plan.add(setup_body_plan(expected, &context.for_body())?);
 
   Ok(plan)
 }

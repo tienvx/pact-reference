@@ -5,9 +5,11 @@ use std::panic::RefUnwindSafe;
 use anyhow::anyhow;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use itertools::Itertools;
 use tracing::{instrument, trace, Level};
 
-use pact_models::matchingrules::MatchingRule;
+use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory};
+use pact_models::path_exp::DocPath;
 use pact_models::prelude::v4::{SynchronousHttp, V4Pact};
 use pact_models::v4::interaction::V4Interaction;
 
@@ -22,7 +24,9 @@ pub struct PlanMatchingContext {
   /// Interaction that the plan id for
   pub interaction: Box<dyn V4Interaction + Send + Sync + RefUnwindSafe>,
   /// Stack of intermediate values (used by the pipeline operator and apply action)
-  value_stack: Vec<Option<NodeResult>>
+  value_stack: Vec<Option<NodeResult>>,
+  /// Matching rules to use
+  matching_rules: MatchingRuleCategory,
 }
 
 impl PlanMatchingContext {
@@ -76,6 +80,11 @@ impl PlanMatchingContext {
               Err(anyhow!("Expected byte array ({} bytes) to be empty", bytes.len()))
             },
             NodeValue::NAMESPACED(_, _) => { todo!("Not Implemented: Need a way to resolve NodeValue::NAMESPACED") }
+            NodeValue::UINT(ui) => if *ui == 0 {
+              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+            } else {
+              Err(anyhow!("Expected {:?} to be empty", value))
+            }
           }
         } else {
           // TODO: If the parameter value is an error, this should return an error?
@@ -131,6 +140,93 @@ impl PlanMatchingContext {
   pub fn pop_result(&mut self) -> Option<NodeResult> {
     self.value_stack.pop().flatten()
   }
+
+  /// If there is a matcher defined at the path in this context
+  pub fn matcher_is_defined(&self, path: &DocPath) -> bool {
+    let path = path.to_vec();
+    let path_slice = path.iter().map(|p| p.as_str()).collect_vec();
+    self.matching_rules.matcher_is_defined(path_slice.as_slice())
+  }
+
+  /// Creates a clone of this context, but with the matching rules set for the Request Method
+  pub fn for_method(&self) -> Self {
+    let matching_rules = if let Some(req_res) = self.interaction.as_v4_http() {
+      req_res.request.matching_rules.rules_for_category("method").unwrap_or_default()
+    } else {
+      MatchingRuleCategory::default()
+    };
+
+    PlanMatchingContext {
+      pact: self.pact.clone(),
+      interaction: self.interaction.boxed_v4(),
+      value_stack: vec![],
+      matching_rules
+    }
+  }
+
+  /// Creates a clone of this context, but with the matching rules set for the Request Path
+  pub fn for_path(&self) -> Self {
+    let matching_rules = if let Some(req_res) = self.interaction.as_v4_http() {
+      req_res.request.matching_rules.rules_for_category("path").unwrap_or_default()
+    } else {
+      MatchingRuleCategory::default()
+    };
+
+    PlanMatchingContext {
+      pact: self.pact.clone(),
+      interaction: self.interaction.boxed_v4(),
+      value_stack: vec![],
+      matching_rules
+    }
+  }
+
+  /// Creates a clone of this context, but with the matching rules set for the Request Query Parameters
+  pub fn for_query(&self) -> Self {
+    let matching_rules = if let Some(req_res) = self.interaction.as_v4_http() {
+      req_res.request.matching_rules.rules_for_category("query").unwrap_or_default()
+    } else {
+      MatchingRuleCategory::default()
+    };
+
+    PlanMatchingContext {
+      pact: self.pact.clone(),
+      interaction: self.interaction.boxed_v4(),
+      value_stack: vec![],
+      matching_rules
+    }
+  }
+
+  /// Creates a clone of this context, but with the matching rules set for the Request Headers
+  pub fn for_headers(&self) -> Self {
+    let matching_rules = if let Some(req_res) = self.interaction.as_v4_http() {
+      req_res.request.matching_rules.rules_for_category("header").unwrap_or_default()
+    } else {
+      MatchingRuleCategory::default()
+    };
+
+    PlanMatchingContext {
+      pact: self.pact.clone(),
+      interaction: self.interaction.boxed_v4(),
+      value_stack: vec![],
+      matching_rules
+    }
+  }
+
+  /// Creates a clone of this context, but with the matching rules set for the Request Body
+  pub fn for_body(&self) -> Self {
+    let matching_rules = if let Some(req_res) = self.interaction.as_v4_http() {
+      req_res.request.matching_rules.rules_for_category("body").unwrap_or_default()
+    } else {
+      MatchingRuleCategory::default()
+    };
+
+    PlanMatchingContext {
+      pact: self.pact.clone(),
+      interaction: self.interaction.boxed_v4(),
+      value_stack: vec![],
+      matching_rules
+    }
+  }
 }
 
 fn validate_two_args(arguments: &Vec<ExecutionPlanNode>, action: &str) -> anyhow::Result<(NodeResult, NodeResult)> {
@@ -158,7 +254,8 @@ impl Default for PlanMatchingContext {
     PlanMatchingContext {
       pact: Default::default(),
       interaction: Box::new(SynchronousHttp::default()),
-      value_stack: vec![]
+      value_stack: vec![],
+      matching_rules: Default::default()
     }
   }
 }

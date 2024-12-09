@@ -89,7 +89,7 @@ impl PlanBodyBuilder for JsonPlanBuilder {
     content_type.is_json()
   }
 
-  fn build_plan(&self, content: &Bytes, _context: &PlanMatchingContext) -> anyhow::Result<ExecutionPlanNode> {
+  fn build_plan(&self, content: &Bytes, context: &PlanMatchingContext) -> anyhow::Result<ExecutionPlanNode> {
     let expected_json: Value = serde_json::from_slice(content.as_bytes())?;
     let path = DocPath::root();
     let mut apply_node = ExecutionPlanNode::apply();
@@ -97,8 +97,45 @@ impl PlanBodyBuilder for JsonPlanBuilder {
       .add(ExecutionPlanNode::action("json:parse")
         .add(ExecutionPlanNode::resolve_value(DocPath::new_unwrap("$.body"))));
 
-    match expected_json {
-      Value::Array(_) => { todo!() }
+    match &expected_json {
+      Value::Array(items) => {
+        // TODO: Deal with matching rules here
+        if context.matcher_is_defined(&path) {
+          todo!("Deal with matching rules here")
+        } else if items.is_empty() {
+          apply_node.add(
+            ExecutionPlanNode::action("expect:empty")
+              .add(ExecutionPlanNode::action("apply"))
+          );
+        } else {
+          apply_node.add(ExecutionPlanNode::action("push"));
+          apply_node.add(
+            ExecutionPlanNode::action("json:match:length")
+              .add(ExecutionPlanNode::value_node(items.len()))
+              .add(ExecutionPlanNode::action("apply"))
+          );
+          apply_node.add(ExecutionPlanNode::action("pop"));
+          let mut iter_node = ExecutionPlanNode::action("iter");
+          iter_node.add(ExecutionPlanNode::action("apply"));
+
+          for (index, item) in items.iter().enumerate() {
+            let item_path = path.join_index(index);
+            match item {
+              Value::Array(_) => { todo!() }
+              Value::Object(_) => { todo!() }
+              _ => {
+                iter_node.add(
+                  ExecutionPlanNode::action("json:match:equality")
+                    .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), item.to_string())))
+                    .add(ExecutionPlanNode::resolve_value(item_path))
+                );
+              }
+            }
+          }
+
+          apply_node.add(iter_node);
+        }
+      }
       Value::Object(_) => { todo!() }
       _ => {
         apply_node.add(
@@ -117,7 +154,7 @@ impl PlanBodyBuilder for JsonPlanBuilder {
 mod tests {
   use bytes::Bytes;
   use pretty_assertions::assert_eq;
-  use serde_json::Value;
+  use serde_json::{json, Value};
 
   use crate::engine::bodies::{JsonPlanBuilder, PlanBodyBuilder};
   use crate::engine::context::PlanMatchingContext;
@@ -158,6 +195,122 @@ r#"-> (
   %match:equality (
     json:true,
     %apply ()
+  )
+)"#);
+  }
+
+  #[test]
+  fn json_plan_builder_with_string() {
+    let builder = JsonPlanBuilder::new();
+    let context = PlanMatchingContext::default();
+    let content = Bytes::copy_from_slice(Value::String("I am a string!".to_string()).to_string().as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(buffer,
+r#"-> (
+  %json:parse (
+    $.body
+  ),
+  %match:equality (
+    json:"I am a string!",
+    %apply ()
+  )
+)"#);
+  }
+
+  #[test]
+  fn json_plan_builder_with_int() {
+    let builder = JsonPlanBuilder::new();
+    let context = PlanMatchingContext::default();
+    let content = Bytes::copy_from_slice(json!(1000).to_string().as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(buffer,
+r#"-> (
+  %json:parse (
+    $.body
+  ),
+  %match:equality (
+    json:1000,
+    %apply ()
+  )
+)"#);
+  }
+
+  #[test]
+  fn json_plan_builder_with_float() {
+    let builder = JsonPlanBuilder::new();
+    let context = PlanMatchingContext::default();
+    let content = Bytes::copy_from_slice(json!(1000.3).to_string().as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(buffer,
+r#"-> (
+  %json:parse (
+    $.body
+  ),
+  %match:equality (
+    json:1000.3,
+    %apply ()
+  )
+)"#);
+  }
+
+  #[test]
+  fn json_plan_builder_with_empty_array() {
+    let builder = JsonPlanBuilder::new();
+    let context = PlanMatchingContext::default();
+    let content = Bytes::copy_from_slice(json!([]).to_string().as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(buffer,
+r#"-> (
+  %json:parse (
+    $.body
+  ),
+  %expect:empty (
+    %apply ()
+  )
+)"#);
+  }
+
+  #[test]
+  fn json_plan_builder_with_array() {
+    let builder = JsonPlanBuilder::new();
+    let context = PlanMatchingContext::default();
+    let content = Bytes::copy_from_slice(json!([100, 200, 300]).to_string().as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(buffer,
+r#"-> (
+  %json:parse (
+    $.body
+  ),
+  %push (),
+  %json:match:length (
+    UINT(3),
+    %apply ()
+  ),
+  %pop (),
+  %iter (
+    %apply (),
+    %json:match:equality (
+      json:100,
+      $[0]
+    ),
+    %json:match:equality (
+      json:200,
+      $[1]
+    ),
+    %json:match:equality (
+      json:300,
+      $[2]
+    )
   )
 )"#);
   }
