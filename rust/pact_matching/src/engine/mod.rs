@@ -45,6 +45,8 @@ pub enum PlanNodeType {
   VALUE(NodeValue),
   /// Leaf node that stores an expression to resolve against the test context
   RESOLVE(DocPath),
+  /// Pipeline node (apply), which applies each node to the next as a pipeline returning the last
+  PIPELINE
 }
 
 /// Enum for the value stored in a leaf node
@@ -62,7 +64,9 @@ pub enum NodeValue {
   /// List of String values
   SLIST(Vec<String>),
   /// Byte Array
-  BARRAY(Vec<u8>)
+  BARRAY(Vec<u8>),
+  /// Namespaced value
+  NAMESPACED(String, String)
 }
 
 impl NodeValue {
@@ -119,6 +123,13 @@ impl NodeValue {
         buffer.push(')');
         buffer
       }
+      NodeValue::NAMESPACED(name, value) => {
+        let mut buffer = String::new();
+        buffer.push_str(name);
+        buffer.push(':');
+        buffer.push_str(value);
+        buffer
+      }
     }
   }
 
@@ -139,7 +150,8 @@ impl NodeValue {
       NodeValue::BOOL(_) => "Boolean",
       NodeValue::MMAP(_) => "Multi-Value String Map",
       NodeValue::SLIST(_) => "String List",
-      NodeValue::BARRAY(_) => "Byte Array"
+      NodeValue::BARRAY(_) => "Byte Array",
+      NodeValue::NAMESPACED(_, _) => "Namespaced Value"
     }
   }
 }
@@ -234,7 +246,8 @@ impl NodeResult {
         NodeValue::BOOL(b) => Some(b.to_string()),
         NodeValue::MMAP(m) => Some(format!("{:?}", m)),
         NodeValue::SLIST(list) => Some(format!("{:?}", list)),
-        NodeValue::BARRAY(bytes) => Some(BASE64.encode(bytes))
+        NodeValue::BARRAY(bytes) => Some(BASE64.encode(bytes)),
+        NodeValue::NAMESPACED(name, value) => Some(format!("{}:{}", name, value))
       }
       NodeResult::ERROR(_) => None
     }
@@ -259,7 +272,8 @@ impl NodeResult {
         NodeValue::BOOL(b) => *b,
         NodeValue::MMAP(m) => !m.is_empty(),
         NodeValue::SLIST(l) => !l.is_empty(),
-        NodeValue::BARRAY(b) => !b.is_empty()
+        NodeValue::BARRAY(b) => !b.is_empty(),
+        NodeValue::NAMESPACED(_, _) => false // TODO: Need a way to resolve this
       }
       NodeResult::ERROR(_) => false
     }
@@ -347,6 +361,23 @@ impl ExecutionPlanNode {
           buffer.push_str(result.to_string().as_str());
         }
       }
+      PlanNodeType::PIPELINE => {
+        buffer.push_str(pad.as_str());
+        buffer.push_str("->");
+        if self.is_empty() {
+          buffer.push_str(" ()");
+        } else {
+          buffer.push_str(" (\n");
+          self.pretty_form_children(buffer, indent);
+          buffer.push_str(pad.as_str());
+          buffer.push(')');
+        }
+
+        if let Some(result) = &self.result {
+          buffer.push_str(" ~ ");
+          buffer.push_str(result.to_string().as_str());
+        }
+      }
     }
   }
 
@@ -407,6 +438,17 @@ impl ExecutionPlanNode {
           buffer.push_str(result.to_string().as_str());
         }
       }
+      PlanNodeType::PIPELINE => {
+        buffer.push_str("->");
+        buffer.push('(');
+        self.str_form_children(&mut buffer);
+        buffer.push(')');
+
+        if let Some(result) = &self.result {
+          buffer.push('~');
+          buffer.push_str(result.to_string().as_str());
+        }
+      }
     }
 
     buffer.push(')');
@@ -424,9 +466,9 @@ impl ExecutionPlanNode {
   }
 
   /// Constructor for a container node
-  pub fn container(label: &str) -> ExecutionPlanNode {
+  pub fn container<S: Into<String>>(label: S) -> ExecutionPlanNode {
     ExecutionPlanNode {
-      node_type: PlanNodeType::CONTAINER(label.to_string()),
+      node_type: PlanNodeType::CONTAINER(label.into()),
       result: None,
       children: vec![],
     }
@@ -459,10 +501,24 @@ impl ExecutionPlanNode {
     }
   }
 
+  /// Constructor for an apply node
+  pub fn apply() -> ExecutionPlanNode {
+    ExecutionPlanNode {
+      node_type: PlanNodeType::PIPELINE,
+      result: None,
+      children: vec![],
+    }
+  }
+
   /// Adds the node as a child
   pub fn add<N>(&mut self, node: N) -> &mut Self where N: Into<ExecutionPlanNode> {
     self.children.push(node.into());
     self
+  }
+
+  /// Pushes the node onto the front of the list
+  pub fn push_node(&mut self, node: ExecutionPlanNode) {
+    self.children.insert(0, node.into());
   }
 
   /// If the node is a leaf node
@@ -711,7 +767,11 @@ fn walk_tree(
       child_path.push(action.clone());
       let mut result = vec![];
       for child in &node.children {
-        let child_result = walk_tree(&child_path, child, value_resolver, context)?;
+        let child_result = if child.result.is_none() {
+          walk_tree(&child_path, child, value_resolver, context)?
+        } else {
+          child.clone()
+        };
         result.push(child_result);
       }
       match context.execute_action(action.as_str(), &result) {
@@ -754,6 +814,36 @@ fn walk_tree(
           Ok(ExecutionPlanNode {
             node_type: node.node_type.clone(),
             result: Some(NodeResult::ERROR(err.to_string())),
+            children: vec![]
+          })
+        }
+      }
+    }
+    PlanNodeType::PIPELINE => {
+      trace!(?path, "Apply pipeline node");
+
+      let child_path = path.to_vec();
+      context.push_result(None);
+
+      for child in &node.children {
+        let child_result = walk_tree(&child_path, child, value_resolver, context)?;
+        context.update_result(child_result.result);
+      }
+
+      let result = context.pop_result();
+      match result {
+        Some(value) => {
+          Ok(ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(value),
+            children: vec![]
+          })
+        }
+        None => {
+          trace!(?path, "Value from stack is empty");
+          Ok(ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR("Value from stack is empty".to_string())),
             children: vec![]
           })
         }

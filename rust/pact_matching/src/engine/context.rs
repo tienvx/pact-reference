@@ -20,7 +20,9 @@ pub struct PlanMatchingContext {
   /// Pact the plan is for
   pub pact: V4Pact,
   /// Interaction that the plan id for
-  pub interaction: Box<dyn V4Interaction + Send + Sync + RefUnwindSafe>
+  pub interaction: Box<dyn V4Interaction + Send + Sync + RefUnwindSafe>,
+  /// Stack of intermediate values (used by the pipeline operator and apply action)
+  value_stack: Vec<Option<NodeResult>>
 }
 
 impl PlanMatchingContext {
@@ -72,7 +74,8 @@ impl PlanMatchingContext {
               Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
             } else {
               Err(anyhow!("Expected byte array ({} bytes) to be empty", bytes.len()))
-            }
+            },
+            NodeValue::NAMESPACED(_, _) => { todo!("Not Implemented: Need a way to resolve NodeValue::NAMESPACED") }
           }
         } else {
           // TODO: If the parameter value is an error, this should return an error?
@@ -101,8 +104,32 @@ impl PlanMatchingContext {
           Ok(first)
         }
       }
+      "apply" => if let Some(value) = self.value_stack.last() {
+        value.clone().ok_or_else(|| anyhow!("No value to apply (value on stack is empty)"))
+      } else {
+        Err(anyhow!("No value to apply (stack is empty)"))
+      }
       _ => Err(anyhow!("'{}' is not a valid action", action))
     }
+  }
+
+  /// Push a result value onto the value stack
+  pub fn push_result(&mut self, value: Option<NodeResult>) {
+    self.value_stack.push(value);
+  }
+
+  /// Replace the top value of the stack with the new value
+  pub fn update_result(&mut self, value: Option<NodeResult>) {
+    if let Some(current) = self.value_stack.last_mut() {
+      *current = value;
+    } else {
+      self.value_stack.push(value);
+    }
+  }
+
+  /// Return the value on the top if the stack
+  pub fn pop_result(&mut self) -> Option<NodeResult> {
+    self.value_stack.pop().flatten()
   }
 }
 
@@ -130,7 +157,8 @@ impl Default for PlanMatchingContext {
   fn default() -> Self {
     PlanMatchingContext {
       pact: Default::default(),
-      interaction: Box::new(SynchronousHttp::default())
+      interaction: Box::new(SynchronousHttp::default()),
+      value_stack: vec![]
     }
   }
 }
