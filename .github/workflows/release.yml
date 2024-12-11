@@ -18,6 +18,12 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  RUST_BACKTRACE: "1"
+  RUST_LOG: "debug"
+  PACT_DO_NOT_TRACK: "true"
+  CARGO_TERM_COLOR: always
+
 jobs:
   build-release:
     name: build-release (${{ matrix.targets }})
@@ -43,9 +49,6 @@ jobs:
             targets: aarch64-apple-darwin
       fail-fast: false
 
-    env:
-      pact_do_not_track: true
-
     steps:
       - uses: actions/checkout@v4
 
@@ -59,10 +62,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: ${{ matrix.targets }}
+          shared-key: ${{ runner.os }}
 
       - name: Set up QEMU
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && startsWith(matrix.targets, 'aarch64')
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx

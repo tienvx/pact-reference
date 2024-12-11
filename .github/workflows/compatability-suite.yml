@@ -1,56 +1,44 @@
 name: Pact-Rust Compatibility Suite
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
 
 env:
-  pact_do_not_track: true
+  RUST_BACKTRACE: "1"
+  RUST_LOG: "debug"
+  PACT_DO_NOT_TRACK: "true"
+  CARGO_TERM_COLOR: always
 
 jobs:
-  v1:
+  compatibility-suite:
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
       matrix:
-        operating-system: [ ubuntu-latest, windows-latest, macos-13, macos-14 ]
-    steps:
-    - uses: actions/checkout@v2
-    - uses: dtolnay/rust-toolchain@stable
-    - name: Run Cucumber
-      run: cargo test --test v1*
-      working-directory: compatibility-suite
-  v2:
-    runs-on: ${{ matrix.operating-system }}
-    strategy:
-      fail-fast: false
-      matrix:
-        operating-system: [ ubuntu-latest, windows-latest, macos-13, macos-14 ]
+        operating-system: [ubuntu-latest, windows-latest, macos-13, macos-14]
     steps:
       - uses: actions/checkout@v2
       - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rust
+            compatibility-suite
+          shared-key: ${{ runner.os }}
       - name: Run Cucumber
-        run: cargo test --test v2*
-        working-directory: compatibility-suite
-  v3:
-    runs-on: ${{ matrix.operating-system }}
-    strategy:
-      fail-fast: false
-      matrix:
-        operating-system: [ ubuntu-latest, windows-latest, macos-13, macos-14 ]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run Cucumber
-        run: cargo test --test v3*
-        working-directory: compatibility-suite
-  v4:
-    runs-on: ${{ matrix.operating-system }}
-    strategy:
-      fail-fast: false
-      matrix:
-        operating-system: [ ubuntu-latest, windows-latest, macos-13, macos-14 ]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run Cucumber
-        run: cargo test --test v4*
+        # Note: cucumber's test executables are incompatible with nextest
+        # See: https://github.com/nextest-rs/nextest/issues/1329
+        run: cargo test
         working-directory: compatibility-suite

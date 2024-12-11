@@ -1,6 +1,22 @@
 name: Pact-Rust FFI Build
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: "1"
+  RUST_LOG: "debug"
+  PACT_DO_NOT_TRACK: "true"
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
@@ -10,8 +26,6 @@ jobs:
       matrix:
         operating-system: [ ubuntu-latest, windows-latest, macos-13, macos-14 ]
         rust: [ stable ]
-    env:
-      pact_do_not_track: true
     steps:
       - uses: actions/checkout@v3
       - run: rustc --version || true
@@ -19,13 +33,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: ${{ runner.os }}
       - name: Install shared mime info DB
         if: runner.os == 'macOS'
         run: brew install shared-mime-info
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly
-          components: rustfmt
       - name: Install doxygen
         if: runner.os == 'Linux'
         run: sudo apt-get install -y doxygen
