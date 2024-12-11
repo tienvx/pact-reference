@@ -1,5 +1,13 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.6 - Maintenance Release
+
+* 707752ad - feat: Support generators for form urlencoded (tien.xuan.vo, Mon Dec 2 10:10:43 2024 +0700)
+* f3918b61 - Merge pull request #464 from tienvx/fix-cant-compare-each-key-each-value-matching-rules (Ronald Holshausen, Wed Nov 13 11:07:10 2024 +1100)
+* 7465b6da - bump version to 1.2.6 (Ronald Holshausen, Wed Nov 13 10:55:04 2024 +1100)
+* c2793764 - test: Add test for eachKey and eachValue matching rules comparation (tien.xuan.vo, Fri Sep 6 11:40:19 2024 +0700)
+* 691ddae5 - fix: Fix can't compare 2 eachKey matching rules, 2 eachValue matching rules (tien.xuan.vo, Fri Sep 6 11:15:59 2024 +0700)
+
 # 1.2.5 - Maintenance Release
 
 * e485190f - chore(pact-models): Updated dependencies (Ronald Holshausen, Wed Nov 13 10:29:10 2024 +1100)
