@@ -12,6 +12,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  RUST_BACKTRACE: "1"
+  RUST_LOG: "debug"
+  PACT_DO_NOT_TRACK: "true"
+  CARGO_TERM_COLOR: always
+
 jobs:
   build:
     runs-on: ${{ matrix.operating-system }}
@@ -20,8 +26,6 @@ jobs:
       matrix:
         operating-system: [ ubuntu-latest, windows-latest, macos-13, macos-14 ]
         rust: [ stable ]
-    env:
-      pact_do_not_track: true
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
@@ -37,15 +41,9 @@ jobs:
       - name: Tests
         run: cargo nextest run
         working-directory: rust
-        env:
-          RUST_LOG: debug
-          RUST_BACKTRACE: 1
       - name: Run mock_server_logs test
         run: cargo nextest run -p pact_ffi returns_mock_server_logs -- --include-ignored
         working-directory: rust
-        env:
-          RUST_LOG: debug
-          RUST_BACKTRACE: 1
       - name: Clippy
         if: runner.os == 'Linux'
         run: cargo clippy
