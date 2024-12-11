@@ -1,6 +1,16 @@
 name: Pact-Rust Compatibility Suite
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
 
 env:
   pact_do_not_track: true
