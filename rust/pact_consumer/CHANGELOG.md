@@ -1,5 +1,12 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.3.3 - Maintenance Release
+
+* 6189c0cd - fix(pact_consumer): Pass the transport config to the plugin in the test context under the transport_config key (Ronald Holshausen, Fri Dec 13 12:00:05 2024 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* fab32aa0 - chore: Upgrade pact_models to 1.2.6 (Ronald Holshausen, Wed Dec 11 15:28:01 2024 +1100)
+* 93ce0e95 - bump version to 1.3.3 (Ronald Holshausen, Fri Nov 29 16:46:10 2024 +1100)
+
 # 1.3.2 - Bugfix Release
 
 * 44d9dc1e - fix(plugins): Upgrade pact-plugin-driver to 0.7.2, fixes #473 (Ronald Holshausen, Fri Nov 29 15:48:40 2024 +1100)
