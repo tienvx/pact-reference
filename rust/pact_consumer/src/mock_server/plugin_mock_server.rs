@@ -19,7 +19,7 @@ use url::Url;
 use pact_matching::metrics::{MetricEvent, send_metrics_async};
 use pact_mock_server::matching::MatchResult;
 use pact_mock_server::mock_server::MockServerMetrics;
-
+use serde_json::Value;
 use crate::mock_server::ValidatingMockServer;
 use crate::util::panic_or_print_error;
 
@@ -41,12 +41,15 @@ impl PluginMockServer {
   pub fn start(
     pact: Box<dyn Pact + Send + Sync>,
     output_path: Option<PathBuf>,
-    catalogue_entry: &CatalogueEntry
+    catalogue_entry: &CatalogueEntry,
+    mock_server_config: Option<pact_mock_server::mock_server::MockServerConfig>
   ) -> anyhow::Result<Box<dyn ValidatingMockServer>> {
     let runtime = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()?;
-    runtime.block_on(async { PluginMockServer::start_async(pact, output_path, catalogue_entry).await })
+    runtime.block_on(async {
+      PluginMockServer::start_async(pact, output_path, catalogue_entry, mock_server_config).await
+    })
   }
 
   /// Start a new plugin mock server (async version). This will send the start mock server request
@@ -54,9 +57,19 @@ impl PluginMockServer {
   pub async fn start_async(
     pact: Box<dyn Pact + Send + Sync>,
     output_path: Option<PathBuf>,
-    catalogue_entry: &CatalogueEntry
+    catalogue_entry: &CatalogueEntry,
+    mock_server_config: Option<pact_mock_server::mock_server::MockServerConfig>
   ) -> anyhow::Result<Box<dyn ValidatingMockServer>> {
-    let test_context = hashmap!{};
+    let test_context = if let Some(mock_server_config) = mock_server_config {
+      hashmap!{
+        "transport_config".to_string() => Value::Object(mock_server_config.transport_config
+          .iter()
+          .map(|(k, v)| (k.clone(), v.clone()))
+          .collect())
+      }
+    } else {
+      hashmap!{}
+    };
     let result = start_mock_server_v2(catalogue_entry, pact.boxed(), MockServerConfig {
       output_path: output_path.clone(),
       host_interface: None,
