@@ -1,5 +1,15 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 0.4.25 - Support for FORM urlencoded bodies
+
+* 648ab1c9 - chore: Upgrade pact_matching to 1.2.8 (Ronald Holshausen, Thu Dec 19 16:14:10 2024 +1100)
+* d74af0ab - Merge pull request #462 from tienvx/support-integration-json-for-form-urlencoded (Ronald Holshausen, Thu Dec 19 15:15:09 2024 +1100)
+* 4aa50181 - chore(FFI): Update pact_mock_server to 1.2.11 (Ronald Holshausen, Fri Dec 13 10:57:23 2024 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* 4722e2e3 - feat(FFI): Support integration json for form urlencoded (tien.xuan.vo, Thu Sep 5 01:30:55 2024 +0700)
+* fab32aa0 - chore: Upgrade pact_models to 1.2.6 (Ronald Holshausen, Wed Dec 11 15:28:01 2024 +1100)
+* 7792c635 - bump version to 0.4.25 (Ronald Holshausen, Fri Nov 29 16:03:37 2024 +1100)
+
 # 0.4.24 - Bugfix Release
 
 * 44d9dc1e - fix(plugins): Upgrade pact-plugin-driver to 0.7.2, fixes #473 (Ronald Holshausen, Fri Nov 29 15:48:40 2024 +1100)
