@@ -1,5 +1,22 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.8 - Bugfix Release
+
+* c1bf98ef - Merge pull request #479 from tienvx/apply-generators-for-form-urlencoded (Ronald Holshausen, Thu Dec 19 15:04:20 2024 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* b1cb2d5f - feat(pact_matching): Apply generators for form urlencoded (tien.xuan.vo, Wed Dec 11 14:29:49 2024 +0700)
+* fab32aa0 - chore: Upgrade pact_models to 1.2.6 (Ronald Holshausen, Wed Dec 11 15:28:01 2024 +1100)
+* 44d9dc1e - fix(plugins): Upgrade pact-plugin-driver to 0.7.2, fixes #473 (Ronald Holshausen, Fri Nov 29 15:48:40 2024 +1100)
+* 9c3bfb6f - Merge pull request #463 from tienvx/fix-cant-match-array-of-numbers (Ronald Holshausen, Wed Nov 13 11:04:32 2024 +1100)
+* 420c654d - chore: Upgrade pact_models to 1.2.5 (Ronald Holshausen, Wed Nov 13 11:01:39 2024 +1100)
+* 303073cf - docs: update obsolete links [ci skip] (Yousaf Nabi, Fri Sep 6 13:01:21 2024 +0100)
+* 61c68b8c - test: Test values using number, integer, decimal matchers (tien.xuan.vo, Fri Sep 6 15:55:39 2024 +0700)
+* 5d38945a - fix: Fix can't match array of numbers (tien.xuan.vo, Fri Sep 6 11:13:43 2024 +0700)
+* effa4c76 - chore: Update deprecation message on in-mem support loggin functions in pact_matching crate (Ronald Holshausen, Thu Sep 5 10:30:12 2024 +1000)
+* 18770107 - chore: Add deprecation notice to the functions that use LOG_ID (Ronald Holshausen, Wed Sep 4 15:44:03 2024 +1000)
+* c1a00dd8 - chore: Upgrade pact-plugin-driver to 0.7.1 (Ronald Holshausen, Tue Sep 3 15:47:22 2024 +1000)
+* 08288e32 - bump version to 1.2.8 (Ronald Holshausen, Tue Aug 27 14:48:23 2024 +1000)
+
 # 1.2.7 - Bugfix Release
 
 * e6f8ae46 - fix(plugins): Plugin config needs to have seperate values for HTTP request and response parts (Ronald Holshausen, Tue Aug 27 14:32:37 2024 +1000)
