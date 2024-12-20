@@ -8,6 +8,10 @@ on:
     branches:
       - master
 
+#concurrency:
+#  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+#  cancel-in-progress: false
+
 env:
   RUST_BACKTRACE: "1"
   RUST_LOG: "debug"
@@ -28,14 +32,17 @@ jobs:
         with:
           toolchain: stable
           components: clippy
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
       - name: Install shared mime info DB
         if: runner.os == 'macOS'
         run: brew install shared-mime-info
       - name: Tests
-        run: cargo test
+        run: cargo nextest run
         working-directory: rust
       - name: Run mock_server_logs test
-        run: cargo test -p pact_ffi returns_mock_server_logs -- --nocapture --include-ignored
+        run: cargo nextest run -p pact_ffi returns_mock_server_logs -- --include-ignored
         working-directory: rust
       - name: Clippy
         if: runner.os == 'Linux'
@@ -48,9 +55,21 @@ jobs:
       image: pactfoundation/rust-musl-build
     steps:
       - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: ${{ runner.os }}-musl
       - name: Tests
-        run: cargo test
+        run: cargo nextest run
         working-directory: rust
+
 
   check-features:
     runs-on: ubuntu-latest
