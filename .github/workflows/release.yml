@@ -62,10 +62,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          shared-key: ${{ runner.os }}
+          key: ${{ matrix.targets }}
 
       - name: Set up QEMU
-        if: runner.os == 'Linux' && startsWith(matrix.targets, 'aarch64')
+        if: runner.os == 'Linux'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx

@@ -31,12 +31,6 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            rust
-            compatibility-suite
-          shared-key: ${{ runner.os }}
       - name: Run Cucumber
         # Note: cucumber's test executables are incompatible with nextest
         # See: https://github.com/nextest-rs/nextest/issues/1329
