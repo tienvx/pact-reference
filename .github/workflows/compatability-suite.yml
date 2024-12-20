@@ -13,10 +13,7 @@ on:
 #  cancel-in-progress: false
 
 env:
-  RUST_BACKTRACE: "1"
-  RUST_LOG: "debug"
-  PACT_DO_NOT_TRACK: "true"
-  CARGO_TERM_COLOR: always
+  pact_do_not_track: true
 
 jobs:
   compatibility-suite:
