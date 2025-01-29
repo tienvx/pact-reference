@@ -1988,3 +1988,60 @@ fn time_matcher_in_query_parameters() {
     }
   };
 }
+
+// Issue #484
+#[test_log::test]
+fn numeric_matcher_passing_test_sending_string_value() {
+  let consumer_name = CString::new("484-consumer").unwrap();
+  let provider_name = CString::new("484-provider").unwrap();
+  let pact_handle = pactffi_new_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+
+  let description = CString::new("request_with_number_matchers").unwrap();
+  let interaction = pactffi_new_interaction(pact_handle.clone(), description.as_ptr());
+
+  let path = CString::new("/request").unwrap();
+  let content_type = CString::new("Content-Type").unwrap();
+  let request_body_with_matchers = CString::new("{\"value\":{\
+     \"key2\":{\"value\":321,\"pact:matcher:type\":\"number\"},\
+     \"key1\":{\"pact:matcher:type\":\"number\",\"value\":123.1}},\
+     \"pact:matcher:type\":\"type\"\
+  }").unwrap();
+  let address = CString::new("127.0.0.1").unwrap();
+  let description = CString::new("a request with number matchers").unwrap();
+  let method = CString::new("POST").unwrap();
+  let header = CString::new("application/json").unwrap();
+
+  pactffi_upon_receiving(interaction.clone(), description.as_ptr());
+  pactffi_with_request(interaction.clone(), method.as_ptr(), path.as_ptr());
+  pactffi_with_body(interaction.clone(), InteractionPart::Request, header.as_ptr(), request_body_with_matchers.as_ptr());
+
+  let port = pactffi_create_mock_server_for_transport(pact_handle.clone(), address.as_ptr(), 0, null(), null());
+  expect!(port).to(be_greater_than(0));
+
+  let client = Client::default();
+  let result = client.post(format!("http://127.0.0.1:{}/request", port).as_str())
+    .header("Content-Type", "application/json")
+    .body(r#"{"key2":"456","key1":"321.1"}"#)
+    .send();
+
+  thread::sleep(Duration::from_millis(100)); // Give mock server some time to update events
+  let mismatches = unsafe {
+    CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
+  };
+
+  pactffi_cleanup_mock_server(port);
+
+  let json: Value = serde_json::from_str(mismatches.as_str()).unwrap();
+  let mismatches = json.as_array()
+    .unwrap()
+    .iter()
+    .flat_map(|m| m.get("mismatches").unwrap().as_array().unwrap().clone())
+    .map(|mismatch| mismatch.as_object().cloned().unwrap())
+    .map(|mismatch| mismatch.get("mismatch").cloned().unwrap())
+    .map(|mismatch| mismatch.as_str().unwrap().to_string())
+    .collect_vec();
+  assert_eq!(mismatches, vec![
+    "Expected '456' (String) to be a number",
+    "Expected '321.1' (String) to be a number"
+  ]);
+}
