@@ -446,6 +446,27 @@ fn match_query_with_each_value_matching_rules_fails() {
   ]));
 }
 
+// Issue 483
+#[test_log::test]
+fn match_query_with_a_time_matcher() {
+  let context = CoreMatchingContext::new(
+    DiffConfig::AllowUnexpectedKeys,
+    &matchingrules! {
+      "query" => {
+        "a" => [ MatchingRule::Time("HH:mm".to_string()) ]
+      }
+    }.rules_for_category("query").unwrap_or_default(), &hashmap!{}
+  );
+  let mut query_map = HashMap::new();
+  query_map.insert("a".to_string(), vec![Some("12:13".to_string())]);
+  let expected = Some(query_map);
+  query_map = HashMap::new();
+  query_map.insert("a".to_string(), vec![Some("11:11".to_string())]);
+  let actual = Some(query_map);
+  let result = match_query(expected, actual, &context);
+  expect!(result.get("a").unwrap().iter()).to(be_empty());
+}
+
 #[tokio::test]
 async fn body_does_not_match_if_different_content_types() {
   let expected = Request {
