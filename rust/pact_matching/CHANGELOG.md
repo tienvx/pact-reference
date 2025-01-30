@@ -1,5 +1,12 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.9 - Bugfix Release
+
+* e98a2183 - fix: Do not apply include matcher at the collection level #485 (Ronald Holshausen, Wed Jan 29 17:09:04 2025 +1100)
+* 096deedc - fix: when comparing JSON with number matchers, don't covert numbers in string form to numbers #484 (Ronald Holshausen, Wed Jan 29 16:52:06 2025 +1100)
+* d93dfb3f - fix: Do not apply date/time matchers at the collection level #483 (Ronald Holshausen, Wed Jan 29 14:34:31 2025 +1100)
+* 5002bace - bump version to 1.2.9 (Ronald Holshausen, Thu Dec 19 15:37:28 2024 +1100)
+
 # 1.2.8 - Bugfix Release
 
 * c1bf98ef - Merge pull request #479 from tienvx/apply-generators-for-form-urlencoded (Ronald Holshausen, Thu Dec 19 15:04:20 2024 +1100)
