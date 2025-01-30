@@ -1,4 +1,5 @@
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 
@@ -12,6 +13,7 @@ use pact_models::interaction::Interaction;
 use pact_models::matchingrules::matchers_from_json;
 use pact_models::pact::Pact;
 use pact_models::prelude::RequestResponseInteraction;
+use pact_models::query_strings::parse_query_string;
 use pact_models::request::Request;
 use pact_models::sync_pact::RequestResponsePact;
 use regex::Regex;
@@ -58,6 +60,17 @@ fn an_expected_request_configured_with_the_following(world: &mut V3World, step: 
       setup_body(body, &mut world.expected_request, data.get("content type").map(|ct| ct.as_str()));
     }
 
+    if let Some(query) = data.get("query") {
+      world.expected_request.query = parse_query_string(query);
+    }
+
+    if let Some(headers) = data.get("headers") {
+      if !headers.is_empty() {
+        let headers = parse_headers(headers);
+        world.expected_request.headers = Some(headers);
+      }
+    }
+
     if let Some(value) = data.get("matching rules") {
       let json: Value = if value.starts_with("JSON:") {
         serde_json::from_str(value.strip_prefix("JSON:").unwrap_or(value).trim()).unwrap()
@@ -75,6 +88,18 @@ fn an_expected_request_configured_with_the_following(world: &mut V3World, step: 
   }
 }
 
+fn parse_headers(headers: &str) -> HashMap<String, Vec<String>> {
+  headers.split(",")
+    .map(|header| {
+      let key_value = header.strip_prefix("'").unwrap_or(header)
+        .strip_suffix("'").unwrap_or(header)
+        .splitn(2, ":")
+        .map(|v| v.trim())
+        .collect::<Vec<_>>();
+      (key_value[0].to_string(), parse_header(key_value[0], key_value[1]))
+    }).collect()
+}
+
 #[given(expr = "a request is received with the following:")]
 fn a_request_is_received_with_the_following(world: &mut V3World, step: &Step) {
   let mut request = Request::default();
@@ -90,6 +115,17 @@ fn a_request_is_received_with_the_following(world: &mut V3World, step: &Step) {
     if let Some(body) = data.get("body") {
       setup_body(body, &mut request, data.get("content type").map(|ct| ct.as_str()));
     }
+
+    if let Some(query) = data.get("query") {
+      request.query = parse_query_string(query);
+    }
+
+    if let Some(headers) = data.get("headers") {
+      if !headers.is_empty() {
+        let headers = parse_headers(headers);
+        request.headers = Some(headers);
+      }
+    }
   }
   world.received_requests.push(request);
 }
@@ -104,6 +140,8 @@ fn the_following_requests_are_received(world: &mut V3World, step: &Step) {
         if let Some(field) = headers.get(index) {
           match field.as_str() {
             "body" => setup_body(value, &mut request, None),
+            "query" => request.query = parse_query_string(value),
+            "headers" => request.headers = Some(parse_headers(value)),
             _ => {}
           }
         }
