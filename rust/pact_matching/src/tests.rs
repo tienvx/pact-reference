@@ -660,8 +660,8 @@ async fn body_matching_with_number_matchers() {
   let matching_context = CoreMatchingContext::new(DiffConfig::AllowUnexpectedKeys,
     &category, &hashmap!{});
 
-  // let result = match_body(&expected, &actual, &matching_context, &CoreMatchingContext::default()).await;
-  // expect!(result.mismatches().iter()).to(be_empty());
+  let result = match_body(&expected, &actual, &matching_context, &CoreMatchingContext::default()).await;
+  expect!(result.mismatches().iter()).to(be_empty());
 
   let result2 = match_body(&expected, &actual2, &matching_context, &CoreMatchingContext::default()).await;
   assert_ne!(result2.mismatches(), vec![]);
