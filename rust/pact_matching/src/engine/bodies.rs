@@ -104,19 +104,20 @@ impl PlanBodyBuilder for JsonPlanBuilder {
           todo!("Deal with matching rules here")
         } else if items.is_empty() {
           apply_node.add(
-            ExecutionPlanNode::action("expect:empty")
+            ExecutionPlanNode::action("json:expect:empty")
+              .add(ExecutionPlanNode::value_node("ARRAY"))
               .add(ExecutionPlanNode::action("apply"))
           );
         } else {
           apply_node.add(ExecutionPlanNode::action("push"));
           apply_node.add(
             ExecutionPlanNode::action("json:match:length")
+              .add(ExecutionPlanNode::value_node("ARRAY"))
               .add(ExecutionPlanNode::value_node(items.len()))
               .add(ExecutionPlanNode::action("apply"))
           );
           apply_node.add(ExecutionPlanNode::action("pop"));
-          let mut iter_node = ExecutionPlanNode::action("iter");
-          iter_node.add(ExecutionPlanNode::action("apply"));
+          let mut iter_node = ExecutionPlanNode::container("$");
 
           for (index, item) in items.iter().enumerate() {
             let item_path = path.join_index(index);
@@ -272,7 +273,8 @@ r#"-> (
   %json:parse (
     $.body
   ),
-  %expect:empty (
+  %json:expect:empty (
+    'ARRAY',
     %apply ()
   )
 )"#);
@@ -293,12 +295,12 @@ r#"-> (
   ),
   %push (),
   %json:match:length (
+    'ARRAY',
     UINT(3),
     %apply ()
   ),
   %pop (),
-  %iter (
-    %apply (),
+  :$ (
     %json:match:equality (
       json:100,
       $[0]

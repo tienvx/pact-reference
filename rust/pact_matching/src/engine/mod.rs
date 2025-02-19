@@ -10,6 +10,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use itertools::Itertools;
 use onig::EncodedChars;
+use serde_json::Value;
 use snailquote::escape;
 use tracing::{instrument, Level, trace};
 
@@ -68,7 +69,9 @@ pub enum NodeValue {
   /// Namespaced value
   NAMESPACED(String, String),
   /// Unsigned integer
-  UINT(u64)
+  UINT(u64),
+  /// JSON
+  JSON(Value)
 }
 
 impl NodeValue {
@@ -132,7 +135,8 @@ impl NodeValue {
         buffer.push_str(value);
         buffer
       }
-      NodeValue::UINT(i) => format!("UINT({})", i)
+      NodeValue::UINT(i) => format!("UINT({})", i),
+      NodeValue::JSON(json) => format!("json:{}", json)
     }
   }
 
@@ -155,7 +159,8 @@ impl NodeValue {
       NodeValue::SLIST(_) => "String List",
       NodeValue::BARRAY(_) => "Byte Array",
       NodeValue::NAMESPACED(_, _) => "Namespaced Value",
-      NodeValue::UINT(_) => "Unsigned Integer"
+      NodeValue::UINT(_) => "Unsigned Integer",
+      NodeValue::JSON(_) => "JSON"
     }
   }
 }
@@ -264,7 +269,8 @@ impl NodeResult {
         NodeValue::SLIST(list) => Some(format!("{:?}", list)),
         NodeValue::BARRAY(bytes) => Some(BASE64.encode(bytes)),
         NodeValue::NAMESPACED(name, value) => Some(format!("{}:{}", name, value)),
-        NodeValue::UINT(ui) => Some(ui.to_string())
+        NodeValue::UINT(ui) => Some(ui.to_string()),
+        NodeValue::JSON(json) => Some(json.to_string())
       }
       NodeResult::ERROR(_) => None
     }
@@ -291,7 +297,8 @@ impl NodeResult {
         NodeValue::SLIST(l) => !l.is_empty(),
         NodeValue::BARRAY(b) => !b.is_empty(),
         NodeValue::NAMESPACED(_, _) => false, // TODO: Need a way to resolve this
-        NodeValue::UINT(ui) => *ui != 0
+        NodeValue::UINT(ui) => *ui != 0,
+        NodeValue::JSON(_) => false
       }
       NodeResult::ERROR(_) => false
     }
@@ -756,11 +763,11 @@ fn walk_tree(
 ) -> anyhow::Result<ExecutionPlanNode> {
   match &node.node_type {
     PlanNodeType::EMPTY => {
-      trace!(?path, "Empty node");
+      trace!(?path, "walk_tree ==> Empty node");
       Ok(node.clone())
     },
     PlanNodeType::CONTAINER(label) => {
-      trace!(?path, %label, "Container node");
+      trace!(?path, %label, "walk_tree ==> Container node");
       let mut result = vec![];
 
       let mut child_path = path.to_vec();
@@ -779,11 +786,12 @@ fn walk_tree(
       })
     }
     PlanNodeType::ACTION(action) => {
-      trace!(?path, %action, "Action node");
+      trace!(?path, %action, "walk_tree ==> Action node");
 
       let mut child_path = path.to_vec();
       child_path.push(action.clone());
       let mut result = vec![];
+      // TODO: Need a mechanism to lazy evaluate the child nodes
       for child in &node.children {
         let child_result = if child.result.is_none() {
           walk_tree(&child_path, child, value_resolver, context)?
@@ -810,17 +818,26 @@ fn walk_tree(
       }
     }
     PlanNodeType::VALUE(val) => {
-      trace!(?path, ?val, "Value node");
+      trace!(?path, ?val, "walk_tree ==> Value node");
+      let value = match val {
+        NodeValue::NAMESPACED(namespace, value) => match namespace.as_str() {
+          "json" => serde_json::from_str(value.as_str())
+            .map(|v| NodeValue::JSON(v))
+            .map_err(|err| anyhow!(err)),
+          _ => Err(anyhow!("'{}' is not a known namespace", namespace))
+        }
+        _ => Ok(val.clone())
+      }?;
       Ok(ExecutionPlanNode {
         node_type: node.node_type.clone(),
-        result: Some(NodeResult::VALUE(val.clone())),
+        result: Some(NodeResult::VALUE(value)),
         children: vec![]
       })
     }
     PlanNodeType::RESOLVE(resolve_path) => {
+      trace!(?path, %resolve_path, "walk_tree ==> Resolve node");
       match value_resolver.resolve(resolve_path, context) {
         Ok(val) => {
-          trace!(?path, %resolve_path, ?val, "Resolve node");
           Ok(ExecutionPlanNode {
             node_type: node.node_type.clone(),
             result: Some(NodeResult::VALUE(val.clone())),
@@ -838,14 +855,17 @@ fn walk_tree(
       }
     }
     PlanNodeType::PIPELINE => {
-      trace!(?path, "Apply pipeline node");
+      trace!(?path, "walk_tree ==> Apply pipeline node");
 
       let child_path = path.to_vec();
       context.push_result(None);
+      let mut child_results = vec![];
 
+      // TODO: Need a short circuit here if any child results in an error
       for child in &node.children {
         let child_result = walk_tree(&child_path, child, value_resolver, context)?;
-        context.update_result(child_result.result);
+        context.update_result(child_result.result.clone());
+        child_results.push(child_result);
       }
 
       let result = context.pop_result();
@@ -854,7 +874,7 @@ fn walk_tree(
           Ok(ExecutionPlanNode {
             node_type: node.node_type.clone(),
             result: Some(value),
-            children: vec![]
+            children: child_results
           })
         }
         None => {
@@ -862,7 +882,7 @@ fn walk_tree(
           Ok(ExecutionPlanNode {
             node_type: node.node_type.clone(),
             result: Some(NodeResult::ERROR("Value from stack is empty".to_string())),
-            children: vec![]
+            children: child_results
           })
         }
       }
@@ -871,268 +891,4 @@ fn walk_tree(
 }
 
 #[cfg(test)]
-mod tests {
-  use expectest::prelude::*;
-  use pretty_assertions::assert_eq;
-  use rstest::rstest;
-  use serde_json::json;
-
-  use pact_models::bodies::OptionalBody;
-  use pact_models::content_types::TEXT;
-  use pact_models::v4::http_parts::HttpRequest;
-
-  use crate::engine::{build_request_plan, execute_request_plan, NodeResult, NodeValue, PlanMatchingContext};
-
-  #[rstest(
-    case("", "''"),
-    case("simple", "'simple'"),
-    case("simple sentence", "'simple sentence'"),
-    case("\"quoted sentence\"", "'\"quoted sentence\"'"),
-    case("'quoted sentence'", "\"'quoted sentence'\""),
-    case("new\nline", "\"new\\nline\""),
-  )]
-  fn node_value_str_form_escapes_strings(#[case] input: &str, #[case] expected: &str) {
-    let node = NodeValue::STRING(input.to_string());
-    expect!(node.str_form()).to(be_equal_to(expected));
-  }
-
-  #[rstest(
-    case(NodeResult::OK, None, NodeResult::OK),
-    case(NodeResult::VALUE(NodeValue::NULL), None, NodeResult::VALUE(NodeValue::NULL)),
-    case(NodeResult::ERROR("".to_string()), None, NodeResult::ERROR("".to_string())),
-    case(NodeResult::OK, Some(NodeResult::OK), NodeResult::OK),
-    case(NodeResult::OK, Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::OK),
-    case(NodeResult::OK, Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
-    case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::OK), NodeResult::OK),
-    case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::OK),
-    case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
-    case(NodeResult::ERROR("".to_string()), Some(NodeResult::OK), NodeResult::ERROR("One or more children failed".to_string())),
-    case(NodeResult::ERROR("".to_string()), Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::ERROR("One or more children failed".to_string())),
-    case(NodeResult::ERROR("".to_string()), Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
-  )]
-  fn node_result_or(#[case] a: NodeResult, #[case] b: Option<NodeResult>, #[case] result: NodeResult) {
-    expect!(a.or(&b)).to(be_equal_to(result));
-  }
-
-  #[test_log::test]
-  fn simple_match_request_test() -> anyhow::Result<()> {
-    let request = HttpRequest {
-      method: "put".to_string(),
-      path: "/test".to_string(),
-      body: OptionalBody::Present("Some nice bit of text".into(), Some(TEXT.clone()), None),
-      .. Default::default()
-    };
-    let expected_request = HttpRequest {
-      method: "POST".to_string(),
-      path: "/test".to_string(),
-      query: None,
-      headers: None,
-      body: OptionalBody::Present("Some nice bit of text".into(), Some(TEXT.clone()), None),
-      .. Default::default()
-    };
-    let mut context = PlanMatchingContext::default();
-    let plan = build_request_plan(&expected_request, &context)?;
-
-    assert_eq!(plan.pretty_form(),
-r#"(
-  :request (
-    :method (
-      %match:equality (
-        %upper-case (
-          $.method
-        ),
-        'POST'
-      )
-    ),
-    :path (
-      %match:equality (
-        $.path,
-        '/test'
-      )
-    ),
-    :"query parameters" (
-      %expect:empty (
-        $.query
-      )
-    ),
-    :body (
-      %if (
-        %match:equality (
-          $.content-type,
-          'text/plain'
-        ),
-        %match:equality (
-          %convert:UTF8 (
-            $.body
-          ),
-          'Some nice bit of text'
-        )
-      )
-    )
-  )
-)
-"#);
-
-    let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
-    assert_eq!(executed_plan.pretty_form(),
-r#"(
-  :request (
-    :method (
-      %match:equality (
-        %upper-case (
-          $.method ~ 'put'
-        ) ~ 'PUT',
-        'POST' ~ 'POST'
-      ) ~ ERROR(Expected 'PUT' to equal 'POST')
-    ),
-    :path (
-      %match:equality (
-        $.path ~ '/test',
-        '/test' ~ '/test'
-      ) ~ BOOL(true)
-    ),
-    :"query parameters" (
-      %expect:empty (
-        $.query ~ {}
-      ) ~ BOOL(true)
-    ),
-    :body (
-      %if (
-        %match:equality (
-          $.content-type ~ 'text/plain',
-          'text/plain' ~ 'text/plain'
-        ) ~ BOOL(true),
-        %match:equality (
-          %convert:UTF8 (
-            $.body ~ BYTES(21, U29tZSBuaWNlIGJpdCBvZiB0ZXh0)
-          ) ~ 'Some nice bit of text',
-          'Some nice bit of text' ~ 'Some nice bit of text'
-        ) ~ BOOL(true)
-      ) ~ BOOL(true)
-    )
-  )
-)
-"#);
-
-    Ok(())
-  }
-
-  #[test_log::test]
-  fn simple_json_match_request_test() -> anyhow::Result<()> {
-    let request = HttpRequest {
-      method: "POST".to_string(),
-      path: "/test".to_string(),
-      query: None,
-      headers: None,
-      body: OptionalBody::from(&json!({
-        "b": "22"
-      })),
-      matching_rules: Default::default(),
-      generators: Default::default(),
-    };
-    let expected_request = HttpRequest {
-      method: "POST".to_string(),
-      path: "/test".to_string(),
-      query: None,
-      headers: None,
-      body: OptionalBody::from(&json!({
-        "a": 100,
-        "b": 200.1
-      })),
-      matching_rules: Default::default(),
-      generators: Default::default(),
-    };
-    let mut context = PlanMatchingContext::default();
-    let plan = build_request_plan(&expected_request, &context)?;
-
-    assert_eq!(plan.pretty_form(),
-r#"(
-  :request (
-    :method (
-      %match:equality (
-        %upper-case (
-          $.method
-        ),
-        'POST'
-      )
-    ),
-    :path (
-      %match:equality (
-        $.path,
-        '/test'
-      )
-    ),
-    :"query parameters" (
-      %expect:empty (
-        $.query
-      )
-    ),
-    :body (
-      %if (
-        %match:equality (
-          %content-type (),
-          'application/json;charset=utf-8'
-        ),
-        :body:$ (
-          :body:$:a (
-            %if (
-              %expect:present ($.body."$.a"),
-              %match:equality ($.body."$.a", 100)
-            )
-          ),
-          :body:$:b (
-            %if (
-              %expect:present ($.body."$.b"),
-              %match:equality ($.body."$.b", 200.1)
-            )
-          )
-        )
-      )
-    )
-  )
-)
-"#);
-
-    let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
-    assert_eq!(executed_plan.pretty_form(), r#"(
-      :request (
-        :method (
-          %match:equality (
-            %upper-case (
-              $.method ~ "POST"
-            ),
-            "POST" ~ OK
-          )
-        ),
-        :path (
-          %match:equality ($.path ~ "/test", "/test") ~ OK
-        ),
-        :"query parameters" (
-          %expect:empty ($.query ~ {}) ~ OK
-        ),
-        :body (
-          %if (
-            %match:equality (%content-type () ~ "application/json", "application/json;charset=utf-8") ~ OK,
-            :body:$ (
-              :body:$:a (
-                %if (
-                  %expect:present ($.body."$.a" ~ NULL) ~ ERROR(Expected attribute "$.a" but it was missing),
-                  %match:equality ($.body."$.a", 100) ~ NULL
-                )
-              ),
-              :body:$:b (
-                %if (
-                  %expect:present ($.body."$.b" ~ "22") ~ OK,
-                  %match:equality ($.body."$.b" ~ "22", 200.1) ~ ERROR(Expected attribute "$.b" to equal "22" (String) but it was 200.1 (Double))
-                )
-              )
-            )
-          )
-        )
-      )
-    )
-    "#);
-
-    Ok(())
-  }
-}
+mod tests;

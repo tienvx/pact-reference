@@ -6,6 +6,7 @@ use anyhow::anyhow;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use itertools::Itertools;
+use serde_json::Value;
 use tracing::{instrument, trace, Level};
 
 use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory};
@@ -84,6 +85,25 @@ impl PlanMatchingContext {
               Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
             } else {
               Err(anyhow!("Expected {:?} to be empty", value))
+            },
+            NodeValue::JSON(json) => match json {
+              Value::Null => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
+              Value::String(s) => if s.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected JSON String ({}) to be empty", json))
+              }
+              Value::Array(a) => if a.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected JSON Array ({}) to be empty", json))
+              }
+              Value::Object(o) => if o.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected JSON Object ({}) to be empty", json))
+              }
+              _ => Err(anyhow!("Expected json ({}) to be empty", json))
             }
           }
         } else {
@@ -107,6 +127,7 @@ impl PlanMatchingContext {
       }
       "if" => {
         let (first, second) = validate_two_args(arguments, action)?;
+        // TODO: Need a mechanism to only evaluate the second node if the first is not truthy
         if first.is_truthy() {
           Ok(second)
         } else {
@@ -117,6 +138,24 @@ impl PlanMatchingContext {
         value.clone().ok_or_else(|| anyhow!("No value to apply (value on stack is empty)"))
       } else {
         Err(anyhow!("No value to apply (stack is empty)"))
+      }
+      "json:parse" => {
+        let arg = validate_one_arg(arguments, action)?;
+        let arg_value = arg.as_value();
+        if let Some(value) = &arg_value {
+          match value {
+            NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::NULL)),
+            NodeValue::STRING(s) => serde_json::from_str(s.as_str())
+              .map(|json| NodeResult::VALUE(NodeValue::JSON(json)))
+              .map_err(|err| anyhow!(err)),
+            NodeValue::BARRAY(b) => serde_json::from_slice(b.as_slice())
+              .map(|json| NodeResult::VALUE(NodeValue::JSON(json)))
+              .map_err(|err| anyhow!(err)),
+            _ => Err(anyhow!("json:parse can not be used with {}", value.value_type()))
+          }
+        } else {
+          Ok(NodeResult::VALUE(NodeValue::NULL))
+        }
       }
       _ => Err(anyhow!("'{}' is not a valid action", action))
     }
