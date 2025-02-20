@@ -2,10 +2,12 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
+use std::ops::Index;
 use std::str::FromStr;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use indextree::{Arena, NodeId};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::{self, json, Map, Value};
@@ -13,6 +15,7 @@ use serde_json::{self, json, Map, Value};
 use crate::bodies::OptionalBody;
 use crate::content_types::{ContentType, detect_content_type_from_string};
 use crate::headers::parse_header;
+use crate::path_exp::{DocPath, PathToken};
 
 /// Trait to convert a JSON structure to a number
 pub trait JsonToNum<T> {
@@ -225,6 +228,88 @@ pub fn is_empty(value: &Value) -> bool {
     Value::String(s) => s.is_empty(),
     Value::Array(a) => a.is_empty(),
     Value::Object(o) => o.is_empty()
+  }
+}
+
+/// Resolve the path expression against the JSON value, returning a list of JSON pointer values
+/// that match.
+pub fn resolve_path(value: &Value, expression: &DocPath) -> Vec<String> {
+  let mut tree = Arena::new();
+  let root = tree.new_node("".into());
+  query_object_graph(expression.tokens(), &mut tree, root, value.clone());
+  let expanded_paths = root.descendants(&tree).fold(Vec::<String>::new(), |mut acc, node_id| {
+    let node = tree.index(node_id);
+    if !node.get().is_empty() && node.first_child().is_none() {
+      let path: Vec<String> = node_id.ancestors(&tree).map(|n| format!("{}", tree.index(n).get())).collect();
+      if path.len() == expression.len() {
+        acc.push(path.iter().rev().join("/"));
+      }
+    }
+    acc
+  });
+  expanded_paths
+}
+
+fn query_object_graph(path_exp: &Vec<PathToken>, tree: &mut Arena<String>, root: NodeId, body: Value) {
+  let mut body_cursor = body;
+  let mut it = path_exp.iter();
+  let mut node_cursor = root;
+  loop {
+    match it.next() {
+      Some(token) => {
+        match token {
+          &PathToken::Field(ref name) => {
+            match body_cursor.clone().as_object() {
+              Some(map) => match map.get(name) {
+                Some(val) => {
+                  node_cursor = node_cursor.append_value(name.clone(), tree);
+                  body_cursor = val.clone();
+                },
+                None => return
+              },
+              None => return
+            }
+          },
+          &PathToken::Index(index) => {
+            match body_cursor.clone().as_array() {
+              Some(list) => if list.len() > index {
+                node_cursor = node_cursor.append_value(format!("{}", index), tree);
+                body_cursor = list[index].clone();
+              },
+              None => return
+            }
+          }
+          &PathToken::Star => {
+            match body_cursor.clone().as_object() {
+              Some(map) => {
+                let remaining = it.by_ref().cloned().collect();
+                for (key, val) in map {
+                  let node = node_cursor.append_value(key.clone(), tree);
+                  body_cursor = val.clone();
+                  query_object_graph(&remaining, tree, node, val.clone());
+                }
+              },
+              None => return
+            }
+          },
+          &PathToken::StarIndex => {
+            match body_cursor.clone().as_array() {
+              Some(list) => {
+                let remaining = it.by_ref().cloned().collect();
+                for (index, val) in list.iter().enumerate() {
+                  let node = node_cursor.append_value(format!("{}", index), tree);
+                  body_cursor = val.clone();
+                  query_object_graph(&remaining, tree, node,val.clone());
+                }
+              },
+              None => return
+            }
+          },
+          _ => ()
+        }
+      },
+      None => break
+    }
   }
 }
 
@@ -515,5 +600,93 @@ mod tests {
       "C".to_string() => vec!["B".to_string()],
       "Date".to_string() => vec!["Sun, 12 Mar 2023 01:21:35 GMT".to_string()]
     }));
+  }
+
+  #[test]
+  fn resolve_path_with_root() {
+    expect!(resolve_path(&Value::Null, &DocPath::root())).to(be_equal_to::<Vec<String>>(vec![]));
+    expect!(resolve_path(&Value::Bool(true), &DocPath::root())).to(be_equal_to::<Vec<String>>(vec![]));
+  }
+
+  #[test]
+  fn resolve_path_with_field() {
+    let path = DocPath::new_unwrap("$.a");
+    let json = Value::Null;
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+
+    let json = Value::Bool(true);
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+
+    let json = json!({
+      "a": 100,
+      "b": 200
+    });
+    expect!(resolve_path(&json, &path)).to(be_equal_to(vec!["/a"]));
+
+    let json = json!([
+      {
+        "a": 100,
+        "b": 200
+      }
+    ]);
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+  }
+
+  #[test]
+  fn resolve_path_with_index() {
+    let path = DocPath::new_unwrap("$[0]");
+    let json = Value::Null;
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+
+    let json = Value::Bool(true);
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+
+    let json = json!({
+      "a": 100,
+      "b": 200
+    });
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+
+    let json = json!([
+      {
+        "a": 100,
+        "b": 200
+      }
+    ]);
+    expect!(resolve_path(&json, &path)).to(be_equal_to(vec!["/0"]));
+    let path = DocPath::new_unwrap("$[0].b");
+    expect!(resolve_path(&json, &path)).to(be_equal_to(vec!["/0/b"]));
+  }
+
+  #[test]
+  fn resolve_path_with_star() {
+    let path = DocPath::new_unwrap("$.*");
+    let json = Value::Null;
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+
+    let json = Value::Bool(true);
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+
+    let json = json!({
+      "a": 100,
+      "b": 200
+    });
+    expect!(resolve_path(&json, &path)).to(be_equal_to(vec!["/a", "/b"]));
+
+    let json = json!([
+      {
+        "a": 100,
+        "b": 200
+      },
+      {
+        "a": 200,
+        "b": 300
+      }
+    ]);
+    expect!(resolve_path(&json, &path)).to(be_equal_to::<Vec<String>>(vec![]));
+    let path = DocPath::new_unwrap("$[*]");
+    expect!(resolve_path(&json, &path)).to(be_equal_to(vec!["/0", "/1"]));
+    let path = DocPath::new_unwrap("$[*].b");
+    expect!(resolve_path(&json, &path)).to(be_equal_to(vec!["/0/b", "/1/b"]));
   }
 }

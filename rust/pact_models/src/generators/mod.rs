@@ -5,12 +5,10 @@ use std::convert::TryFrom;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::mem;
-use std::ops::Index;
 use std::str::FromStr;
 
 use anyhow::anyhow;
 #[cfg(feature = "datetime")] use chrono::{DateTime, Local};
-use indextree::{Arena, NodeId};
 use itertools::Itertools;
 use maplit::hashmap;
 #[cfg(not(target_family = "wasm"))] use onig::{Captures, Regex};
@@ -26,10 +24,10 @@ use uuid::Uuid;
 use crate::bodies::OptionalBody;
 use crate::expression_parser::{contains_expressions, DataType, DataValue, MapValueResolver, parse_expression};
 #[cfg(feature = "datetime")] use crate::generators::datetime_expressions::{execute_date_expression, execute_datetime_expression, execute_time_expression};
-use crate::json_utils::{get_field_as_string, json_to_string, JsonToNum};
+use crate::json_utils::{get_field_as_string, json_to_string, JsonToNum, resolve_path};
 use crate::matchingrules::{Category, MatchingRuleCategory};
 use crate::PactSpecification;
-use crate::path_exp::{DocPath, PathToken};
+use crate::path_exp::DocPath;
 #[cfg(feature = "datetime")] use crate::time_utils::{parse_pattern, to_chrono_pattern};
 
 #[cfg(feature = "datetime")] pub mod datetime_expressions;
@@ -1227,71 +1225,6 @@ pub struct JsonHandler {
   pub value: Value
 }
 
-impl JsonHandler {
-  fn query_object_graph(&self, path_exp: &Vec<PathToken>, tree: &mut Arena<String>, root: NodeId, body: Value) {
-    let mut body_cursor = body;
-    let mut it = path_exp.iter();
-    let mut node_cursor = root;
-    loop {
-      match it.next() {
-        Some(token) => {
-          match token {
-            &PathToken::Field(ref name) => {
-              match body_cursor.clone().as_object() {
-                Some(map) => match map.get(name) {
-                  Some(val) => {
-                    node_cursor = node_cursor.append_value(name.clone(), tree);
-                    body_cursor = val.clone();
-                  },
-                  None => return
-                },
-                None => return
-              }
-            },
-            &PathToken::Index(index) => {
-              match body_cursor.clone().as_array() {
-                Some(list) => if list.len() > index {
-                  node_cursor = node_cursor.append_value(format!("{}", index), tree);
-                  body_cursor = list[index].clone();
-                },
-                None => return
-              }
-            }
-            &PathToken::Star => {
-              match body_cursor.clone().as_object() {
-                Some(map) => {
-                  let remaining = it.by_ref().cloned().collect();
-                  for (key, val) in map {
-                    let node = node_cursor.append_value(key.clone(), tree);
-                    body_cursor = val.clone();
-                    self.query_object_graph(&remaining, tree, node, val.clone());
-                  }
-                },
-                None => return
-              }
-            },
-            &PathToken::StarIndex => {
-              match body_cursor.clone().as_array() {
-                Some(list) => {
-                  let remaining = it.by_ref().cloned().collect();
-                  for (index, val) in list.iter().enumerate() {
-                    let node = node_cursor.append_value(format!("{}", index), tree);
-                    body_cursor = val.clone();
-                    self.query_object_graph(&remaining, tree, node,val.clone());
-                  }
-                },
-                None => return
-              }
-            },
-            _ => ()
-          }
-        },
-        None => break
-      }
-    }
-  }
-}
-
 impl ContentTypeHandler<Value> for JsonHandler {
   fn process_body(
     &mut self,
@@ -1316,21 +1249,7 @@ impl ContentTypeHandler<Value> for JsonHandler {
     context: &HashMap<&str, Value>,
     matcher: &Box<dyn VariantMatcher + Send + Sync>,
   ) {
-    let path_exp = key;
-    let mut tree = Arena::new();
-    let root = tree.new_node("".into());
-    self.query_object_graph(path_exp.tokens(), &mut tree, root, self.value.clone());
-    let expanded_paths = root.descendants(&tree).fold(Vec::<String>::new(), |mut acc, node_id| {
-      let node = tree.index(node_id);
-      if !node.get().is_empty() && node.first_child().is_none() {
-        let path: Vec<String> = node_id.ancestors(&tree).map(|n| format!("{}", tree.index(n).get())).collect();
-        if path.len() == path_exp.len() {
-          acc.push(path.iter().rev().join("/"));
-        }
-      }
-      acc
-    });
-
+    let expanded_paths = resolve_path(&self.value, key);
     if !expanded_paths.is_empty() {
       for pointer_str in expanded_paths {
         match self.value.pointer_mut(&pointer_str) {
@@ -1341,7 +1260,7 @@ impl ContentTypeHandler<Value> for JsonHandler {
           None => ()
         }
       }
-    } else if path_exp.len() == 1 {
+    } else if key.len() == 1 {
       match generator.generate_value(&self.value.clone(), context, matcher) {
         Ok(new_value) => self.value = new_value,
         Err(_) => ()
