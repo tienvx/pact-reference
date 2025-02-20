@@ -126,9 +126,9 @@ impl PlanBodyBuilder for JsonPlanBuilder {
               Value::Object(_) => { todo!() }
               _ => {
                 iter_node.add(
-                  ExecutionPlanNode::action("json:match:equality")
+                  ExecutionPlanNode::action("match:equality")
                     .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), item.to_string())))
-                    .add(ExecutionPlanNode::resolve_value(item_path))
+                    .add(ExecutionPlanNode::resolve_current_value(item_path))
                 );
               }
             }
@@ -301,17 +301,17 @@ r#"-> (
   ),
   %pop (),
   :$ (
-    %json:match:equality (
+    %match:equality (
       json:100,
-      $[0]
+      ~>$[0]
     ),
-    %json:match:equality (
+    %match:equality (
       json:200,
-      $[1]
+      ~>$[1]
     ),
-    %json:match:equality (
+    %match:equality (
       json:300,
-      $[2]
+      ~>$[2]
     )
   )
 )"#);

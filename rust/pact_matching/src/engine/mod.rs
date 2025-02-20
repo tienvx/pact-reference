@@ -25,7 +25,7 @@ use pact_models::v4::synch_http::SynchronousHttp;
 
 use crate::engine::bodies::{get_body_plan_builder, PlainTextBuilder, PlanBodyBuilder};
 use crate::engine::context::PlanMatchingContext;
-use crate::engine::value_resolvers::{HttpRequestValueResolver, ValueResolver};
+use crate::engine::value_resolvers::{CurrentStackValueResolver, HttpRequestValueResolver, ValueResolver};
 use crate::matchers::Matches;
 
 mod bodies;
@@ -47,7 +47,9 @@ pub enum PlanNodeType {
   /// Leaf node that stores an expression to resolve against the test context
   RESOLVE(DocPath),
   /// Pipeline node (apply), which applies each node to the next as a pipeline returning the last
-  PIPELINE
+  PIPELINE,
+  /// Leaf node that stores an expression to resolve against the current stack item
+  RESOLVE_CURRENT(DocPath)
 }
 
 /// Enum for the value stored in a leaf node
@@ -276,6 +278,18 @@ impl NodeResult {
     }
   }
 
+  /// If the result is a number, returns it
+  pub fn as_number(&self) -> Option<u64> {
+    match self {
+      NodeResult::OK => None,
+      NodeResult::VALUE(val) => match val {
+        NodeValue::UINT(ui) => Some(*ui),
+        _ => None
+      }
+      NodeResult::ERROR(_) => None
+    }
+  }
+
   /// Returns the associated value if there is one
   pub fn as_value(&self) -> Option<NodeValue> {
     match self {
@@ -364,7 +378,7 @@ impl ExecutionPlanNode {
         }
 
         if let Some(result) = &self.result {
-          buffer.push_str(" ~ ");
+          buffer.push_str(" => ");
           buffer.push_str(result.to_string().as_str());
         }
       }
@@ -373,7 +387,7 @@ impl ExecutionPlanNode {
         buffer.push_str(value.str_form().as_str());
 
         if let Some(result) = &self.result {
-          buffer.push_str(" ~ ");
+          buffer.push_str(" => ");
           buffer.push_str(result.to_string().as_str());
         }
       }
@@ -382,7 +396,7 @@ impl ExecutionPlanNode {
         buffer.push_str(str.to_string().as_str());
 
         if let Some(result) = &self.result {
-          buffer.push_str(" ~ ");
+          buffer.push_str(" => ");
           buffer.push_str(result.to_string().as_str());
         }
       }
@@ -399,7 +413,17 @@ impl ExecutionPlanNode {
         }
 
         if let Some(result) = &self.result {
-          buffer.push_str(" ~ ");
+          buffer.push_str(" => ");
+          buffer.push_str(result.to_string().as_str());
+        }
+      }
+      PlanNodeType::RESOLVE_CURRENT(str) => {
+        buffer.push_str(pad.as_str());
+        buffer.push_str("~>");
+        buffer.push_str(str.to_string().as_str());
+
+        if let Some(result) = &self.result {
+          buffer.push_str(" => ");
           buffer.push_str(result.to_string().as_str());
         }
       }
@@ -443,7 +467,7 @@ impl ExecutionPlanNode {
         buffer.push(')');
 
         if let Some(result) = &self.result {
-          buffer.push('~');
+          buffer.push_str("=>");
           buffer.push_str(result.to_string().as_str());
         }
       }
@@ -451,7 +475,7 @@ impl ExecutionPlanNode {
         buffer.push_str(value.str_form().as_str());
 
         if let Some(result) = &self.result {
-          buffer.push('~');
+          buffer.push_str("=>");
           buffer.push_str(result.to_string().as_str());
         }
       }
@@ -459,7 +483,7 @@ impl ExecutionPlanNode {
         buffer.push_str(str.to_string().as_str());
 
         if let Some(result) = &self.result {
-          buffer.push('~');
+          buffer.push_str("=>");
           buffer.push_str(result.to_string().as_str());
         }
       }
@@ -470,7 +494,16 @@ impl ExecutionPlanNode {
         buffer.push(')');
 
         if let Some(result) = &self.result {
-          buffer.push('~');
+          buffer.push_str("=>");
+          buffer.push_str(result.to_string().as_str());
+        }
+      }
+      PlanNodeType::RESOLVE_CURRENT(str) => {
+        buffer.push_str("~>");
+        buffer.push_str(str.to_string().as_str());
+
+        if let Some(result) = &self.result {
+          buffer.push_str("=>");
           buffer.push_str(result.to_string().as_str());
         }
       }
@@ -513,7 +546,7 @@ impl ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: PlanNodeType::VALUE(value.into()),
       result: None,
-      children: vec![],
+      children: vec![]
     }
   }
 
@@ -522,7 +555,16 @@ impl ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: PlanNodeType::RESOLVE(resolve_str.into()),
       result: None,
-      children: vec![],
+      children: vec![]
+    }
+  }
+
+  /// Constructor for a resolve current node
+  pub fn resolve_current_value<T: Into<DocPath>>(resolve_str: T) -> ExecutionPlanNode {
+    ExecutionPlanNode {
+      node_type: PlanNodeType::RESOLVE_CURRENT(resolve_str.into()),
+      result: None,
+      children: vec![]
     }
   }
 
@@ -883,6 +925,27 @@ fn walk_tree(
             node_type: node.node_type.clone(),
             result: Some(NodeResult::ERROR("Value from stack is empty".to_string())),
             children: child_results
+          })
+        }
+      }
+    }
+    PlanNodeType::RESOLVE_CURRENT(expression) => {
+      trace!(?path, %expression, "walk_tree ==> Resolve current node");
+      let resolver = CurrentStackValueResolver {};
+      match resolver.resolve(expression, context) {
+        Ok(val) => {
+          Ok(ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::VALUE(val.clone())),
+            children: vec![]
+          })
+        }
+        Err(err) => {
+          trace!(?path, %expression, %err, "Resolve node failed");
+          Ok(ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: vec![]
           })
         }
       }

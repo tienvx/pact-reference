@@ -103,40 +103,40 @@ fn simple_match_request_test() -> anyhow::Result<()> {
 
   let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
   assert_eq!(executed_plan.pretty_form(),
-             r#"(
+r#"(
   :request (
     :method (
       %match:equality (
         %upper-case (
-          $.method ~ 'put'
-        ) ~ 'PUT',
-        'POST' ~ 'POST'
-      ) ~ ERROR(Expected 'PUT' to equal 'POST')
+          $.method => 'put'
+        ) => 'PUT',
+        'POST' => 'POST'
+      ) => ERROR(Expected 'PUT' to equal 'POST')
     ),
     :path (
       %match:equality (
-        $.path ~ '/test',
-        '/test' ~ '/test'
-      ) ~ BOOL(true)
+        $.path => '/test',
+        '/test' => '/test'
+      ) => BOOL(true)
     ),
     :"query parameters" (
       %expect:empty (
-        $.query ~ {}
-      ) ~ BOOL(true)
+        $.query => {}
+      ) => BOOL(true)
     ),
     :body (
       %if (
         %match:equality (
-          $.content-type ~ 'text/plain',
-          'text/plain' ~ 'text/plain'
-        ) ~ BOOL(true),
+          $.content-type => 'text/plain',
+          'text/plain' => 'text/plain'
+        ) => BOOL(true),
         %match:equality (
           %convert:UTF8 (
-            $.body ~ BYTES(21, U29tZSBuaWNlIGJpdCBvZiB0ZXh0)
-          ) ~ 'Some nice bit of text',
-          'Some nice bit of text' ~ 'Some nice bit of text'
-        ) ~ BOOL(true)
-      ) ~ BOOL(true)
+            $.body => BYTES(21, U29tZSBuaWNlIGJpdCBvZiB0ZXh0)
+          ) => 'Some nice bit of text',
+          'Some nice bit of text' => 'Some nice bit of text'
+        ) => BOOL(true)
+      ) => BOOL(true)
     )
   )
 )
@@ -174,7 +174,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
   let plan = build_request_plan(&expected_request, &context)?;
 
   assert_eq!(plan.pretty_form(),
-             r#"(
+r#"(
   :request (
     :method (
       %match:equality (
@@ -227,31 +227,31 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
         :method (
           %match:equality (
             %upper-case (
-              $.method ~ "POST"
+              $.method => "POST"
             ),
-            "POST" ~ OK
+            "POST" => OK
           )
         ),
         :path (
-          %match:equality ($.path ~ "/test", "/test") ~ OK
+          %match:equality ($.path => "/test", "/test") => OK
         ),
         :"query parameters" (
-          %expect:empty ($.query ~ {}) ~ OK
+          %expect:empty ($.query => {}) => OK
         ),
         :body (
           %if (
-            %match:equality (%content-type () ~ "application/json", "application/json;charset=utf-8") ~ OK,
+            %match:equality (%content-type () => "application/json", "application/json;charset=utf-8") => OK,
             :body:$ (
               :body:$:a (
                 %if (
-                  %expect:present ($.body."$.a" ~ NULL) ~ ERROR(Expected attribute "$.a" but it was missing),
-                  %match:equality ($.body."$.a", 100) ~ NULL
+                  %expect:present ($.body."$.a" => NULL) => ERROR(Expected attribute "$.a" but it was missing),
+                  %match:equality ($.body."$.a", 100) => NULL
                 )
               ),
               :body:$:b (
                 %if (
-                  %expect:present ($.body."$.b" ~ "22") ~ OK,
-                  %match:equality ($.body."$.b" ~ "22", 200.1) ~ ERROR(Expected attribute "$.b" to equal "22" (String) but it was 200.1 (Double))
+                  %expect:present ($.body."$.b" => "22") => OK,
+                  %match:equality ($.body."$.b" => "22", 200.1) => ERROR(Expected attribute "$.b" to equal "22" (String) but it was 200.1 (Double))
                 )
               )
             )

@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use pact_models::http_parts::HttpPart;
 use pact_models::json_utils::json_to_string;
 use pact_models::matchingrules::MatchingRule;
-use pact_models::path_exp::DocPath;
+use pact_models::path_exp::{DocPath, PathToken};
 #[cfg(feature = "datetime")] use pact_models::time_utils::validate_datetime;
 use tracing::debug;
 
@@ -26,7 +26,7 @@ lazy_static! {
   static ref DEC_REGEX: Regex = Regex::new(r"\d+\.\d+").unwrap();
 }
 
-fn type_of(json: &Value) -> String {
+pub(crate) fn type_of(json: &Value) -> String {
   match json {
     Value::Object(_) => "Object",
     Value::Array(_) => "Array",
