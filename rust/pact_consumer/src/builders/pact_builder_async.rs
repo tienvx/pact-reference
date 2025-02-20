@@ -262,7 +262,7 @@ impl StartMockServer for PactBuilderAsync {
       match _catalog_entry {
         Some(entry_name) => match catalogue_manager::lookup_entry(entry_name) {
           Some(entry) => if entry.entry_type == CatalogueEntryType::TRANSPORT {
-            PluginMockServer::start(self.build(), self.output_dir.clone(), &entry)
+            PluginMockServer::start(self.build(), self.output_dir.clone(), &entry, mock_server_config)
               .expect("Could not start the plugin mock server")
           } else {
             panic!("Catalogue entry for key '{}' is not for a network transport", entry_name);
@@ -292,7 +292,7 @@ impl StartMockServerAsync for PactBuilderAsync {
       match _catalog_entry {
         Some(entry_name) => match catalogue_manager::lookup_entry(entry_name) {
           Some(entry) => if entry.entry_type == CatalogueEntryType::TRANSPORT {
-            PluginMockServer::start_async(self.build(), self.output_dir.clone(), &entry).await
+            PluginMockServer::start_async(self.build(), self.output_dir.clone(), &entry, mock_server_config).await
               .expect("Could not start the plugin mock server")
           } else {
             panic!("Catalogue entry for key '{}' is not for a network transport", entry_name);

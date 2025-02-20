@@ -207,7 +207,10 @@ pub extern fn pactffi_interaction_contents(
             let message = interaction.as_v4_async_message_mut().unwrap();
             if let Some(contents) = contents.first() {
               message.contents.contents = contents.body.clone();
-              message.contents.metadata = contents.metadata.clone().unwrap_or_default();
+              let metadata = contents.metadata.as_ref()
+                .map(|md| md.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default();
+              message.contents.metadata = metadata;
               if let Some(rules) = &contents.rules {
                 message.contents.matching_rules.add_rules("body", rules.clone());
               }
@@ -264,7 +267,10 @@ fn setup_sync_message_contents(
 
   if let Some(contents) = &contents.iter().find(|c| c.part_name == "request") {
     message.request.contents = contents.body.clone();
-    message.request.metadata = contents.metadata.clone().unwrap_or_default();
+    let metadata = contents.metadata.as_ref()
+      .map(|md| md.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+      .unwrap_or_default();
+    message.request.metadata = metadata;
     if let Some(rules) = &contents.rules {
       message.request.matching_rules.add_rules("body", rules.clone());
     }
@@ -293,9 +299,12 @@ fn setup_sync_message_contents(
     if let Some(g) = &c.generators {
       generators.add_generators(g.clone());
     }
+    let metadata = c.metadata.as_ref()
+      .map(|md| md.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+      .unwrap_or_default();
     message.response.push(MessageContents {
       contents: c.body.clone(),
-      metadata: c.metadata.clone().unwrap_or_default(),
+      metadata,
       matching_rules,
       generators
     });

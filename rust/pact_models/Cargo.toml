@@ -1,6 +1,6 @@
 [package]
 name = "pact_models"
-version = "1.2.6"
+version = "1.2.7"
 authors = ["Ronald Holshausen <ronald.holshausen@gmail.com>"]
 edition = "2021"
 description = "Pact-Rust support library that provides the core models for dealing with Pact files"
@@ -15,9 +15,10 @@ exclude = [
 build = "build.rs"
 
 [features]
-default = ["datetime", "xml"]
+default = ["datetime", "xml", "form_urlencoded"]
 datetime = ["dep:chrono", "dep:chrono-tz", "dep:gregorian"] # Support for date/time matchers and expressions
 xml = ["dep:sxd-document"] # support for matching XML documents
+form_urlencoded = ["dep:serde_urlencoded"] # suport for matching form urlencoded
 
 [dependencies]
 ariadne = "0.5.0"
@@ -44,8 +45,9 @@ regex-syntax = "0.8.5"
 semver = "1.0.23"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.132"
+serde_urlencoded = { version = "0.7.1", optional = true }
 sxd-document = { version = "0.3.2", optional = true }
-tracing = "0.1.40" # This needs to be the same version across all the libs (i.e. Pact FFI and plugin driver)
+tracing = "0.1.41" # This needs to be the same version across all the libs (i.e. Pact FFI and plugin driver)
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 fs2 = "0.4.3"

@@ -8,7 +8,7 @@ use std::{io, env};
 use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::collections::hash_map::Entry;
 use maplit::*;
 use std::collections::HashMap;
@@ -56,13 +56,13 @@ fn main() -> io::Result<()> {
   writeln!(timezone_db_file, "  );")?;
   writeln!(timezone_db_file, "  pub static ref ZONES_ABBR: HashMap<&'static str, Vec<&'static str>> = hashmap!(")?;
 
-  let mut abbr : HashMap<String, Vec<String>> = hashmap!{};
+  let mut abbr : HashMap<String, HashSet<String>> = hashmap!{};
   for zone in &zones {
     let timespans = table.timespans(zone).unwrap().rest;
     for (_, timespan) in timespans {
       match abbr.entry(timespan.name) {
-        Entry::Vacant(e) => { e.insert(vec![zone.to_string()]); },
-        Entry::Occupied(mut e) => e.get_mut().push(zone.to_string())
+        Entry::Vacant(e) => { e.insert(hashset![zone.to_string()]); },
+        Entry::Occupied(mut e) => { e.get_mut().insert(zone.to_string()); }
       }
     }
   }

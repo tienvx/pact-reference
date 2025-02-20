@@ -3,26 +3,30 @@ use std::{
   fs,
   path::Path
 };
+use std::io::Write;
 use std::path::PathBuf;
 
 use bytes::Bytes;
 use expectest::prelude::*;
 use maplit::hashmap;
-use pact_models::content_types::ContentType;
-use pact_models::pact::{read_pact, ReadWritePact};
-use pact_models::prelude::OptionalBody;
-use pact_models::provider_states::ProviderState;
-use pact_models::sync_pact::RequestResponsePact;
-use pact_models::v4::http_parts::{HttpRequest, HttpResponse};
-use pact_models::v4::synch_http::SynchronousHttp;
+use pretty_assertions::assert_eq;
 use rand::prelude::*;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use pact_consumer::{json_pattern, json_pattern_internal, like, object_matching, matching_regex};
+use pact_consumer::{json_pattern, json_pattern_internal, like, matching_regex, object_matching};
 use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
+use pact_models::content_types::ContentType;
+use pact_models::pact::{read_pact, ReadWritePact};
+use pact_models::pact::write_pact;
+use pact_models::PactSpecification;
+use pact_models::prelude::OptionalBody;
+use pact_models::provider_states::ProviderState;
+use pact_models::sync_pact::RequestResponsePact;
+use pact_models::v4::http_parts::{HttpRequest, HttpResponse};
+use pact_models::v4::synch_http::SynchronousHttp;
 
 /// This is supposed to be a doctest in mod, but it's breaking there, so
 /// we have an executable copy here.
@@ -385,4 +389,165 @@ fn each_key_matcher()     {
     .send()
     .unwrap();
   expect!(response.status().is_server_error()).to(be_true());
+}
+
+const PROTO: &str = "
+syntax = \"proto3\";
+
+package area_calculator;
+
+service Calculator {
+  rpc calculate (ShapeMessage) returns (AreaResponse) {}
+}
+
+message ShapeMessage {
+  oneof shape {
+    Square square = 1;
+    Rectangle rectangle = 2;
+    Circle circle = 3;
+    Triangle triangle = 4;
+    Parallelogram parallelogram = 5;
+  }
+}
+
+message Square {
+  float edge_length = 1;
+}
+
+message Rectangle {
+  float length = 1;
+  float width = 2;
+}
+
+message Circle {
+  float radius = 1;
+}
+
+message Triangle {
+  float edge_a = 1;
+  float edge_b = 2;
+  float edge_c = 3;
+}
+
+message Parallelogram {
+  float base_length = 1;
+  float height = 2;
+}
+
+message AreaResponse {
+  float value = 1;
+}
+";
+
+// Issue https://github.com/YOU54F/pact-ruby-ffi/issues/6
+// Note, this test requires the gRPC plugin to be installed
+#[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 1))]
+#[ignore = "test requires Protobuf plugin"]
+async fn test_protobuf_plugin_contents_merge_with_existing_interaction() {
+  let tmp = tempfile::tempdir().unwrap();
+  let proto_path = tmp.path().join("area-calculator.proto");
+  let mut proto_file = fs::File::create(proto_path.clone()).unwrap();
+  proto_file.write_all(PROTO.as_bytes()).unwrap();
+
+  // 1. create an existing pact with single plugin interaction
+  // 2. create a new plugin interaction that only differs by interaction description
+  // expected: 2 interactions are generated, identical bar interaction description
+  // actual: existing interaction is modified at response[0].contents, when merging 2nd interaction
+
+  let pact_1_file_path = {
+    let proto_path_str = proto_path.to_string_lossy();
+    let mut pact_builder = PactBuilderAsync::new_v4("PluginMergeConsumer", "PluginMergeProvider");
+    let pact_1 = pact_builder
+      .using_plugin("protobuf", None).await
+      .synchronous_message_interaction("description 1", |mut i| async move {
+        i.contents_from(json!({
+          "pact:proto": proto_path_str,
+          "pact:content-type": "application/protobuf",
+          "pact:proto-service": "Calculator/calculate",
+
+          "request": {
+            "rectangle": {
+              "length": "matching(number, 3)",
+              "width": "matching(number, 4)"
+            }
+          },
+
+          "responseMetadata": {
+            "grpc-status": "UNIMPLEMENTED",
+            "grpc-message": "Not implemented"
+          }
+        })).await;
+        i
+      })
+      .await
+      .build();
+    let pact_file_name = pact_1.default_file_name();
+    let path_file_path = tmp.path().join(pact_file_name);
+    write_pact(pact_1, &path_file_path, PactSpecification::V4, false).unwrap();
+    path_file_path.clone()
+  };
+
+  let pact_file = fs::File::open(pact_1_file_path).unwrap();
+  let json: serde_json::Value = serde_json::from_reader(&pact_file).unwrap();
+
+  let interaction_1_response_contents = &json["interactions"][0]["response"][0]["contents"];
+  let expected_response_contents = json!({
+    "content": "",
+  });
+  assert_eq!(
+    &expected_response_contents,
+    interaction_1_response_contents
+  );
+
+  // Setup New interaction and write to existing pact file - validate .interactions[0].response[0].contents
+  let pact_2_file_path = {
+    let mut pact_builder_2 = PactBuilderAsync::new_v4("PluginMergeConsumer", "PluginMergeProvider");
+    let pact_2 = pact_builder_2
+      .using_plugin("protobuf", None).await
+      .synchronous_message_interaction("description 2", |mut i| async move {
+        i.contents_from(json!({
+          "pact:proto": proto_path,
+          "pact:content-type": "application/protobuf",
+          "pact:proto-service": "Calculator/calculate",
+
+          "request": {
+            "rectangle": {
+              "length": "matching(number, 3)",
+              "width": "matching(number, 4)"
+            }
+          },
+
+          "responseMetadata": {
+            "grpc-status": "UNIMPLEMENTED",
+            "grpc-message": "Not implemented"
+          }
+        })).await;
+        i
+      })
+      .await
+      .build();
+    let pact_file_name = pact_2.default_file_name();
+    let path_file_path = tmp.path().join(pact_file_name);
+    write_pact(pact_2, &path_file_path, PactSpecification::V4, false).unwrap();
+    path_file_path.clone()
+  };
+
+  let pact_file = fs::File::open(pact_2_file_path).unwrap();
+  let json_2: serde_json::Value = serde_json::from_reader(pact_file).unwrap();
+
+  let interaction_2_description = &json_2["interactions"][0]["description"];
+  let interaction_2_description_2 = &json_2["interactions"][1]["description"];
+  let interaction_2_response_contents = &json_2["interactions"][0]["response"][0]["contents"];
+  let interaction_2_response_contents_2 = &json_2["interactions"][1]["response"][0]["contents"];
+
+  assert_eq!("description 1", interaction_2_description.as_str().unwrap());
+  assert_eq!("description 2", interaction_2_description_2.as_str().unwrap());
+  assert_eq!(
+    &expected_response_contents,
+    interaction_2_response_contents_2
+  );
+  assert_eq!(
+    &expected_response_contents,
+    interaction_2_response_contents
+  );
 }

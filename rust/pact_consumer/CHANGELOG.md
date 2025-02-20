@@ -1,5 +1,23 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.3.3 - Maintenance Release
+
+* 6189c0cd - fix(pact_consumer): Pass the transport config to the plugin in the test context under the transport_config key (Ronald Holshausen, Fri Dec 13 12:00:05 2024 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* fab32aa0 - chore: Upgrade pact_models to 1.2.6 (Ronald Holshausen, Wed Dec 11 15:28:01 2024 +1100)
+* 93ce0e95 - bump version to 1.3.3 (Ronald Holshausen, Fri Nov 29 16:46:10 2024 +1100)
+
+# 1.3.2 - Bugfix Release
+
+* 44d9dc1e - fix(plugins): Upgrade pact-plugin-driver to 0.7.2, fixes #473 (Ronald Holshausen, Fri Nov 29 15:48:40 2024 +1100)
+* f3918b61 - Merge pull request #464 from tienvx/fix-cant-compare-each-key-each-value-matching-rules (Ronald Holshausen, Wed Nov 13 11:07:10 2024 +1100)
+* 420c654d - chore: Upgrade pact_models to 1.2.5 (Ronald Holshausen, Wed Nov 13 11:01:39 2024 +1100)
+* c2793764 - test: Add test for eachKey and eachValue matching rules comparation (tien.xuan.vo, Fri Sep 6 11:40:19 2024 +0700)
+* 4604729d - chore(pact_consumer): Update dependencies (Ronald Holshausen, Wed Sep 4 11:01:33 2024 +1000)
+* cbd167b6 - chore(pact_consumer): Upgrade pact_mock_server to 2.0.2 (Ronald Holshausen, Wed Sep 4 10:59:27 2024 +1000)
+* c1a00dd8 - chore: Upgrade pact-plugin-driver to 0.7.1 (Ronald Holshausen, Tue Sep 3 15:47:22 2024 +1000)
+* 73a19100 - bump version to 1.3.2 (Ronald Holshausen, Tue Aug 27 15:40:56 2024 +1000)
+
 # 1.3.1 - Bugfix Release
 
 * 941e4455 - fix(pact_consumer): Plugin config needs to be stored for both the request and response part of HTTP interactions (Ronald Holshausen, Tue Aug 27 15:35:16 2024 +1000)

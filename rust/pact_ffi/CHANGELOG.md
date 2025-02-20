@@ -1,5 +1,49 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 0.4.26 - Re-release FFI
+
+* 823b009a - Reapply "chore(ci): refactor release pipeline" (Ronald Holshausen, Fri Dec 20 11:08:57 2024 +1100)
+* 9321da66 - Revert "chore(release): Rename MacOS artifacts correctly" (Ronald Holshausen, Fri Dec 20 11:07:26 2024 +1100)
+* 7bc0cf52 - chore(release): Rename MacOS artifacts correctly (Ronald Holshausen, Fri Dec 20 10:03:56 2024 +1100)
+* 7c09f177 - Revert "chore(ci): refactor release pipeline" (Ronald Holshausen, Fri Dec 20 09:31:37 2024 +1100)
+* f4754e3d - bump version to 0.4.26 (Ronald Holshausen, Thu Dec 19 16:32:57 2024 +1100)
+* 750e0f7e - update changelog for release 0.4.25 (Ronald Holshausen, Thu Dec 19 16:31:15 2024 +1100)
+* 648ab1c9 - chore: Upgrade pact_matching to 1.2.8 (Ronald Holshausen, Thu Dec 19 16:14:10 2024 +1100)
+* d74af0ab - Merge pull request #462 from tienvx/support-integration-json-for-form-urlencoded (Ronald Holshausen, Thu Dec 19 15:15:09 2024 +1100)
+* 4aa50181 - chore(FFI): Update pact_mock_server to 1.2.11 (Ronald Holshausen, Fri Dec 13 10:57:23 2024 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* 4722e2e3 - feat(FFI): Support integration json for form urlencoded (tien.xuan.vo, Thu Sep 5 01:30:55 2024 +0700)
+* fab32aa0 - chore: Upgrade pact_models to 1.2.6 (Ronald Holshausen, Wed Dec 11 15:28:01 2024 +1100)
+* 7792c635 - bump version to 0.4.25 (Ronald Holshausen, Fri Nov 29 16:03:37 2024 +1100)
+
+# 0.4.25 - Support for FORM urlencoded bodies
+
+* 648ab1c9 - chore: Upgrade pact_matching to 1.2.8 (Ronald Holshausen, Thu Dec 19 16:14:10 2024 +1100)
+* d74af0ab - Merge pull request #462 from tienvx/support-integration-json-for-form-urlencoded (Ronald Holshausen, Thu Dec 19 15:15:09 2024 +1100)
+* 4aa50181 - chore(FFI): Update pact_mock_server to 1.2.11 (Ronald Holshausen, Fri Dec 13 10:57:23 2024 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* 4722e2e3 - feat(FFI): Support integration json for form urlencoded (tien.xuan.vo, Thu Sep 5 01:30:55 2024 +0700)
+* fab32aa0 - chore: Upgrade pact_models to 1.2.6 (Ronald Holshausen, Wed Dec 11 15:28:01 2024 +1100)
+* 7792c635 - bump version to 0.4.25 (Ronald Holshausen, Fri Nov 29 16:03:37 2024 +1100)
+
+# 0.4.24 - Bugfix Release
+
+* 44d9dc1e - fix(plugins): Upgrade pact-plugin-driver to 0.7.2, fixes #473 (Ronald Holshausen, Fri Nov 29 15:48:40 2024 +1100)
+* b55407ef - fix(FFI): pactffi_with_pact_metadata overwrites existing namespace contents #466 (Ronald Holshausen, Mon Nov 18 12:22:42 2024 +1100)
+* 420c654d - chore: Upgrade pact_models to 1.2.5 (Ronald Holshausen, Wed Nov 13 11:01:39 2024 +1100)
+* 82e570a1 - docs: Update comment for pactffi_message_given_with_param (tien.xuan.vo, Thu Oct 31 17:18:45 2024 +0700)
+* a85d9e07 - Merge pull request #470 from tienvx/add-error-handling (Ronald Holshausen, Mon Oct 28 08:58:09 2024 +1100)
+* 70bf2d92 - docs: Add error handling (tien.xuan.vo, Sat Oct 26 15:49:59 2024 +0700)
+* 2b5b0c1e - docs: Add known log sink type (tien.xuan.vo, Sat Oct 26 11:52:26 2024 +0700)
+* f5ddf3d3 - docs: Update safety comments (tien.xuan.vo, Thu Sep 26 14:51:14 2024 +0700)
+* fe07b878 - docs: add pact_ffi compat docs [skip ci] (Yousaf Nabi, Fri Sep 6 12:25:40 2024 +0100)
+* f5228c52 - chore: Use the inmem logging functions in the FFI crate (Ronald Holshausen, Thu Sep 5 10:14:50 2024 +1000)
+* 9d3610dd - chore: Use the pact_matcing LOG_ID in the FFI inmem logging functions (Ronald Holshausen, Thu Sep 5 10:03:30 2024 +1000)
+* 16861857 - chore: Replicate setting the LOG_ID in the FFI verify functions (Ronald Holshausen, Wed Sep 4 16:04:50 2024 +1000)
+* edc6a23e - chore: Copy the in-mem logging functions to the FFI crate (Ronald Holshausen, Wed Sep 4 15:53:01 2024 +1000)
+* 8a5150e0 - chore: Copy the in-mem logging functions to the FFI crate (Ronald Holshausen, Wed Sep 4 15:50:51 2024 +1000)
+* 8350e4d3 - bump version to 0.4.24 (Ronald Holshausen, Wed Sep 4 15:19:59 2024 +1000)
+
 # 0.4.23 - Bugfix Release
 
 * 3cb09550 - chore(pact_ffi): Update dependencies (Ronald Holshausen, Wed Sep 4 11:09:27 2024 +1000)
