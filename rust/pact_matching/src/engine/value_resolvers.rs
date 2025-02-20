@@ -4,7 +4,6 @@ use anyhow::anyhow;
 use itertools::Itertools;
 use serde_json::Value;
 use pact_models::bodies::OptionalBody;
-use pact_models::http_parts::HttpPart;
 use pact_models::json_utils::resolve_path;
 use pact_models::path_exp::DocPath;
 use pact_models::v4::http_parts::HttpRequest;

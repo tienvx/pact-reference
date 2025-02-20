@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use pact_models::http_parts::HttpPart;
 use pact_models::json_utils::json_to_string;
 use pact_models::matchingrules::MatchingRule;
-use pact_models::path_exp::{DocPath, PathToken};
+use pact_models::path_exp::DocPath;
 #[cfg(feature = "datetime")] use pact_models::time_utils::validate_datetime;
 use tracing::debug;
 

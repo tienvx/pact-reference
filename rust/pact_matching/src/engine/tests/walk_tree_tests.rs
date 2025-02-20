@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use bytes::Bytes;
 use googletest::prelude::*;
 use serde_json::{json, Value};
@@ -219,16 +218,16 @@ fn json_with_array() {
     %pop () => json:[1,2,3],
     :$ (
       %match:equality (
-        json:1 => json:1,
-        ~>$[0] => json:1
+        ~>$[0] => json:1,
+        json:1 => json:1
       ) => BOOL(true),
       %match:equality (
-        json:2 => json:2,
-        ~>$[1] => json:2
+        ~>$[1] => json:2,
+        json:2 => json:2
       ) => BOOL(true),
       %match:equality (
-        json:3 => json:3,
-        ~>$[2] => json:3
+        ~>$[2] => json:3,
+        json:3 => json:3
       ) => BOOL(true)
     )
   ) => OK");
@@ -254,17 +253,17 @@ fn json_with_array() {
     %pop () => json:false,
     :$ (
       %match:equality (
-        json:1 => json:1,
-        ~>$[0] => NULL
-      ) => ERROR(Expected json:1 to equal NULL),
+        ~>$[0] => NULL,
+        json:1 => json:1
+      ) => ERROR(Expected NULL to equal json:1),
       %match:equality (
-        json:2 => json:2,
-        ~>$[1] => NULL
-      ) => ERROR(Expected json:2 to equal NULL),
+        ~>$[1] => NULL,
+        json:2 => json:2
+      ) => ERROR(Expected NULL to equal json:2),
       %match:equality (
-        json:3 => json:3,
-        ~>$[2] => NULL
-      ) => ERROR(Expected json:3 to equal NULL)
+        ~>$[2] => NULL,
+        json:3 => json:3
+      ) => ERROR(Expected NULL to equal json:3)
     )
   ) => ERROR(One or more children failed)");
 
@@ -289,17 +288,17 @@ fn json_with_array() {
     %pop () => json:[true],
     :$ (
       %match:equality (
-        json:1 => json:1,
-        ~>$[0] => json:true
-      ) => ERROR(Expected json:1 to equal json:true),
+        ~>$[0] => json:true,
+        json:1 => json:1
+      ) => ERROR(Expected json:true to equal json:1),
       %match:equality (
-        json:2 => json:2,
-        ~>$[1] => NULL
-      ) => ERROR(Expected json:2 to equal NULL),
+        ~>$[1] => NULL,
+        json:2 => json:2
+      ) => ERROR(Expected NULL to equal json:2),
       %match:equality (
-        json:3 => json:3,
-        ~>$[2] => NULL
-      ) => ERROR(Expected json:3 to equal NULL)
+        ~>$[2] => NULL,
+        json:3 => json:3
+      ) => ERROR(Expected NULL to equal json:3)
     )
   ) => ERROR(One or more children failed)");
 
@@ -324,16 +323,16 @@ fn json_with_array() {
     %pop () => json:[1,3,3],
     :$ (
       %match:equality (
-        json:1 => json:1,
-        ~>$[0] => json:1
+        ~>$[0] => json:1,
+        json:1 => json:1
       ) => BOOL(true),
       %match:equality (
-        json:2 => json:2,
-        ~>$[1] => json:3
-      ) => ERROR(Expected json:2 to equal json:3),
+        ~>$[1] => json:3,
+        json:2 => json:2
+      ) => ERROR(Expected json:3 to equal json:2),
       %match:equality (
-        json:3 => json:3,
-        ~>$[2] => json:3
+        ~>$[2] => json:3,
+        json:3 => json:3
       ) => BOOL(true)
     )
   ) => ERROR(One or more children failed)");

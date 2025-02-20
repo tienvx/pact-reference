@@ -198,20 +198,32 @@ r#"(
     :body (
       %if (
         %match:equality (
-          %content-type (),
+          $.content-type,
           'application/json;charset=utf-8'
         ),
-        :body:$ (
-          :body:$:a (
-            %if (
-              %expect:present ($.body."$.a"),
-              %match:equality ($.body."$.a", 100)
-            )
+        -> (
+          %json:parse (
+            $.body
           ),
-          :body:$:b (
-            %if (
-              %expect:present ($.body."$.b"),
-              %match:equality ($.body."$.b", 200.1)
+          %push (),
+          %json:expect:entries (
+            'OBJECT',
+            ['a', 'b'],
+            %apply ()
+          ),
+          %pop (),
+          :$ (
+            :$.a (
+              %match:equality (
+                ~>$.a,
+                json:100
+              )
+            ),
+            :$.b (
+              %match:equality (
+                ~>$.b,
+                json:200.1
+              )
             )
           )
         )
@@ -223,43 +235,63 @@ r#"(
 
   let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
   assert_eq!(executed_plan.pretty_form(), r#"(
-      :request (
-        :method (
-          %match:equality (
-            %upper-case (
-              $.method => "POST"
+  :request (
+    :method (
+      %match:equality (
+        %upper-case (
+          $.method => 'POST'
+        ) => 'POST',
+        'POST' => 'POST'
+      ) => BOOL(true)
+    ),
+    :path (
+      %match:equality (
+        $.path => '/test',
+        '/test' => '/test'
+      ) => BOOL(true)
+    ),
+    :"query parameters" (
+      %expect:empty (
+        $.query => {}
+      ) => BOOL(true)
+    ),
+    :body (
+      %if (
+        %match:equality (
+          $.content-type => 'application/json;charset=utf-8',
+          'application/json;charset=utf-8' => 'application/json;charset=utf-8'
+        ) => BOOL(true),
+        -> (
+          %json:parse (
+            $.body => BYTES(10, eyJiIjoiMjIifQ==)
+          ) => json:{"b":"22"},
+          %push () => json:{"b":"22"},
+          %json:expect:entries (
+            'OBJECT' => 'OBJECT',
+            ['a', 'b'] => ['a', 'b'],
+            %apply () => json:{"b":"22"}
+          ) => ERROR(The following expected entries were missing from the actual Object: a),
+          %pop () => json:{"b":"22"},
+          :$ (
+            :$.a (
+              %match:equality (
+                ~>$.a => NULL,
+                json:100 => json:100
+              ) => ERROR(Expected NULL to equal json:100)
             ),
-            "POST" => OK
-          )
-        ),
-        :path (
-          %match:equality ($.path => "/test", "/test") => OK
-        ),
-        :"query parameters" (
-          %expect:empty ($.query => {}) => OK
-        ),
-        :body (
-          %if (
-            %match:equality (%content-type () => "application/json", "application/json;charset=utf-8") => OK,
-            :body:$ (
-              :body:$:a (
-                %if (
-                  %expect:present ($.body."$.a" => NULL) => ERROR(Expected attribute "$.a" but it was missing),
-                  %match:equality ($.body."$.a", 100) => NULL
-                )
-              ),
-              :body:$:b (
-                %if (
-                  %expect:present ($.body."$.b" => "22") => OK,
-                  %match:equality ($.body."$.b" => "22", 200.1) => ERROR(Expected attribute "$.b" to equal "22" (String) but it was 200.1 (Double))
-                )
-              )
+            :$.b (
+              %match:equality (
+                ~>$.b => json:"22",
+                json:200.1 => json:200.1
+              ) => ERROR(Expected json:"22" to equal json:200.1)
             )
           )
-        )
-      )
+        ) => ERROR(One or more children failed)
+      ) => ERROR(One or more children failed)
     )
-    "#);
+  )
+)
+"#);
 
   Ok(())
 }

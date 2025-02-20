@@ -3,25 +3,20 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use std::panic::RefUnwindSafe;
 
 use anyhow::anyhow;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use itertools::Itertools;
-use onig::EncodedChars;
 use serde_json::Value;
 use snailquote::escape;
-use tracing::{instrument, Level, trace};
+use tracing::trace;
 
 use pact_models::bodies::OptionalBody;
 use pact_models::content_types::TEXT;
 use pact_models::matchingrules::MatchingRule;
 use pact_models::path_exp::DocPath;
 use pact_models::v4::http_parts::HttpRequest;
-use pact_models::v4::interaction::V4Interaction;
-use pact_models::v4::pact::V4Pact;
-use pact_models::v4::synch_http::SynchronousHttp;
 
 use crate::engine::bodies::{get_body_plan_builder, PlainTextBuilder, PlanBodyBuilder};
 use crate::engine::context::PlanMatchingContext;
@@ -34,6 +29,7 @@ mod context;
 
 /// Enum for the type of Plan Node
 #[derive(Clone, Debug, Default)]
+#[allow(non_camel_case_types)]
 pub enum PlanNodeType {
   /// Default plan node is empty
   #[default]
@@ -191,6 +187,18 @@ impl From<u64> for NodeValue {
   }
 }
 
+impl From<Value> for NodeValue {
+  fn from(value: Value) -> Self {
+    NodeValue::JSON(value.clone())
+  }
+}
+
+impl From<&Value> for NodeValue {
+  fn from(value: &Value) -> Self {
+    NodeValue::JSON(value.clone())
+  }
+}
+
 impl Matches<NodeValue> for NodeValue {
   fn matches_with(&self, actual: NodeValue, matcher: &MatchingRule, cascaded: bool) -> anyhow::Result<()> {
     match matcher {
@@ -295,6 +303,18 @@ impl NodeResult {
     match self {
       NodeResult::OK => None,
       NodeResult::VALUE(val) => Some(val.clone()),
+      NodeResult::ERROR(_) => None
+    }
+  }
+
+  /// If the result is a list of Strings, returns it
+  pub fn as_slist(&self) -> Option<Vec<String>> {
+    match self {
+      NodeResult::OK => None,
+      NodeResult::VALUE(val) => match val {
+        NodeValue::SLIST(list) => Some(list.clone()),
+        _ => None
+      }
       NodeResult::ERROR(_) => None
     }
   }

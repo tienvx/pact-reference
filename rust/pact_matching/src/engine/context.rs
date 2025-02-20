@@ -1,12 +1,11 @@
 //! Traits and structs for dealing with the test context.
 
+use std::collections::HashSet;
 use std::panic::RefUnwindSafe;
 
 use anyhow::anyhow;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use itertools::Itertools;
-use serde_json::{Number, Value};
+use serde_json::Value;
 use tracing::{instrument, trace, Level};
 
 use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory};
@@ -29,6 +28,8 @@ pub struct PlanMatchingContext {
   value_stack: Vec<Option<NodeResult>>,
   /// Matching rules to use
   matching_rules: MatchingRuleCategory,
+  /// If extra keys/values are allowed (and ignored)
+  pub allow_unexpected_entries: bool
 }
 
 impl PlanMatchingContext {
@@ -219,6 +220,39 @@ impl PlanMatchingContext {
         json_check_length(expected_length as usize, &json_value)?;
         Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
       }
+      "json:expect:entries" => {
+        let (first, second, third) = validate_three_args(arguments, action)?;
+        let expected_json_type = first.as_string()
+          .ok_or_else(|| anyhow!("'{}' is not a valid JSON type", first))?;
+        let expected_keys = second.as_slist()
+          .ok_or_else(|| anyhow!("'{}' is not a list of Strings", second))?
+          .iter()
+          .cloned()
+          .collect::<HashSet<_>>();
+        let value = third.as_value()
+          .ok_or_else(|| anyhow!("Was expecting a JSON value, but got {}", third))?;
+        let json_value = match &value {
+          NodeValue::JSON(json) => Ok(json),
+          _ => Err(anyhow!("Was expecting a JSON value, but got {:?}", value))
+        }?;
+        json_check_type(expected_json_type, json_value)?;
+
+        match json_value {
+          Value::Object(o) => {
+            let actual_keys = o.keys()
+              .cloned()
+              .collect::<HashSet<_>>();
+            let diff = &expected_keys - &actual_keys;
+            if diff.is_empty() {
+              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+            } else {
+              Err(anyhow!("The following expected entries were missing from the actual Object: {}",
+                diff.iter().join(", ")))
+            }
+          }
+          _ => Err(anyhow!("Was expecting a JSON Object, but got {:?}", value))
+        }
+      }
       _ => Err(anyhow!("'{}' is not a valid action", action))
     }
   }
@@ -266,7 +300,8 @@ impl PlanMatchingContext {
       pact: self.pact.clone(),
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
-      matching_rules
+      matching_rules,
+      allow_unexpected_entries: false
     }
   }
 
@@ -282,7 +317,8 @@ impl PlanMatchingContext {
       pact: self.pact.clone(),
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
-      matching_rules
+      matching_rules,
+      allow_unexpected_entries: false
     }
   }
 
@@ -298,7 +334,8 @@ impl PlanMatchingContext {
       pact: self.pact.clone(),
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
-      matching_rules
+      matching_rules,
+      allow_unexpected_entries: false
     }
   }
 
@@ -314,7 +351,8 @@ impl PlanMatchingContext {
       pact: self.pact.clone(),
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
-      matching_rules
+      matching_rules,
+      allow_unexpected_entries: false
     }
   }
 
@@ -330,7 +368,8 @@ impl PlanMatchingContext {
       pact: self.pact.clone(),
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
-      matching_rules
+      matching_rules,
+      allow_unexpected_entries: self.allow_unexpected_entries
     }
   }
 }
@@ -420,7 +459,8 @@ impl Default for PlanMatchingContext {
       pact: Default::default(),
       interaction: Box::new(SynchronousHttp::default()),
       value_stack: vec![],
-      matching_rules: Default::default()
+      matching_rules: Default::default(),
+      allow_unexpected_entries: false
     }
   }
 }
