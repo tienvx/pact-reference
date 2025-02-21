@@ -849,35 +849,7 @@ fn walk_tree(
     }
     PlanNodeType::ACTION(action) => {
       trace!(?path, %action, "walk_tree ==> Action node");
-
-      let mut child_path = path.to_vec();
-      child_path.push(action.clone());
-      let mut result = vec![];
-      // TODO: Need a mechanism to lazy evaluate the child nodes
-      for child in &node.children {
-        let child_result = if child.result.is_none() {
-          walk_tree(&child_path, child, value_resolver, context)?
-        } else {
-          child.clone()
-        };
-        result.push(child_result);
-      }
-      match context.execute_action(action.as_str(), &result) {
-        Ok(val) => {
-          Ok(ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(val.clone()),
-            children: result.clone()
-          })
-        }
-        Err(err) => {
-          Ok(ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::ERROR(err.to_string())),
-            children: result.clone()
-          })
-        }
-      }
+      Ok(context.execute_action(action.as_str(), value_resolver, node, path))
     }
     PlanNodeType::VALUE(val) => {
       trace!(?path, ?val, "walk_tree ==> Value node");
