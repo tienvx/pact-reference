@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::panic::RefUnwindSafe;
 
-use anyhow::{anyhow, Error};
+use anyhow::anyhow;
 use itertools::Itertools;
 use serde_json::Value;
 use tracing::{instrument, trace, Level};
@@ -50,572 +50,645 @@ impl PlanMatchingContext {
 
     match action {
       "upper-case" => self.execute_upper_case(action, value_resolver, node, &action_path),
-      "match:equality" => {
-        match self.validate_two_args(node, action, value_resolver, &action_path) {
-          Ok((first_node, second_node)) => {
-            let first = first_node.value()
-              .unwrap_or_default()
-              .as_value()
-              .unwrap_or_default();
-            let second = second_node.value()
-              .unwrap_or_default()
-              .as_value()
-              .unwrap_or_default();
-            match first.matches_with(second, &MatchingRule::Equality, false) {
-              Ok(_) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
-                  children: vec![first_node, second_node]
-                }
-              }
-              Err(err) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(err.to_string())),
-                  children: vec![first_node, second_node]
-                }
-              }
-            }
-          }
-          Err(err) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: node.children.clone()
-            }
-          }
-        }
-      }
-      "expect:empty" => {
-        match self.validate_one_arg(node, action, value_resolver, &action_path) {
-          Ok(value) => {
-            let arg_value = value.value().unwrap_or_default().as_value();
-            let result = if let Some(value) = &arg_value {
-              match value {
-                NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
-                NodeValue::STRING(s) => if s.is_empty() {
-                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-                } else {
-                  Err(anyhow!("Expected {:?} to be empty", value))
-                }
-                NodeValue::BOOL(b) => Ok(NodeResult::VALUE(NodeValue::BOOL(*b))),
-                NodeValue::MMAP(m) => if m.is_empty() {
-                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-                } else {
-                  Err(anyhow!("Expected {:?} to be empty", value))
-                }
-                NodeValue::SLIST(l) => if l.is_empty() {
-                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-                } else {
-                  Err(anyhow!("Expected {:?} to be empty", value))
-                },
-                NodeValue::BARRAY(bytes) => if bytes.is_empty() {
-                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-                } else {
-                  Err(anyhow!("Expected byte array ({} bytes) to be empty", bytes.len()))
-                },
-                NodeValue::NAMESPACED(_, _) => { todo!("Not Implemented: Need a way to resolve NodeValue::NAMESPACED") }
-                NodeValue::UINT(ui) => if *ui == 0 {
-                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-                } else {
-                  Err(anyhow!("Expected {:?} to be empty", value))
-                },
-                NodeValue::JSON(json) => match json {
-                  Value::Null => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
-                  Value::String(s) => if s.is_empty() {
-                    Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-                  } else {
-                    Err(anyhow!("Expected JSON String ({}) to be empty", json))
-                  }
-                  Value::Array(a) => if a.is_empty() {
-                    Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-                  } else {
-                    Err(anyhow!("Expected JSON Array ({}) to be empty", json))
-                  }
-                  Value::Object(o) => if o.is_empty() {
-                    Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-                  } else {
-                    Err(anyhow!("Expected JSON Object ({}) to be empty", json))
-                  }
-                  _ => Err(anyhow!("Expected json ({}) to be empty", json))
-                }
-              }
-            } else {
-              // TODO: If the parameter value is an error, this should return an error?
-              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-            };
-            match result {
-              Ok(result) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(result),
-                  children: vec![value]
-                }
-              }
-              Err(err) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(err.to_string())),
-                  children: vec![value]
-                }
-              }
-            }
-          }
-          Err(err) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: node.children.clone()
-            }
-          }
-        }
-      }
-      "convert:UTF8" => {
-        match self.validate_one_arg(node, action, value_resolver, &action_path) {
-          Ok(value) => {
-            let arg_value = value.value().unwrap_or_default().as_value();
-            let result = if let Some(value) = &arg_value {
-              match value {
-                NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::STRING("".to_string()))),
-                NodeValue::STRING(s) => Ok(NodeResult::VALUE(NodeValue::STRING(s.clone()))),
-                NodeValue::BARRAY(b) => Ok(NodeResult::VALUE(NodeValue::STRING(String::from_utf8_lossy(b).to_string()))),
-                _ => Err(anyhow!("convert:UTF8 can not be used with {}", value.value_type()))
-              }
-            } else {
-              Ok(NodeResult::VALUE(NodeValue::STRING("".to_string())))
-            };
-            match result {
-              Ok(result) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(result),
-                  children: vec![value]
-                }
-              }
-              Err(err) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(err.to_string())),
-                  children: vec![value]
-                }
-              }
-            }
-          }
-          Err(err) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: node.children.clone()
-            }
-          }
-        }
-      }
-      "if" => {
-        if let Some(first_node) = node.children.first() {
-          match walk_tree(action_path.as_slice(), first_node, value_resolver, self) {
-            Ok(first) => {
-              let node_result = first.value().unwrap_or_default();
-              if !node_result.is_truthy() {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(node_result),
-                  children: vec![first]
-                }
-              } else if let Some(second_node) = node.children.get(1) {
-                match walk_tree(action_path.as_slice(), second_node, value_resolver, self) {
-                  Ok(second) => {
-                    let second_result = second.value().unwrap_or_default();
-                    ExecutionPlanNode {
-                      node_type: node.node_type.clone(),
-                      result: Some(second_result),
-                      children: vec![first, second]
-                    }
-                  }
-                  Err(err) => {
-                    ExecutionPlanNode {
-                      node_type: node.node_type.clone(),
-                      result: Some(NodeResult::ERROR(err.to_string())),
-                      children: vec![first, second_node.clone()]
-                    }
-                  }
-                }
-              } else {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(node_result),
-                  children: vec![first]
-                }
-              }
-            }
-            Err(err) => {
-              ExecutionPlanNode {
-                node_type: node.node_type.clone(),
-                result: Some(NodeResult::ERROR(err.to_string())),
-                children: node.children.clone()
-              }
-            }
-          }
-        } else {
-          ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::ERROR("'if' action requires at least one argument".to_string())),
-            children: node.children.clone()
-          }
-        }
-      }
-      "apply" => if let Some(value) = self.value_stack.last() {
-        ExecutionPlanNode {
-          node_type: node.node_type.clone(),
-          result: value.clone(),
-          children: node.children.clone()
-        }
-      } else {
-        ExecutionPlanNode {
-          node_type: node.node_type.clone(),
-          result: Some(NodeResult::ERROR("No value to apply (stack is empty)".to_string())),
-          children: node.children.clone()
-        }
-      }
-      "push" => {
-        let last_value = self.value_stack.last().cloned();
-        if let Some(value) = last_value {
-          self.value_stack.push(value.clone());
-          ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: value,
-            children: node.children.clone()
-          }
-        } else {
-          ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::ERROR("No value to push (value is empty)".to_string())),
-            children: node.children.clone()
-          }
-        }
-      }
-      "pop" => if let Some(_value) = self.value_stack.pop() {
-        ExecutionPlanNode {
-          node_type: node.node_type.clone(),
-          result: self.value_stack.last().cloned().flatten(),
-          children: node.children.clone()
-        }
-      } else {
-        ExecutionPlanNode {
-          node_type: node.node_type.clone(),
-          result: Some(NodeResult::ERROR("No value to pop (stack is empty)".to_string())),
-          children: node.children.clone()
-        }
-      }
-      "json:parse" => {
-        match self.validate_one_arg(node, action, value_resolver, &action_path) {
-          Ok(value) => {
-            let arg_value = value.value().unwrap_or_default().as_value();
-            let result = if let Some(value) = &arg_value {
-              match value {
-                NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::NULL)),
-                NodeValue::STRING(s) => serde_json::from_str(s.as_str())
-                  .map(|json| NodeResult::VALUE(NodeValue::JSON(json)))
-                  .map_err(|err| anyhow!("json parse error - {}", err)),
-                NodeValue::BARRAY(b) => serde_json::from_slice(b.as_slice())
-                  .map(|json| NodeResult::VALUE(NodeValue::JSON(json)))
-                  .map_err(|err| anyhow!("json parse error - {}", err)),
-                _ => Err(anyhow!("json:parse can not be used with {}", value.value_type()))
-              }
-            } else {
-              Ok(NodeResult::VALUE(NodeValue::NULL))
-            };
-            match result {
-              Ok(result) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(result),
-                  children: vec![value]
-                }
-              }
-              Err(err) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(err.to_string())),
-                  children: vec![value]
-                }
-              }
-            }
-          }
-          Err(err) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: node.children.clone()
-            }
-          }
-        }
-      }
-      "json:expect:empty" => {
-        match self.validate_two_args(node, action, value_resolver, &action_path) {
-          Ok((first_node, second_node)) => {
-            let result1 = first_node.value().unwrap_or_default();
-            let expected_json_type = match result1.as_string() {
-              None => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("'{}' is not a valid JSON type", result1))),
-                  children: vec![first_node, second_node]
-                }
-              }
-              Some(str) => str
-            };
-            let result2 = second_node.value().unwrap_or_default();
-            let value = match result2.as_value() {
-              None => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {}", result2))),
-                  children: vec![first_node, second_node]
-                }
-              }
-              Some(value) => value
-            };
-            let json_value = match value {
-              NodeValue::JSON(json) => json,
-              _ => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {:?}", value))),
-                  children: vec![first_node, second_node]
-                }
-              }
-            };
-            if let Err(err) = json_check_type(expected_json_type, &json_value) {
-              return ExecutionPlanNode {
-                node_type: node.node_type.clone(),
-                result: Some(NodeResult::ERROR(err.to_string())),
-                children: vec![first_node, second_node]
-              }
-            };
-            let result = match &json_value {
-              Value::Null => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
-              Value::String(s) => if s.is_empty() {
-                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-              } else {
-                Err(anyhow!("Expected JSON String ({}) to be empty", json_value))
-              }
-              Value::Array(a) => if a.is_empty() {
-                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-              } else {
-                Err(anyhow!("Expected JSON Array ({}) to be empty", json_value))
-              }
-              Value::Object(o) => if o.is_empty() {
-                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-              } else {
-                Err(anyhow!("Expected JSON Object ({}) to be empty", json_value))
-              }
-              _ => Err(anyhow!("Expected json ({}) to be empty", json_value))
-            };
-            match result {
-              Ok(result) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(result),
-                  children: vec![first_node, second_node]
-                }
-              }
-              Err(err) => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(err.to_string())),
-                  children: vec![first_node, second_node]
-                }
-              }
-            }
-          }
-          Err(err) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: node.children.clone()
-            }
-          }
-        }
-      }
-      "json:match:length" => {
-        match self.validate_three_args(node, action, value_resolver, &action_path) {
-          Ok((first_node, second_node, third_node)) => {
-            let result1 = first_node.value().unwrap_or_default();
-            let expected_json_type = match result1.as_string() {
-              None => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("'{}' is not a valid JSON type", result1))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-              Some(str) => str
-            };
-            let result2 = second_node.value().unwrap_or_default();
-            let expected_length = match result2.as_number() {
-              None => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("'{}' is not a valid number", result2))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-              Some(length) => length
-            };
-            let result3 = third_node.value().unwrap_or_default();
-            let value = match result3.as_value() {
-              None => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {}", result3))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-              Some(value) => value
-            };
-            let json_value = match value {
-              NodeValue::JSON(json) => json,
-              _ => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {:?}", value))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-            };
-            if let Err(err) = json_check_type(expected_json_type, &json_value) {
-              return ExecutionPlanNode {
-                node_type: node.node_type.clone(),
-                result: Some(NodeResult::ERROR(err.to_string())),
-                children: vec![first_node, second_node, third_node]
-              }
-            }
-            if let Err(err) = json_check_length(expected_length as usize, &json_value) {
-              return ExecutionPlanNode {
-                node_type: node.node_type.clone(),
-                result: Some(NodeResult::ERROR(err.to_string())),
-                children: vec![first_node, second_node, third_node]
-              }
-            }
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
-              children: vec![first_node, second_node, third_node]
-            }
-          }
-          Err(err) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: node.children.clone()
-            }
-          }
-        }
-      }
-      "json:expect:entries" => {
-        match self.validate_three_args(node, action, value_resolver, &action_path) {
-          Ok((first_node, second_node, third_node)) => {
-            let result1 = first_node.value().unwrap_or_default();
-            let expected_json_type = match result1.as_string() {
-              None => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("'{}' is not a valid JSON type", result1))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-              Some(str) => str
-            };
-            let result2 = second_node.value().unwrap_or_default();
-            let expected_keys = match result2.as_slist() {
-              None => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("'{}' is not a list of Strings", result2))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-              Some(list) => list.iter()
-                .cloned()
-                .collect::<HashSet<_>>()
-            };
-            let result3 = third_node.value().unwrap_or_default();
-            let value = match result3.as_value() {
-              None => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {}", result3))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-              Some(value) => value
-            };
-            let json_value = match &value {
-              NodeValue::JSON(json) => json,
-              _ => {
-                return ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {:?}", value))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-            };
-            if let Err(err) = json_check_type(expected_json_type, json_value) {
-              return ExecutionPlanNode {
-                node_type: node.node_type.clone(),
-                result: Some(NodeResult::ERROR(err.to_string())),
-                children: vec![first_node, second_node, third_node]
-              }
-            }
-
-            match json_value {
-              Value::Object(o) => {
-                let actual_keys = o.keys()
-                  .cloned()
-                  .collect::<HashSet<_>>();
-                let diff = &expected_keys - &actual_keys;
-                if diff.is_empty() {
-                  ExecutionPlanNode {
-                    node_type: node.node_type.clone(),
-                    result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
-                    children: vec![first_node, second_node, third_node]
-                  }
-                } else {
-                  ExecutionPlanNode {
-                    node_type: node.node_type.clone(),
-                    result: Some(
-                      NodeResult::ERROR(
-                        format!("The following expected entries were missing from the actual Object: {}",
-                                diff.iter().join(", "))
-                      )
-                    ),
-                    children: vec![first_node, second_node, third_node]
-                  }
-                }
-              }
-              _ => {
-                ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(format!("Was expecting a JSON Object, but got {:?}", json_value))),
-                  children: vec![first_node, second_node, third_node]
-                }
-              }
-            }
-          }
-          Err(err) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: node.children.clone()
-            }
-          }
-        }
-      }
+      "match:equality" => self.execute_match_equality(action, value_resolver, node, &action_path),
+      "expect:empty" => self.execute_expect_empty(action, value_resolver, node, &action_path),
+      "convert:UTF8" => self.execute_convert_utf8(action, value_resolver, node, &action_path),
+      "if" => self.execute_if(value_resolver, node, &action_path),
+      "apply" => self.execute_apply(node),
+      "push" => self.execute_push(node),
+      "pop" => self.execute_pop(node),
+      "json:parse" => self.execute_json_parse(action, value_resolver, node, &action_path),
+      "json:expect:empty" => self.execute_json_expect_empty(action, value_resolver, node, &action_path),
+      "json:match:length" => self.execute_json_match_length(action, value_resolver, node, &action_path),
+      "json:expect:entries" => self.execute_json_expect_entries(action, value_resolver, node, &action_path),
       _ => {
         ExecutionPlanNode {
           node_type: node.node_type.clone(),
           result: Some(NodeResult::ERROR(format!("'{}' is not a valid action", action))),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_json_expect_entries(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_three_args(node, action, value_resolver, &action_path) {
+      Ok((first_node, second_node, third_node)) => {
+        let result1 = first_node.value().unwrap_or_default();
+        let expected_json_type = match result1.as_string() {
+          None => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("'{}' is not a valid JSON type", result1))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+          Some(str) => str
+        };
+        let result2 = second_node.value().unwrap_or_default();
+        let expected_keys = match result2.as_slist() {
+          None => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("'{}' is not a list of Strings", result2))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+          Some(list) => list.iter()
+            .cloned()
+            .collect::<HashSet<_>>()
+        };
+        let result3 = third_node.value().unwrap_or_default();
+        let value = match result3.as_value() {
+          None => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {}", result3))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+          Some(value) => value
+        };
+        let json_value = match &value {
+          NodeValue::JSON(json) => json,
+          _ => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {:?}", value))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+        };
+        if let Err(err) = json_check_type(expected_json_type, json_value) {
+          return ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: vec![first_node, second_node, third_node]
+          }
+        }
+
+        match json_value {
+          Value::Object(o) => {
+            let actual_keys = o.keys()
+              .cloned()
+              .collect::<HashSet<_>>();
+            let diff = &expected_keys - &actual_keys;
+            if diff.is_empty() {
+              ExecutionPlanNode {
+                node_type: node.node_type.clone(),
+                result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
+                children: vec![first_node, second_node, third_node]
+              }
+            } else {
+              ExecutionPlanNode {
+                node_type: node.node_type.clone(),
+                result: Some(
+                  NodeResult::ERROR(
+                    format!("The following expected entries were missing from the actual Object: {}",
+                            diff.iter().join(", "))
+                  )
+                ),
+                children: vec![first_node, second_node, third_node]
+              }
+            }
+          }
+          _ => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("Was expecting a JSON Object, but got {:?}", json_value))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_json_match_length(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_three_args(node, action, value_resolver, &action_path) {
+      Ok((first_node, second_node, third_node)) => {
+        let result1 = first_node.value().unwrap_or_default();
+        let expected_json_type = match result1.as_string() {
+          None => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("'{}' is not a valid JSON type", result1))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+          Some(str) => str
+        };
+        let result2 = second_node.value().unwrap_or_default();
+        let expected_length = match result2.as_number() {
+          None => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("'{}' is not a valid number", result2))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+          Some(length) => length
+        };
+        let result3 = third_node.value().unwrap_or_default();
+        let value = match result3.as_value() {
+          None => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {}", result3))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+          Some(value) => value
+        };
+        let json_value = match value {
+          NodeValue::JSON(json) => json,
+          _ => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {:?}", value))),
+              children: vec![first_node, second_node, third_node]
+            }
+          }
+        };
+        if let Err(err) = json_check_type(expected_json_type, &json_value) {
+          return ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: vec![first_node, second_node, third_node]
+          }
+        }
+        if let Err(err) = json_check_length(expected_length as usize, &json_value) {
+          return ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: vec![first_node, second_node, third_node]
+          }
+        }
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
+          children: vec![first_node, second_node, third_node]
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_json_expect_empty(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_two_args(node, action, value_resolver, &action_path) {
+      Ok((first_node, second_node)) => {
+        let result1 = first_node.value().unwrap_or_default();
+        let expected_json_type = match result1.as_string() {
+          None => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("'{}' is not a valid JSON type", result1))),
+              children: vec![first_node, second_node]
+            }
+          }
+          Some(str) => str
+        };
+        let result2 = second_node.value().unwrap_or_default();
+        let value = match result2.as_value() {
+          None => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {}", result2))),
+              children: vec![first_node, second_node]
+            }
+          }
+          Some(value) => value
+        };
+        let json_value = match value {
+          NodeValue::JSON(json) => json,
+          _ => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(format!("Was expecting a JSON value, but got {:?}", value))),
+              children: vec![first_node, second_node]
+            }
+          }
+        };
+        if let Err(err) = json_check_type(expected_json_type, &json_value) {
+          return ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: vec![first_node, second_node]
+          }
+        };
+        let result = match &json_value {
+          Value::Null => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
+          Value::String(s) => if s.is_empty() {
+            Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+          } else {
+            Err(anyhow!("Expected JSON String ({}) to be empty", json_value))
+          }
+          Value::Array(a) => if a.is_empty() {
+            Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+          } else {
+            Err(anyhow!("Expected JSON Array ({}) to be empty", json_value))
+          }
+          Value::Object(o) => if o.is_empty() {
+            Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+          } else {
+            Err(anyhow!("Expected JSON Object ({}) to be empty", json_value))
+          }
+          _ => Err(anyhow!("Expected json ({}) to be empty", json_value))
+        };
+        match result {
+          Ok(result) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result),
+              children: vec![first_node, second_node]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![first_node, second_node]
+            }
+          }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_json_parse(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let arg_value = value.value().unwrap_or_default().as_value();
+        let result = if let Some(value) = &arg_value {
+          match value {
+            NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::NULL)),
+            NodeValue::STRING(s) => serde_json::from_str(s.as_str())
+              .map(|json| NodeResult::VALUE(NodeValue::JSON(json)))
+              .map_err(|err| anyhow!("json parse error - {}", err)),
+            NodeValue::BARRAY(b) => serde_json::from_slice(b.as_slice())
+              .map(|json| NodeResult::VALUE(NodeValue::JSON(json)))
+              .map_err(|err| anyhow!("json parse error - {}", err)),
+            _ => Err(anyhow!("json:parse can not be used with {}", value.value_type()))
+          }
+        } else {
+          Ok(NodeResult::VALUE(NodeValue::NULL))
+        };
+        match result {
+          Ok(result) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result),
+              children: vec![value]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![value]
+            }
+          }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_pop(&mut self, node: &ExecutionPlanNode) -> ExecutionPlanNode {
+    if let Some(_value) = self.value_stack.pop() {
+      ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: self.value_stack.last().cloned().flatten(),
+        children: node.children.clone()
+      }
+    } else {
+      ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: Some(NodeResult::ERROR("No value to pop (stack is empty)".to_string())),
+        children: node.children.clone()
+      }
+    }
+  }
+
+  fn execute_push(&mut self, node: &ExecutionPlanNode) -> ExecutionPlanNode {
+    let last_value = self.value_stack.last().cloned();
+    if let Some(value) = last_value {
+      self.value_stack.push(value.clone());
+      ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: value,
+        children: node.children.clone()
+      }
+    } else {
+      ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: Some(NodeResult::ERROR("No value to push (value is empty)".to_string())),
+        children: node.children.clone()
+      }
+    }
+  }
+
+  fn execute_apply(&mut self, node: &ExecutionPlanNode) -> ExecutionPlanNode {
+    if let Some(value) = self.value_stack.last() {
+      ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: value.clone(),
+        children: node.children.clone()
+      }
+    } else {
+      ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: Some(NodeResult::ERROR("No value to apply (stack is empty)".to_string())),
+        children: node.children.clone()
+      }
+    }
+  }
+
+  fn execute_if(
+    &mut self,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    if let Some(first_node) = node.children.first() {
+      match walk_tree(action_path.as_slice(), first_node, value_resolver, self) {
+        Ok(first) => {
+          let node_result = first.value().unwrap_or_default();
+          if !node_result.is_truthy() {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(node_result),
+              children: vec![first]
+            }
+          } else if let Some(second_node) = node.children.get(1) {
+            match walk_tree(action_path.as_slice(), second_node, value_resolver, self) {
+              Ok(second) => {
+                let second_result = second.value().unwrap_or_default();
+                ExecutionPlanNode {
+                  node_type: node.node_type.clone(),
+                  result: Some(second_result),
+                  children: vec![first, second]
+                }
+              }
+              Err(err) => {
+                ExecutionPlanNode {
+                  node_type: node.node_type.clone(),
+                  result: Some(NodeResult::ERROR(err.to_string())),
+                  children: vec![first, second_node.clone()]
+                }
+              }
+            }
+          } else {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(node_result),
+              children: vec![first]
+            }
+          }
+        }
+        Err(err) => {
+          ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: node.children.clone()
+          }
+        }
+      }
+    } else {
+      ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: Some(NodeResult::ERROR("'if' action requires at least one argument".to_string())),
+        children: node.children.clone()
+      }
+    }
+  }
+
+  fn execute_convert_utf8(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let arg_value = value.value().unwrap_or_default().as_value();
+        let result = if let Some(value) = &arg_value {
+          match value {
+            NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::STRING("".to_string()))),
+            NodeValue::STRING(s) => Ok(NodeResult::VALUE(NodeValue::STRING(s.clone()))),
+            NodeValue::BARRAY(b) => Ok(NodeResult::VALUE(NodeValue::STRING(String::from_utf8_lossy(b).to_string()))),
+            _ => Err(anyhow!("convert:UTF8 can not be used with {}", value.value_type()))
+          }
+        } else {
+          Ok(NodeResult::VALUE(NodeValue::STRING("".to_string())))
+        };
+        match result {
+          Ok(result) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result),
+              children: vec![value]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![value]
+            }
+          }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_expect_empty(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let arg_value = value.value().unwrap_or_default().as_value();
+        let result = if let Some(value) = &arg_value {
+          match value {
+            NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
+            NodeValue::STRING(s) => if s.is_empty() {
+              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+            } else {
+              Err(anyhow!("Expected {:?} to be empty", value))
+            }
+            NodeValue::BOOL(b) => Ok(NodeResult::VALUE(NodeValue::BOOL(*b))),
+            NodeValue::MMAP(m) => if m.is_empty() {
+              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+            } else {
+              Err(anyhow!("Expected {:?} to be empty", value))
+            }
+            NodeValue::SLIST(l) => if l.is_empty() {
+              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+            } else {
+              Err(anyhow!("Expected {:?} to be empty", value))
+            },
+            NodeValue::BARRAY(bytes) => if bytes.is_empty() {
+              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+            } else {
+              Err(anyhow!("Expected byte array ({} bytes) to be empty", bytes.len()))
+            },
+            NodeValue::NAMESPACED(_, _) => { todo!("Not Implemented: Need a way to resolve NodeValue::NAMESPACED") }
+            NodeValue::UINT(ui) => if *ui == 0 {
+              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+            } else {
+              Err(anyhow!("Expected {:?} to be empty", value))
+            },
+            NodeValue::JSON(json) => match json {
+              Value::Null => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
+              Value::String(s) => if s.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected JSON String ({}) to be empty", json))
+              }
+              Value::Array(a) => if a.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected JSON Array ({}) to be empty", json))
+              }
+              Value::Object(o) => if o.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected JSON Object ({}) to be empty", json))
+              }
+              _ => Err(anyhow!("Expected json ({}) to be empty", json))
+            }
+          }
+        } else {
+          // TODO: If the parameter value is an error, this should return an error?
+          Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+        };
+        match result {
+          Ok(result) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result),
+              children: vec![value]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![value]
+            }
+          }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_match_equality(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_two_args(node, action, value_resolver, &action_path) {
+      Ok((first_node, second_node)) => {
+        let first = first_node.value()
+          .unwrap_or_default()
+          .as_value()
+          .unwrap_or_default();
+        let second = second_node.value()
+          .unwrap_or_default()
+          .as_value()
+          .unwrap_or_default();
+        match first.matches_with(second, &MatchingRule::Equality, false) {
+          Ok(_) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
+              children: vec![first_node, second_node]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![first_node, second_node]
+            }
+          }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
           children: node.children.clone()
         }
       }
