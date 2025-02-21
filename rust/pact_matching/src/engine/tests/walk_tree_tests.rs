@@ -217,20 +217,41 @@ fn json_with_array() {
     ) => BOOL(true),
     %pop () => json:[1,2,3],
     :$ (
-      %match:equality (
-        ~>$[0] => json:1,
-        json:1 => json:1
-      ) => BOOL(true),
-      %match:equality (
-        ~>$[1] => json:2,
-        json:2 => json:2
-      ) => BOOL(true),
-      %match:equality (
-        ~>$[2] => json:3,
-        json:3 => json:3
-      ) => BOOL(true)
+      :$[0] (
+        %if (
+          %check:exists (
+            ~>$[0] => json:1
+          ) => BOOL(true),
+          %match:equality (
+            ~>$[0] => json:1,
+            json:1 => json:1
+          ) => BOOL(true)
+        ) => BOOL(true)
+      ),
+      :$[1] (
+        %if (
+          %check:exists (
+            ~>$[1] => json:2
+          ) => BOOL(true),
+          %match:equality (
+            ~>$[1] => json:2,
+            json:2 => json:2
+          ) => BOOL(true)
+        ) => BOOL(true)
+      ),
+      :$[2] (
+        %if (
+          %check:exists (
+            ~>$[2] => json:3
+          ) => BOOL(true),
+          %match:equality (
+            ~>$[2] => json:3,
+            json:3 => json:3
+          ) => BOOL(true)
+        ) => BOOL(true)
+      )
     )
-  ) => OK");
+  ) => BOOL(true)");
 
   let content = Bytes::copy_from_slice(Value::Bool(false).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -252,20 +273,41 @@ fn json_with_array() {
     ) => ERROR(Was expecting a JSON Array but got a Boolean),
     %pop () => json:false,
     :$ (
-      %match:equality (
-        ~>$[0] => NULL,
-        json:1 => json:1
-      ) => ERROR(Expected NULL to equal json:1),
-      %match:equality (
-        ~>$[1] => NULL,
-        json:2 => json:2
-      ) => ERROR(Expected NULL to equal json:2),
-      %match:equality (
-        ~>$[2] => NULL,
-        json:3 => json:3
-      ) => ERROR(Expected NULL to equal json:3)
+      :$[0] (
+        %if (
+          %check:exists (
+            ~>$[0] => NULL
+          ) => BOOL(false),
+          %match:equality (
+            ~>$[0],
+            json:1
+          )
+        ) => BOOL(false)
+      ),
+      :$[1] (
+        %if (
+          %check:exists (
+            ~>$[1] => NULL
+          ) => BOOL(false),
+          %match:equality (
+            ~>$[1],
+            json:2
+          )
+        ) => BOOL(false)
+      ),
+      :$[2] (
+        %if (
+          %check:exists (
+            ~>$[2] => NULL
+          ) => BOOL(false),
+          %match:equality (
+            ~>$[2],
+            json:3
+          )
+        ) => BOOL(false)
+      )
     )
-  ) => ERROR(One or more children failed)");
+  ) => BOOL(false)");
 
   let content = Bytes::copy_from_slice(Value::Array(vec![Value::Bool(true)]).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -287,18 +329,39 @@ fn json_with_array() {
     ) => ERROR(Was expecting a length of 3, but actual length is 1),
     %pop () => json:[true],
     :$ (
-      %match:equality (
-        ~>$[0] => json:true,
-        json:1 => json:1
-      ) => ERROR(Expected json:true to equal json:1),
-      %match:equality (
-        ~>$[1] => NULL,
-        json:2 => json:2
-      ) => ERROR(Expected NULL to equal json:2),
-      %match:equality (
-        ~>$[2] => NULL,
-        json:3 => json:3
-      ) => ERROR(Expected NULL to equal json:3)
+      :$[0] (
+        %if (
+          %check:exists (
+            ~>$[0] => json:true
+          ) => BOOL(true),
+          %match:equality (
+            ~>$[0] => json:true,
+            json:1 => json:1
+          ) => ERROR(Expected json:true to equal json:1)
+        ) => ERROR(Expected json:true to equal json:1)
+      ),
+      :$[1] (
+        %if (
+          %check:exists (
+            ~>$[1] => NULL
+          ) => BOOL(false),
+          %match:equality (
+            ~>$[1],
+            json:2
+          )
+        ) => BOOL(false)
+      ),
+      :$[2] (
+        %if (
+          %check:exists (
+            ~>$[2] => NULL
+          ) => BOOL(false),
+          %match:equality (
+            ~>$[2],
+            json:3
+          )
+        ) => BOOL(false)
+      )
     )
   ) => ERROR(One or more children failed)");
 
@@ -322,18 +385,39 @@ fn json_with_array() {
     ) => BOOL(true),
     %pop () => json:[1,3,3],
     :$ (
-      %match:equality (
-        ~>$[0] => json:1,
-        json:1 => json:1
-      ) => BOOL(true),
-      %match:equality (
-        ~>$[1] => json:3,
-        json:2 => json:2
-      ) => ERROR(Expected json:3 to equal json:2),
-      %match:equality (
-        ~>$[2] => json:3,
-        json:3 => json:3
-      ) => BOOL(true)
+      :$[0] (
+        %if (
+          %check:exists (
+            ~>$[0] => json:1
+          ) => BOOL(true),
+          %match:equality (
+            ~>$[0] => json:1,
+            json:1 => json:1
+          ) => BOOL(true)
+        ) => BOOL(true)
+      ),
+      :$[1] (
+        %if (
+          %check:exists (
+            ~>$[1] => json:3
+          ) => BOOL(true),
+          %match:equality (
+            ~>$[1] => json:3,
+            json:2 => json:2
+          ) => ERROR(Expected json:3 to equal json:2)
+        ) => ERROR(Expected json:3 to equal json:2)
+      ),
+      :$[2] (
+        %if (
+          %check:exists (
+            ~>$[2] => json:3
+          ) => BOOL(true),
+          %match:equality (
+            ~>$[2] => json:3,
+            json:3 => json:3
+          ) => BOOL(true)
+        ) => BOOL(true)
+      )
     )
   ) => ERROR(One or more children failed)");
 }

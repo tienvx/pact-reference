@@ -252,12 +252,12 @@ impl NodeResult {
       match result {
         NodeResult::OK => match self {
           NodeResult::OK => NodeResult::OK,
-          NodeResult::VALUE(_) => NodeResult::OK,
+          NodeResult::VALUE(_) => self.clone(),
           NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())
         },
         NodeResult::VALUE(_) => match self {
-          NodeResult::OK => NodeResult::OK,
-          NodeResult::VALUE(_) => NodeResult::OK,
+          NodeResult::OK => result.clone(),
+          NodeResult::VALUE(_) => self.clone(),
           NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())
         }
         NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())

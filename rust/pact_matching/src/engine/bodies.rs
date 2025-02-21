@@ -121,17 +121,26 @@ impl PlanBodyBuilder for JsonPlanBuilder {
 
           for (index, item) in items.iter().enumerate() {
             let item_path = path.join_index(index);
+            let mut item_node = ExecutionPlanNode::container(item_path.clone());
             match item {
               Value::Array(_) => { todo!() }
               Value::Object(_) => { todo!() }
               _ => {
-                iter_node.add(
-                  ExecutionPlanNode::action("match:equality")
-                    .add(ExecutionPlanNode::resolve_current_value(item_path))
-                    .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), item.to_string())))
-                );
+                let mut presence_check = ExecutionPlanNode::action("if");
+                presence_check
+                  .add(
+                    ExecutionPlanNode::action("check:exists")
+                      .add(ExecutionPlanNode::resolve_current_value(item_path.clone()))
+                  )
+                  .add(
+                    ExecutionPlanNode::action("match:equality")
+                      .add(ExecutionPlanNode::resolve_current_value(item_path))
+                      .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), item.to_string())))
+                  );
+                item_node.add(presence_check);
               }
             }
+            iter_node.add(item_node);
           }
 
           apply_node.add(iter_node);
@@ -351,17 +360,38 @@ r#"-> (
   ),
   %pop (),
   :$ (
-    %match:equality (
-      ~>$[0],
-      json:100
+    :$[0] (
+      %if (
+        %check:exists (
+          ~>$[0]
+        ),
+        %match:equality (
+          ~>$[0],
+          json:100
+        )
+      )
     ),
-    %match:equality (
-      ~>$[1],
-      json:200
+    :$[1] (
+      %if (
+        %check:exists (
+          ~>$[1]
+        ),
+        %match:equality (
+          ~>$[1],
+          json:200
+        )
+      )
     ),
-    %match:equality (
-      ~>$[2],
-      json:300
+    :$[2] (
+      %if (
+        %check:exists (
+          ~>$[2]
+        ),
+        %match:equality (
+          ~>$[2],
+          json:300
+        )
+      )
     )
   )
 )"#);

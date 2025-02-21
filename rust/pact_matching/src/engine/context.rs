@@ -61,6 +61,7 @@ impl PlanMatchingContext {
       "json:expect:empty" => self.execute_json_expect_empty(action, value_resolver, node, &action_path),
       "json:match:length" => self.execute_json_match_length(action, value_resolver, node, &action_path),
       "json:expect:entries" => self.execute_json_expect_entries(action, value_resolver, node, &action_path),
+      "check:exists" => self.execute_check_exists(action, value_resolver, node, &action_path),
       _ => {
         ExecutionPlanNode {
           node_type: node.node_type.clone(),
@@ -465,10 +466,12 @@ impl PlanMatchingContext {
         Ok(first) => {
           let node_result = first.value().unwrap_or_default();
           if !node_result.is_truthy() {
+            let mut children = node.children.clone();
+            children[0] = first;
             ExecutionPlanNode {
               node_type: node.node_type.clone(),
               result: Some(node_result),
-              children: vec![first]
+              children
             }
           } else if let Some(second_node) = node.children.get(1) {
             match walk_tree(action_path.as_slice(), second_node, value_resolver, self) {
@@ -711,6 +714,39 @@ impl PlanMatchingContext {
         ExecutionPlanNode {
           node_type: node.node_type.clone(),
           result: Some(NodeResult::VALUE(NodeValue::STRING(result.to_uppercase()))),
+          children: vec![value]
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_check_exists(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let result = if let NodeResult::VALUE(value) = value.value().unwrap_or_default() {
+          match value {
+            NodeValue::NULL => NodeResult::VALUE(NodeValue::BOOL(false)),
+            _ => NodeResult::VALUE(NodeValue::BOOL(true))
+          }
+        } else {
+          NodeResult::VALUE(NodeValue::BOOL(false))
+        };
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(result),
           children: vec![value]
         }
       }
