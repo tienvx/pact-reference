@@ -52,3 +52,10 @@ jobs:
           make
           src/consumer-verification basic ../../rust/target/debug/libpact_ffi.so
           src/consumer-verification error ../../rust/target/debug/libpact_ffi.so
+            - name: Run mock_server_logs test
+      - name: Run mock_server_logs test
+        run: cargo test -p pact_ffi returns_mock_server_logs -- --nocapture --include-ignored
+        working-directory: rust
+        env:
+          RUST_LOG: debug
+          RUST_BACKTRACE: 1
