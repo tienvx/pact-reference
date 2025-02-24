@@ -5,9 +5,12 @@ use serde_json::json;
 
 use pact_models::bodies::OptionalBody;
 use pact_models::content_types::TEXT;
+use pact_models::matchingrules;
 use pact_models::v4::http_parts::HttpRequest;
-
+use pact_models::v4::interaction::V4Interaction;
+use pact_models::v4::synch_http::SynchronousHttp;
 use crate::engine::{build_request_plan, execute_request_plan, NodeResult, NodeValue, PlanMatchingContext};
+use crate::MatchingRule;
 
 mod walk_tree_tests;
 
@@ -66,16 +69,18 @@ fn simple_match_request_test() -> anyhow::Result<()> {
   :request (
     :method (
       %match:equality (
+        'POST',
         %upper-case (
           $.method
         ),
-        'POST'
+        NULL
       )
     ),
     :path (
       %match:equality (
+        '/test',
         $.path,
-        '/test'
+        NULL
       )
     ),
     :"query parameters" (
@@ -86,14 +91,16 @@ fn simple_match_request_test() -> anyhow::Result<()> {
     :body (
       %if (
         %match:equality (
+          'text/plain',
           $.content-type,
-          'text/plain'
+          NULL
         ),
         %match:equality (
+          'Some nice bit of text',
           %convert:UTF8 (
             $.body
           ),
-          'Some nice bit of text'
+          NULL
         )
       )
     )
@@ -107,16 +114,18 @@ r#"(
   :request (
     :method (
       %match:equality (
+        'POST' => 'POST',
         %upper-case (
           $.method => 'put'
         ) => 'PUT',
-        'POST' => 'POST'
-      ) => ERROR(Expected 'PUT' to equal 'POST')
+        NULL => NULL
+      ) => ERROR(Expected 'PUT' to be equal to 'POST')
     ),
     :path (
       %match:equality (
+        '/test' => '/test',
         $.path => '/test',
-        '/test' => '/test'
+        NULL => NULL
       ) => BOOL(true)
     ),
     :"query parameters" (
@@ -127,14 +136,16 @@ r#"(
     :body (
       %if (
         %match:equality (
+          'text/plain' => 'text/plain',
           $.content-type => 'text/plain',
-          'text/plain' => 'text/plain'
+          NULL => NULL
         ) => BOOL(true),
         %match:equality (
+          'Some nice bit of text' => 'Some nice bit of text',
           %convert:UTF8 (
             $.body => BYTES(21, U29tZSBuaWNlIGJpdCBvZiB0ZXh0)
           ) => 'Some nice bit of text',
-          'Some nice bit of text' => 'Some nice bit of text'
+          NULL => NULL
         ) => BOOL(true)
       ) => BOOL(true)
     )
@@ -178,16 +189,18 @@ r#"(
   :request (
     :method (
       %match:equality (
+        'POST',
         %upper-case (
           $.method
         ),
-        'POST'
+        NULL
       )
     ),
     :path (
       %match:equality (
+        '/test',
         $.path,
-        '/test'
+        NULL
       )
     ),
     :"query parameters" (
@@ -198,8 +211,9 @@ r#"(
     :body (
       %if (
         %match:equality (
+          'application/json;charset=utf-8',
           $.content-type,
-          'application/json;charset=utf-8'
+          NULL
         ),
         -> (
           %json:parse (
@@ -215,14 +229,16 @@ r#"(
           :$ (
             :$.a (
               %match:equality (
+                json:100,
                 ~>$.a,
-                json:100
+                NULL
               )
             ),
             :$.b (
               %match:equality (
+                json:200.1,
                 ~>$.b,
-                json:200.1
+                NULL
               )
             )
           )
@@ -234,20 +250,22 @@ r#"(
 "#);
 
   let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
-  assert_eq!(executed_plan.pretty_form(), r#"(
+  assert_eq!(r#"(
   :request (
     :method (
       %match:equality (
+        'POST' => 'POST',
         %upper-case (
           $.method => 'POST'
         ) => 'POST',
-        'POST' => 'POST'
+        NULL => NULL
       ) => BOOL(true)
     ),
     :path (
       %match:equality (
+        '/test' => '/test',
         $.path => '/test',
-        '/test' => '/test'
+        NULL => NULL
       ) => BOOL(true)
     ),
     :"query parameters" (
@@ -258,8 +276,9 @@ r#"(
     :body (
       %if (
         %match:equality (
+          'application/json;charset=utf-8' => 'application/json;charset=utf-8',
           $.content-type => 'application/json;charset=utf-8',
-          'application/json;charset=utf-8' => 'application/json;charset=utf-8'
+          NULL => NULL
         ) => BOOL(true),
         -> (
           %json:parse (
@@ -275,15 +294,17 @@ r#"(
           :$ (
             :$.a (
               %match:equality (
+                json:100 => json:100,
                 ~>$.a => NULL,
-                json:100 => json:100
-              ) => ERROR(Expected NULL to equal json:100)
+                NULL => NULL
+              ) => ERROR(Expected null (Null) to be equal to 100 (Integer))
             ),
             :$.b (
               %match:equality (
+                json:200.1 => json:200.1,
                 ~>$.b => json:"22",
-                json:200.1 => json:200.1
-              ) => ERROR(Expected json:"22" to equal json:200.1)
+                NULL => NULL
+              ) => ERROR(Expected '22' (String) to be equal to 200.1 (Decimal))
             )
           )
         ) => ERROR(One or more children failed)
@@ -291,7 +312,125 @@ r#"(
     )
   )
 )
-"#);
+"#, executed_plan.pretty_form());
+
+  Ok(())
+}
+
+#[test_log::test]
+fn match_path_with_matching_rule() -> anyhow::Result<()> {
+  let request = HttpRequest {
+    method: "get".to_string(),
+    path: "/test12345".to_string(),
+    .. Default::default()
+  };
+  let matching_rules = matchingrules! {
+    "path" => { "" => [ MatchingRule::Regex("\\/test[0-9]+".to_string()) ] }
+  };
+  let expected_request = HttpRequest {
+    method: "get".to_string(),
+    path: "/test".to_string(),
+    matching_rules: matching_rules.clone(),
+    .. Default::default()
+  };
+  let expected_interaction = SynchronousHttp {
+    request: expected_request.clone(),
+    .. SynchronousHttp::default()
+  };
+  let mut context = PlanMatchingContext {
+    interaction: expected_interaction.boxed_v4(),
+    .. PlanMatchingContext::default()
+  };
+  let plan = build_request_plan(&expected_request, &context)?;
+
+  assert_eq!(
+r#"(
+  :request (
+    :method (
+      %match:equality (
+        'GET',
+        %upper-case (
+          $.method
+        ),
+        NULL
+      )
+    ),
+    :path (
+      %match:regex (
+        '/test',
+        $.path,
+        json:{"regex":"\\/test[0-9]+"}
+      )
+    ),
+    :"query parameters" (
+      %expect:empty (
+        $.query
+      )
+    )
+  )
+)
+"#, plan.pretty_form());
+
+  let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
+  assert_eq!(r#"(
+  :request (
+    :method (
+      %match:equality (
+        'GET' => 'GET',
+        %upper-case (
+          $.method => 'get'
+        ) => 'GET',
+        NULL => NULL
+      ) => BOOL(true)
+    ),
+    :path (
+      %match:regex (
+        '/test' => '/test',
+        $.path => '/test12345',
+        json:{"regex":"\\/test[0-9]+"} => json:{"regex":"\\/test[0-9]+"}
+      ) => BOOL(true)
+    ),
+    :"query parameters" (
+      %expect:empty (
+        $.query => {}
+      ) => BOOL(true)
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let request = HttpRequest {
+    method: "get".to_string(),
+    path: "/test12345X".to_string(),
+    .. Default::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
+  assert_eq!(r#"(
+  :request (
+    :method (
+      %match:equality (
+        'GET' => 'GET',
+        %upper-case (
+          $.method => 'get'
+        ) => 'GET',
+        NULL => NULL
+      ) => BOOL(true)
+    ),
+    :path (
+      %match:regex (
+        '/test' => '/test',
+        $.path => '/test12345X',
+        json:{"regex":"\\/test[0-9]+"} => json:{"regex":"\\/test[0-9]+"}
+      ) => ERROR(Expected '/test12345X' to match '\/test[0-9]+')
+    ),
+    :"query parameters" (
+      %expect:empty (
+        $.query => {}
+      ) => BOOL(true)
+    )
+  )
+)
+"#, executed_plan.pretty_form());
 
   Ok(())
 }

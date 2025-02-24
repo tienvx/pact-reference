@@ -43,7 +43,8 @@ fn json_with_null() {
     ) => json:null,
     %match:equality (
       json:null => json:null,
-      %apply () => json:null
+      %apply () => json:null,
+      NULL => NULL
     ) => BOOL(true)
   ) => BOOL(true)");
 
@@ -61,9 +62,10 @@ fn json_with_null() {
     ) => json:true,
     %match:equality (
       json:null => json:null,
-      %apply () => json:true
-    ) => ERROR(Expected json:null to equal json:true)
-  ) => ERROR(Expected json:null to equal json:true)");
+      %apply () => json:true,
+      NULL => NULL
+    ) => ERROR(Expected true (Boolean) to be equal to null (Null))
+  ) => ERROR(Expected true (Boolean) to be equal to null (Null))");
 
   let content = Bytes::copy_from_slice("{".as_bytes());
   let resolver = TestValueResolver {
@@ -79,9 +81,10 @@ fn json_with_null() {
     ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
     %match:equality (
       json:null => json:null,
-      %apply () => ERROR(json parse error - EOF while parsing an object at line 1 column 1)
-    ) => ERROR(Expected json:null to equal NULL)
-  ) => ERROR(Expected json:null to equal NULL)");
+      %apply () => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
+      NULL => NULL
+    ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1)
+  ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1)");
 }
 
 #[test_log::test]
@@ -105,7 +108,8 @@ fn json_with_boolean() {
     ) => json:true,
     %match:equality (
       json:true => json:true,
-      %apply () => json:true
+      %apply () => json:true,
+      NULL => NULL
     ) => BOOL(true)
   ) => BOOL(true)");
 
@@ -123,9 +127,10 @@ fn json_with_boolean() {
     ) => json:false,
     %match:equality (
       json:true => json:true,
-      %apply () => json:false
-    ) => ERROR(Expected json:true to equal json:false)
-  ) => ERROR(Expected json:true to equal json:false)");
+      %apply () => json:false,
+      NULL => NULL
+    ) => ERROR(Expected false (Boolean) to be equal to true (Boolean))
+  ) => ERROR(Expected false (Boolean) to be equal to true (Boolean))");
 }
 
 #[test_log::test]
@@ -223,8 +228,9 @@ fn json_with_array() {
             ~>$[0] => json:1
           ) => BOOL(true),
           %match:equality (
+            json:1 => json:1,
             ~>$[0] => json:1,
-            json:1 => json:1
+            NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
       ),
@@ -234,8 +240,9 @@ fn json_with_array() {
             ~>$[1] => json:2
           ) => BOOL(true),
           %match:equality (
+            json:2 => json:2,
             ~>$[1] => json:2,
-            json:2 => json:2
+            NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
       ),
@@ -245,8 +252,9 @@ fn json_with_array() {
             ~>$[2] => json:3
           ) => BOOL(true),
           %match:equality (
+            json:3 => json:3,
             ~>$[2] => json:3,
-            json:3 => json:3
+            NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
       )
@@ -279,8 +287,9 @@ fn json_with_array() {
             ~>$[0] => NULL
           ) => BOOL(false),
           %match:equality (
+            json:1,
             ~>$[0],
-            json:1
+            NULL
           )
         ) => BOOL(false)
       ),
@@ -290,8 +299,9 @@ fn json_with_array() {
             ~>$[1] => NULL
           ) => BOOL(false),
           %match:equality (
+            json:2,
             ~>$[1],
-            json:2
+            NULL
           )
         ) => BOOL(false)
       ),
@@ -301,8 +311,9 @@ fn json_with_array() {
             ~>$[2] => NULL
           ) => BOOL(false),
           %match:equality (
+            json:3,
             ~>$[2],
-            json:3
+            NULL
           )
         ) => BOOL(false)
       )
@@ -335,10 +346,11 @@ fn json_with_array() {
             ~>$[0] => json:true
           ) => BOOL(true),
           %match:equality (
+            json:1 => json:1,
             ~>$[0] => json:true,
-            json:1 => json:1
-          ) => ERROR(Expected json:true to equal json:1)
-        ) => ERROR(Expected json:true to equal json:1)
+            NULL => NULL
+          ) => ERROR(Expected true (Boolean) to be equal to 1 (Integer))
+        ) => ERROR(Expected true (Boolean) to be equal to 1 (Integer))
       ),
       :$[1] (
         %if (
@@ -346,8 +358,9 @@ fn json_with_array() {
             ~>$[1] => NULL
           ) => BOOL(false),
           %match:equality (
+            json:2,
             ~>$[1],
-            json:2
+            NULL
           )
         ) => BOOL(false)
       ),
@@ -357,8 +370,9 @@ fn json_with_array() {
             ~>$[2] => NULL
           ) => BOOL(false),
           %match:equality (
+            json:3,
             ~>$[2],
-            json:3
+            NULL
           )
         ) => BOOL(false)
       )
@@ -391,8 +405,9 @@ fn json_with_array() {
             ~>$[0] => json:1
           ) => BOOL(true),
           %match:equality (
+            json:1 => json:1,
             ~>$[0] => json:1,
-            json:1 => json:1
+            NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
       ),
@@ -402,10 +417,11 @@ fn json_with_array() {
             ~>$[1] => json:3
           ) => BOOL(true),
           %match:equality (
+            json:2 => json:2,
             ~>$[1] => json:3,
-            json:2 => json:2
-          ) => ERROR(Expected json:3 to equal json:2)
-        ) => ERROR(Expected json:3 to equal json:2)
+            NULL => NULL
+          ) => ERROR(Expected 3 (Integer) to be equal to 2 (Integer))
+        ) => ERROR(Expected 3 (Integer) to be equal to 2 (Integer))
       ),
       :$[2] (
         %if (
@@ -413,8 +429,9 @@ fn json_with_array() {
             ~>$[2] => json:3
           ) => BOOL(true),
           %match:equality (
+            json:3 => json:3,
             ~>$[2] => json:3,
-            json:3 => json:3
+            NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
       )

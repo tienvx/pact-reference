@@ -9,12 +9,13 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use itertools::Itertools;
 use serde_json::Value;
+use serde_json::Value::Object;
 use snailquote::escape;
 use tracing::trace;
 
 use pact_models::bodies::OptionalBody;
 use pact_models::content_types::TEXT;
-use pact_models::matchingrules::MatchingRule;
+use pact_models::matchingrules::{MatchingRule, RuleList, RuleLogic};
 use pact_models::path_exp::DocPath;
 use pact_models::v4::http_parts::HttpRequest;
 
@@ -161,6 +162,38 @@ impl NodeValue {
       NodeValue::JSON(_) => "JSON"
     }
   }
+
+  /// If this value is a JSON value, returns it, otherwise returns None
+  pub fn as_json(&self) -> Option<Value> {
+    match self {
+      NodeValue::JSON(json) => Some(json.clone()),
+      _ => None
+    }
+  }
+
+  /// If this value is a String value, returns it, otherwise returns None
+  pub fn as_string(&self) -> Option<String> {
+    match self {
+      NodeValue::STRING(s) => Some(s.clone()),
+      _ => None
+    }
+  }
+
+  /// If this value is a bool value, returns it, otherwise returns None
+  pub fn as_bool(&self) -> Option<bool> {
+    match self {
+      NodeValue::BOOL(b) => Some(*b),
+      _ => None
+    }
+  }
+
+  /// If this value is an UInt value, returns it, otherwise returns None
+  pub fn as_uint(&self) -> Option<u64> {
+    match self {
+      NodeValue::UINT(u) => Some(*u),
+      _ => None
+    }
+  }
 }
 
 impl From<String> for NodeValue {
@@ -199,36 +232,22 @@ impl From<&Value> for NodeValue {
   }
 }
 
+impl From<HashMap<&str, Value>> for NodeValue {
+  fn from(value: HashMap<&str, Value>) -> Self {
+    let json = Object(value.iter().map(|(k, v)| (k.to_string(), v.clone())).collect());
+    NodeValue::JSON(json)
+  }
+}
+
 impl Matches<NodeValue> for NodeValue {
   fn matches_with(&self, actual: NodeValue, matcher: &MatchingRule, cascaded: bool) -> anyhow::Result<()> {
-    match matcher {
-      MatchingRule::Equality => if self == &actual {
-        Ok(())
-      } else {
-        Err(anyhow!("Expected {} to equal {}", self.str_form(), actual.str_form()))
-      }
-      MatchingRule::Regex(_) => todo!(),
-      MatchingRule::Type => todo!(),
-      MatchingRule::MinType(_) => todo!(),
-      MatchingRule::MaxType(_) => todo!(),
-      MatchingRule::MinMaxType(_, _) => todo!(),
-      MatchingRule::Timestamp(_) => todo!(),
-      MatchingRule::Time(_) => todo!(),
-      MatchingRule::Date(_) => todo!(),
-      MatchingRule::Include(_) => todo!(),
-      MatchingRule::Number => todo!(),
-      MatchingRule::Integer => todo!(),
-      MatchingRule::Decimal => todo!(),
-      MatchingRule::Null => todo!(),
-      MatchingRule::ContentType(_) => todo!(),
-      MatchingRule::ArrayContains(_) => todo!(),
-      MatchingRule::Values => todo!(),
-      MatchingRule::Boolean => todo!(),
-      MatchingRule::StatusCode(_) => todo!(),
-      MatchingRule::NotEmpty => todo!(),
-      MatchingRule::Semver => todo!(),
-      MatchingRule::EachKey(_) => todo!(),
-      MatchingRule::EachValue(_) => todo!()
+    match self {
+      NodeValue::NULL => Value::Null.matches_with(actual.as_json().unwrap_or_default(), matcher, cascaded),
+      NodeValue::STRING(s) => s.matches_with(actual.as_string().unwrap_or_default(), matcher, cascaded),
+      NodeValue::BOOL(b) => b.matches_with(actual.as_bool().unwrap_or_default(), matcher, cascaded),
+      NodeValue::UINT(u) => u.matches_with(actual.as_uint().unwrap_or_default(), matcher, cascaded),
+      NodeValue::JSON(json) => json.matches_with(actual.as_json().unwrap_or_default(), matcher, cascaded),
+      _ => Err(anyhow!("Matching rules can not be applied to {} values", self.str_form()))
     }
   }
 }
@@ -335,6 +354,15 @@ impl NodeResult {
         NodeValue::JSON(_) => false
       }
       NodeResult::ERROR(_) => false
+    }
+  }
+
+  /// Unwraps the result into a value, or returns the error results as an error
+  pub fn value_or_error(&self) -> anyhow::Result<NodeValue> {
+    match self {
+      NodeResult::OK => Ok(NodeValue::BOOL(true)),
+      NodeResult::VALUE(v) => Ok(v.clone()),
+      NodeResult::ERROR(err) => Err(anyhow!(err.clone()))
     }
   }
 }
@@ -628,6 +656,15 @@ impl From<&mut ExecutionPlanNode> for ExecutionPlanNode {
   }
 }
 
+impl From<anyhow::Error> for ExecutionPlanNode {
+  fn from(value: anyhow::Error) -> Self {
+    ExecutionPlanNode {
+      result: Some(NodeResult::ERROR(value.to_string())),
+      .. ExecutionPlanNode::default()
+    }
+  }
+}
+
 /// An executable plan that contains a tree of execution nodes
 #[derive(Clone, Debug, Default)]
 pub struct ExecutionPlan {
@@ -687,17 +724,17 @@ pub fn build_request_plan(
 
 fn setup_method_plan(
   expected: &HttpRequest,
-  context: &PlanMatchingContext
+  _context: &PlanMatchingContext
 ) -> anyhow::Result<ExecutionPlanNode> {
   let mut method_container = ExecutionPlanNode::container("method");
 
   let mut match_method = ExecutionPlanNode::action("match:equality");
   match_method
+    .add(ExecutionPlanNode::value_node(expected.method.as_str().to_uppercase()))
     .add(ExecutionPlanNode::action("upper-case")
       .add(ExecutionPlanNode::resolve_value(DocPath::new("$.method")?)))
-    .add(ExecutionPlanNode::value_node(expected.method.as_str()));
+    .add(ExecutionPlanNode::value_node(NodeValue::NULL));
 
-  // TODO: Look at the matching rules and generators here
   method_container.add(match_method);
 
   Ok(method_container)
@@ -707,15 +744,53 @@ fn setup_path_plan(
   expected: &HttpRequest,
   context: &PlanMatchingContext
 ) -> anyhow::Result<ExecutionPlanNode> {
-  // TODO: Look at the matching rules and generators here
   let mut plan_node = ExecutionPlanNode::container("path");
-  plan_node
-    .add(
-      ExecutionPlanNode::action("match:equality")
-        .add(ExecutionPlanNode::resolve_value(DocPath::new("$.path")?))
-        .add(ExecutionPlanNode::value_node(expected.path.as_str()))
-    );
+  let expected_node = ExecutionPlanNode::value_node(expected.path.as_str());
+  let doc_path = DocPath::new("$.path")?;
+  if context.matcher_is_defined(&doc_path) {
+    let matchers = context.select_best_matcher(&doc_path);
+    plan_node.add(build_matching_rule_node(&expected_node, &doc_path, &matchers));
+  } else {
+    plan_node
+      .add(
+        ExecutionPlanNode::action("match:equality")
+          .add(expected_node)
+          .add(ExecutionPlanNode::resolve_value(doc_path))
+          .add(ExecutionPlanNode::value_node(NodeValue::NULL))
+      );
+  }
   Ok(plan_node)
+}
+
+fn build_matching_rule_node(
+  expected_node: &ExecutionPlanNode,
+  doc_path: &DocPath,
+  matchers: &RuleList
+) -> ExecutionPlanNode {
+  if matchers.rules.len() == 1 {
+    let matcher = &matchers.rules[0];
+    let mut plan_node = ExecutionPlanNode::action(format!("match:{}", matcher.name()).as_str());
+    plan_node
+      .add(expected_node.clone())
+      .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+      .add(ExecutionPlanNode::value_node(matcher.values()));
+    plan_node
+  } else {
+    let mut logic_node = match matchers.rule_logic {
+      RuleLogic::And => ExecutionPlanNode::action("and"),
+      RuleLogic::Or => ExecutionPlanNode::action("or")
+    };
+    for rule in &matchers.rules {
+      logic_node
+        .add(
+          ExecutionPlanNode::action(format!("match:{}", rule.name()).as_str())
+            .add(expected_node.clone())
+            .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+            .add(ExecutionPlanNode::value_node(rule.values()))
+        );
+    }
+    logic_node
+  }
 }
 
 fn setup_query_plan(
@@ -770,14 +845,10 @@ fn setup_body_plan(
   let mut plan_node = ExecutionPlanNode::container("body");
 
   match &expected.body {
-    OptionalBody::Missing => {
-      todo!()
-    }
-    OptionalBody::Empty => {
-      todo!()
-    }
-    OptionalBody::Null => {
-      todo!()
+    OptionalBody::Missing => {}
+    OptionalBody::Empty | OptionalBody::Null => {
+      plan_node.add(ExecutionPlanNode::action("expect:empty")
+        .add(ExecutionPlanNode::resolve_value(DocPath::new("$.body")?)));
     }
     OptionalBody::Present(content, _, _) => {
       let content_type = expected.content_type().unwrap_or_else(|| TEXT.clone());
@@ -785,8 +856,9 @@ fn setup_body_plan(
       content_type_check_node
         .add(
           ExecutionPlanNode::action("match:equality")
-            .add(ExecutionPlanNode::resolve_value(DocPath::new("$.content-type")?))
             .add(ExecutionPlanNode::value_node(content_type.to_string()))
+            .add(ExecutionPlanNode::resolve_value(DocPath::new("$.content-type")?))
+            .add(ExecutionPlanNode::value_node(NodeValue::NULL))
         );
       if let Some(plan_builder) = get_body_plan_builder(&content_type) {
         content_type_check_node.add(plan_builder.build_plan(content, context)?);

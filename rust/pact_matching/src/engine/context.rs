@@ -8,7 +8,7 @@ use itertools::Itertools;
 use serde_json::Value;
 use tracing::{instrument, trace, Level};
 
-use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory};
+use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory, RuleList};
 use pact_models::path_exp::DocPath;
 use pact_models::prelude::v4::{SynchronousHttp, V4Pact};
 use pact_models::v4::interaction::V4Interaction;
@@ -26,9 +26,9 @@ pub struct PlanMatchingContext {
   /// Interaction that the plan id for
   pub interaction: Box<dyn V4Interaction + Send + Sync + RefUnwindSafe>,
   /// Stack of intermediate values (used by the pipeline operator and apply action)
-  value_stack: Vec<Option<NodeResult>>,
+  pub value_stack: Vec<Option<NodeResult>>,
   /// Matching rules to use
-  matching_rules: MatchingRuleCategory,
+  pub matching_rules: MatchingRuleCategory,
   /// If extra keys/values are allowed (and ignored)
   pub allow_unexpected_entries: bool
 }
@@ -48,25 +48,38 @@ impl PlanMatchingContext {
     let mut action_path = path.to_vec();
     action_path.push(action.to_string());
 
-    match action {
-      "upper-case" => self.execute_upper_case(action, value_resolver, node, &action_path),
-      "match:equality" => self.execute_match_equality(action, value_resolver, node, &action_path),
-      "expect:empty" => self.execute_expect_empty(action, value_resolver, node, &action_path),
-      "convert:UTF8" => self.execute_convert_utf8(action, value_resolver, node, &action_path),
-      "if" => self.execute_if(value_resolver, node, &action_path),
-      "apply" => self.execute_apply(node),
-      "push" => self.execute_push(node),
-      "pop" => self.execute_pop(node),
-      "json:parse" => self.execute_json_parse(action, value_resolver, node, &action_path),
-      "json:expect:empty" => self.execute_json_expect_empty(action, value_resolver, node, &action_path),
-      "json:match:length" => self.execute_json_match_length(action, value_resolver, node, &action_path),
-      "json:expect:entries" => self.execute_json_expect_entries(action, value_resolver, node, &action_path),
-      "check:exists" => self.execute_check_exists(action, value_resolver, node, &action_path),
-      _ => {
-        ExecutionPlanNode {
-          node_type: node.node_type.clone(),
-          result: Some(NodeResult::ERROR(format!("'{}' is not a valid action", action))),
-          children: node.children.clone()
+    if action.starts_with("match:") {
+      match action.strip_prefix("match:") {
+        None => {
+          ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(format!("'{}' is not a valid action", action))),
+            children: node.children.clone()
+          }
+        }
+        Some(matcher) => self.execute_match(action, matcher, value_resolver, node, &action_path)
+            .unwrap_or_else(|node| node)
+      }
+    } else {
+      match action {
+        "upper-case" => self.execute_upper_case(action, value_resolver, node, &action_path),
+        "expect:empty" => self.execute_expect_empty(action, value_resolver, node, &action_path),
+        "convert:UTF8" => self.execute_convert_utf8(action, value_resolver, node, &action_path),
+        "if" => self.execute_if(value_resolver, node, &action_path),
+        "apply" => self.execute_apply(node),
+        "push" => self.execute_push(node),
+        "pop" => self.execute_pop(node),
+        "json:parse" => self.execute_json_parse(action, value_resolver, node, &action_path),
+        "json:expect:empty" => self.execute_json_expect_empty(action, value_resolver, node, &action_path),
+        "json:match:length" => self.execute_json_match_length(action, value_resolver, node, &action_path),
+        "json:expect:entries" => self.execute_json_expect_entries(action, value_resolver, node, &action_path),
+        "check:exists" => self.execute_check_exists(action, value_resolver, node, &action_path),
+        _ => {
+          ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(format!("'{}' is not a valid action", action))),
+            children: node.children.clone()
+          }
         }
       }
     }
@@ -654,46 +667,82 @@ impl PlanMatchingContext {
     }
   }
 
-  fn execute_match_equality(
+  fn execute_match(
     &mut self,
     action: &str,
+    matcher: &str,
     value_resolver: &dyn ValueResolver,
     node: &ExecutionPlanNode,
     action_path: &Vec<String>
-  ) -> ExecutionPlanNode {
-    match self.validate_two_args(node, action, value_resolver, &action_path) {
-      Ok((first_node, second_node)) => {
-        let first = first_node.value()
+  ) -> Result<ExecutionPlanNode, ExecutionPlanNode> {
+    match self.validate_three_args(node, action, value_resolver, &action_path) {
+      Ok((first_node, second_node, third_node)) => {
+        let exepected_value = first_node.value()
           .unwrap_or_default()
-          .as_value()
-          .unwrap_or_default();
-        let second = second_node.value()
-          .unwrap_or_default()
-          .as_value()
-          .unwrap_or_default();
-        match first.matches_with(second, &MatchingRule::Equality, false) {
-          Ok(_) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
-              children: vec![first_node, second_node]
-            }
-          }
-          Err(err) => {
+          .value_or_error()
+          .map_err(|err| {
             ExecutionPlanNode {
               node_type: node.node_type.clone(),
               result: Some(NodeResult::ERROR(err.to_string())),
-              children: vec![first_node, second_node]
+              children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
             }
+          })?;
+        let actual_value = second_node.value()
+          .unwrap_or_default()
+          .value_or_error()
+          .map_err(|err| {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
+            }
+          })?;
+        let matcher_params = third_node.value()
+          .unwrap_or_default()
+          .value_or_error()
+          .map_err(|err| {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
+            }
+          })?
+          .as_json()
+          .unwrap_or_default();
+        match MatchingRule::create(matcher, &matcher_params) {
+          Ok(rule) => {
+            match exepected_value.matches_with(actual_value, &rule, false) {
+              Ok(_) => {
+                Ok(ExecutionPlanNode {
+                  node_type: node.node_type.clone(),
+                  result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
+                  children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
+                })
+              }
+              Err(err) => {
+                Err(ExecutionPlanNode {
+                  node_type: node.node_type.clone(),
+                  result: Some(NodeResult::ERROR(err.to_string())),
+                  children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
+                })
+              }
+            }
+          }
+          Err(err) => {
+            Err(ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: node.children.clone()
+            })
           }
         }
       }
       Err(err) => {
-        ExecutionPlanNode {
+        Err(ExecutionPlanNode {
           node_type: node.node_type.clone(),
           result: Some(NodeResult::ERROR(err.to_string())),
           children: node.children.clone()
-        }
+        })
       }
     }
   }
@@ -789,6 +838,13 @@ impl PlanMatchingContext {
     let path = path.to_vec();
     let path_slice = path.iter().map(|p| p.as_str()).collect_vec();
     self.matching_rules.matcher_is_defined(path_slice.as_slice())
+  }
+
+  /// Select the best matcher to use for the given path
+  pub fn select_best_matcher(&self, path: &DocPath) -> RuleList {
+    let path = path.to_vec();
+    let path_slice = path.iter().map(|p| p.as_str()).collect_vec();
+    self.matching_rules.select_best_matcher(path_slice.as_slice())
   }
 
   /// Creates a clone of this context, but with the matching rules set for the Request Method

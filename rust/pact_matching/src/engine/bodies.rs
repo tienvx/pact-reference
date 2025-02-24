@@ -63,8 +63,9 @@ impl PlanBodyBuilder for PlainTextBuilder {
     let mut node = ExecutionPlanNode::action("match:equality");
     let mut child_node = ExecutionPlanNode::action("convert:UTF8");
     child_node.add(ExecutionPlanNode::resolve_value(DocPath::new_unwrap("$.body")));
-    node.add(child_node);
     node.add(ExecutionPlanNode::value_node(text_content.to_string()));
+    node.add(child_node);
+    node.add(ExecutionPlanNode::value_node(NodeValue::NULL));
     Ok(node)
   }
 }
@@ -134,8 +135,9 @@ impl PlanBodyBuilder for JsonPlanBuilder {
                   )
                   .add(
                     ExecutionPlanNode::action("match:equality")
-                      .add(ExecutionPlanNode::resolve_current_value(item_path))
                       .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), item.to_string())))
+                      .add(ExecutionPlanNode::resolve_current_value(item_path))
+                      .add(ExecutionPlanNode::value_node(NodeValue::NULL))
                   );
                 item_node.add(presence_check);
               }
@@ -186,8 +188,9 @@ impl PlanBodyBuilder for JsonPlanBuilder {
               _ => {
                 item_node.add(
                   ExecutionPlanNode::action("match:equality")
-                    .add(ExecutionPlanNode::resolve_current_value(item_path))
                     .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), value.to_string())))
+                    .add(ExecutionPlanNode::resolve_current_value(item_path))
+                    .add(ExecutionPlanNode::value_node(NodeValue::NULL))
                 );
               }
             }
@@ -202,6 +205,7 @@ impl PlanBodyBuilder for JsonPlanBuilder {
           ExecutionPlanNode::action("match:equality")
             .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), expected_json.to_string())))
             .add(ExecutionPlanNode::action("apply"))
+            .add(ExecutionPlanNode::value_node(NodeValue::NULL))
         );
       }
     }
@@ -234,7 +238,8 @@ r#"-> (
   ),
   %match:equality (
     json:null,
-    %apply ()
+    %apply (),
+    NULL
   )
 )"#);
   }
@@ -254,7 +259,8 @@ r#"-> (
   ),
   %match:equality (
     json:true,
-    %apply ()
+    %apply (),
+    NULL
   )
 )"#);
   }
@@ -274,7 +280,8 @@ r#"-> (
   ),
   %match:equality (
     json:"I am a string!",
-    %apply ()
+    %apply (),
+    NULL
   )
 )"#);
   }
@@ -294,7 +301,8 @@ r#"-> (
   ),
   %match:equality (
     json:1000,
-    %apply ()
+    %apply (),
+    NULL
   )
 )"#);
   }
@@ -314,7 +322,8 @@ r#"-> (
   ),
   %match:equality (
     json:1000.3,
-    %apply ()
+    %apply (),
+    NULL
   )
 )"#);
   }
@@ -366,8 +375,9 @@ r#"-> (
           ~>$[0]
         ),
         %match:equality (
+          json:100,
           ~>$[0],
-          json:100
+          NULL
         )
       )
     ),
@@ -377,8 +387,9 @@ r#"-> (
           ~>$[1]
         ),
         %match:equality (
+          json:200,
           ~>$[1],
-          json:200
+          NULL
         )
       )
     ),
@@ -388,8 +399,9 @@ r#"-> (
           ~>$[2]
         ),
         %match:equality (
+          json:300,
           ~>$[2],
-          json:300
+          NULL
         )
       )
     )
@@ -441,20 +453,23 @@ r#"-> (
   :$ (
     :$.a (
       %match:equality (
+        json:100,
         ~>$.a,
-        json:100
+        NULL
       )
     ),
     :$.b (
       %match:equality (
+        json:200,
         ~>$.b,
-        json:200
+        NULL
       )
     ),
     :$.c (
       %match:equality (
+        json:300,
         ~>$.c,
-        json:300
+        NULL
       )
     )
   )
