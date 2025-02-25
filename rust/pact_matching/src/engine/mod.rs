@@ -1,7 +1,7 @@
 //! Structs and traits to support a general matching engine
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 
 use anyhow::anyhow;
@@ -46,7 +46,9 @@ pub enum PlanNodeType {
   /// Pipeline node (apply), which applies each node to the next as a pipeline returning the last
   PIPELINE,
   /// Leaf node that stores an expression to resolve against the current stack item
-  RESOLVE_CURRENT(DocPath)
+  RESOLVE_CURRENT(DocPath),
+  /// Splat node, which executes its children and then replaces itself with the result
+  SPLAT
 }
 
 /// Enum for the value stored in a leaf node
@@ -70,7 +72,9 @@ pub enum NodeValue {
   /// Unsigned integer
   UINT(u64),
   /// JSON
-  JSON(Value)
+  JSON(Value),
+  /// Key/Value Pair
+  ENTRY(String, Box<NodeValue>)
 }
 
 impl NodeValue {
@@ -89,7 +93,7 @@ impl NodeValue {
         buffer.push('{');
 
         let mut first = true;
-        for (key, values) in map {
+        for (key, values) in map.iter().sorted_by(|a, b| Ord::cmp(&a.0, &b.0)) {
           if first {
             first = false;
           } else {
@@ -135,7 +139,14 @@ impl NodeValue {
         buffer
       }
       NodeValue::UINT(i) => format!("UINT({})", i),
-      NodeValue::JSON(json) => format!("json:{}", json)
+      NodeValue::JSON(json) => format!("json:{}", json),
+      NodeValue::ENTRY(key, value) => {
+        let mut buffer = String::new();
+        buffer.push_str(Self::escape_string(key).as_str());
+        buffer.push_str(" -> ");
+        buffer.push_str(value.str_form().as_str());
+        buffer
+      }
     }
   }
 
@@ -159,7 +170,8 @@ impl NodeValue {
       NodeValue::BARRAY(_) => "Byte Array",
       NodeValue::NAMESPACED(_, _) => "Namespaced Value",
       NodeValue::UINT(_) => "Unsigned Integer",
-      NodeValue::JSON(_) => "JSON"
+      NodeValue::JSON(_) => "JSON",
+      NodeValue::ENTRY(_, _) => "Entry"
     }
   }
 
@@ -191,6 +203,14 @@ impl NodeValue {
   pub fn as_uint(&self) -> Option<u64> {
     match self {
       NodeValue::UINT(u) => Some(*u),
+      _ => None
+    }
+  }
+
+  /// If this value is a string value, returns it, otherwise returns None
+  pub fn as_slist(&self) -> Option<Vec<String>> {
+    match self {
+      NodeValue::SLIST(list) => Some(list.clone()),
       _ => None
     }
   }
@@ -252,6 +272,12 @@ impl Matches<NodeValue> for NodeValue {
   }
 }
 
+impl Display for NodeValue {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.str_form())
+  }
+}
+
 /// Enum to store the result of executing a node
 #[derive(Clone, Debug, Default, PartialEq)]
 pub enum NodeResult {
@@ -299,7 +325,8 @@ impl NodeResult {
         NodeValue::BARRAY(bytes) => Some(BASE64.encode(bytes)),
         NodeValue::NAMESPACED(name, value) => Some(format!("{}:{}", name, value)),
         NodeValue::UINT(ui) => Some(ui.to_string()),
-        NodeValue::JSON(json) => Some(json.to_string())
+        NodeValue::JSON(json) => Some(json.to_string()),
+        NodeValue::ENTRY(k, v) => Some(format!("{} -> {}", k, v)),
       }
       NodeResult::ERROR(_) => None
     }
@@ -351,7 +378,8 @@ impl NodeResult {
         NodeValue::BARRAY(b) => !b.is_empty(),
         NodeValue::NAMESPACED(_, _) => false, // TODO: Need a way to resolve this
         NodeValue::UINT(ui) => *ui != 0,
-        NodeValue::JSON(_) => false
+        NodeValue::JSON(_) => false,
+        NodeValue::ENTRY(_, _) => false
       }
       NodeResult::ERROR(_) => false
     }
@@ -389,6 +417,15 @@ pub struct ExecutionPlanNode {
 }
 
 impl ExecutionPlanNode {
+  /// Clones this node, replacing the value with the given one
+  pub fn clone_with_value(&self, value: NodeValue) -> ExecutionPlanNode {
+    ExecutionPlanNode {
+      node_type: self.node_type.clone(),
+      result: Some(NodeResult::VALUE(value)),
+      children: self.children.clone()
+    }
+  }
+
   /// Returns the human-readable text from of the node
   pub fn pretty_form(&self, buffer: &mut String, indent: usize) {
     let pad = " ".repeat(indent);
@@ -475,6 +512,23 @@ impl ExecutionPlanNode {
           buffer.push_str(result.to_string().as_str());
         }
       }
+      PlanNodeType::SPLAT => {
+        buffer.push_str(pad.as_str());
+        buffer.push_str("**");
+        if self.is_empty() {
+          buffer.push_str(" ()");
+        } else {
+          buffer.push_str(" (\n");
+          self.pretty_form_children(buffer, indent);
+          buffer.push_str(pad.as_str());
+          buffer.push(')');
+        }
+
+        if let Some(result) = &self.result {
+          buffer.push_str(" => ");
+          buffer.push_str(result.to_string().as_str());
+        }
+      }
     }
   }
 
@@ -555,6 +609,17 @@ impl ExecutionPlanNode {
           buffer.push_str(result.to_string().as_str());
         }
       }
+      PlanNodeType::SPLAT => {
+        buffer.push_str("**");
+        buffer.push('(');
+        self.str_form_children(&mut buffer);
+        buffer.push(')');
+
+        if let Some(result) = &self.result {
+          buffer.push_str("=>");
+          buffer.push_str(result.to_string().as_str());
+        }
+      }
     }
 
     buffer.push(')');
@@ -625,6 +690,15 @@ impl ExecutionPlanNode {
     }
   }
 
+  /// Constructor for the splat node
+  pub fn splat() -> ExecutionPlanNode {
+    ExecutionPlanNode {
+      node_type: PlanNodeType::SPLAT,
+      result: None,
+      children: vec![]
+    }
+  }
+
   /// Adds the node as a child
   pub fn add<N>(&mut self, node: N) -> &mut Self where N: Into<ExecutionPlanNode> {
     self.children.push(node.into());
@@ -641,6 +715,14 @@ impl ExecutionPlanNode {
     match self.node_type {
       PlanNodeType::EMPTY => true,
       _ => self.children.is_empty()
+    }
+  }
+
+  /// If the node is a splat node
+  pub fn is_splat(&self) -> bool {
+    match self.node_type {
+      PlanNodeType::SPLAT => true,
+      _ => false
     }
   }
 
@@ -797,24 +879,94 @@ fn setup_query_plan(
   expected: &HttpRequest,
   context: &PlanMatchingContext
 ) -> anyhow::Result<ExecutionPlanNode> {
-  // TODO: Look at the matching rules and generators here
   let mut plan_node = ExecutionPlanNode::container("query parameters");
+  let doc_path = DocPath::new("$.query")?;
 
+  // TODO: Look at the matching rules and generators here
   if let Some(query) = &expected.query {
     if query.is_empty() {
       plan_node
         .add(
           ExecutionPlanNode::action("expect:empty")
-            .add(ExecutionPlanNode::resolve_value(DocPath::new("$.query")?))
+            .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+            .add(
+              ExecutionPlanNode::action("join")
+                .add(ExecutionPlanNode::value_node("Expected no query parameters but got "))
+                .add(ExecutionPlanNode::resolve_value(doc_path))
+            )
         );
     } else {
-      todo!()
+      for (key, value) in query {
+        let item_path = doc_path.join(key);
+        let mut presence_check = ExecutionPlanNode::action("if");
+        let item_value = if value.len() == 1 {
+          ExecutionPlanNode::value_node(NodeValue::STRING(value[0].clone().unwrap_or_default()))
+        } else {
+          ExecutionPlanNode::value_node(NodeValue::SLIST(value.iter()
+            .map(|v| v.clone().unwrap_or_default()).collect()))
+        };
+        let mut item_check = ExecutionPlanNode::action("match:equality");
+        item_check
+          .add(item_value)
+          .add(ExecutionPlanNode::resolve_value(item_path.clone()))
+          .add(ExecutionPlanNode::value_node(NodeValue::NULL));
+        presence_check
+          .add(
+            ExecutionPlanNode::action("check:exists")
+              .add(ExecutionPlanNode::resolve_value(item_path.clone()))
+          )
+          .add(item_check);
+        plan_node.add(ExecutionPlanNode::container(item_path).add(presence_check));
+      }
+
+      plan_node.add(
+        ExecutionPlanNode::action("expect:entries")
+          .add(ExecutionPlanNode::value_node(NodeValue::SLIST(
+            query.keys().map(|key| key.clone()).collect())
+          ))
+          .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+          .add(
+            ExecutionPlanNode::action("join")
+              .add(ExecutionPlanNode::value_node("The following expected query parameters were missing: "))
+              .add(ExecutionPlanNode::action("join-with")
+                .add(ExecutionPlanNode::value_node(", "))
+                .add(
+                  ExecutionPlanNode::splat()
+                    .add(ExecutionPlanNode::action("apply"))
+                )
+              )
+          )
+      );
+
+      plan_node.add(
+        ExecutionPlanNode::action("expect:only-entries")
+          .add(ExecutionPlanNode::value_node(NodeValue::SLIST(
+            query.keys().map(|key| key.clone()).collect())
+          ))
+          .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+          .add(
+            ExecutionPlanNode::action("join")
+              .add(ExecutionPlanNode::value_node("The following query parameters were not expected: "))
+              .add(ExecutionPlanNode::action("join-with")
+                .add(ExecutionPlanNode::value_node(", "))
+                .add(
+                  ExecutionPlanNode::splat()
+                    .add(ExecutionPlanNode::action("apply"))
+                )
+              )
+          )
+      );
     }
   } else {
     plan_node
       .add(
         ExecutionPlanNode::action("expect:empty")
-          .add(ExecutionPlanNode::resolve_value(DocPath::new("$.query")?))
+          .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+          .add(
+            ExecutionPlanNode::action("join")
+              .add(ExecutionPlanNode::value_node("Expected no query parameters but got "))
+              .add(ExecutionPlanNode::resolve_value(doc_path))
+          )
       );
   }
 
@@ -902,15 +1054,23 @@ fn walk_tree(
     },
     PlanNodeType::CONTAINER(label) => {
       trace!(?path, %label, "walk_tree ==> Container node");
-      let mut result = vec![];
 
+      let mut result = vec![];
       let mut child_path = path.to_vec();
       child_path.push(label.clone());
       let mut status = NodeResult::OK;
-      for child in &node.children {
-        let child_result = walk_tree(&child_path, child, value_resolver, context)?;
+      let mut loop_items = VecDeque::from(node.children.clone());
+
+      while !loop_items.is_empty() {
+        let child = loop_items.pop_front().unwrap();
+        let child_result = walk_tree(&child_path, &child, value_resolver, context)?;
         status = status.or(&child_result.result);
-        result.push(child_result);
+        result.push(child_result.clone());
+        if child_result.is_splat() {
+          for item in child_result.children.iter().rev() {
+            loop_items.push_front(item.clone());
+          }
+        }
       }
 
       Ok(ExecutionPlanNode {
@@ -966,12 +1126,19 @@ fn walk_tree(
       let child_path = path.to_vec();
       context.push_result(None);
       let mut child_results = vec![];
+      let mut loop_items = VecDeque::from(node.children.clone());
 
       // TODO: Need a short circuit here if any child results in an error
-      for child in &node.children {
-        let child_result = walk_tree(&child_path, child, value_resolver, context)?;
+      while !loop_items.is_empty() {
+        let child = loop_items.pop_front().unwrap();
+        let child_result = walk_tree(&child_path, &child, value_resolver, context)?;
         context.update_result(child_result.result.clone());
-        child_results.push(child_result);
+        child_results.push(child_result.clone());
+        if child_result.is_splat() {
+          for item in child_result.children.iter().rev() {
+            loop_items.push_front(item.clone());
+          }
+        }
       }
 
       let result = context.pop_result();
@@ -1013,6 +1180,43 @@ fn walk_tree(
           })
         }
       }
+    }
+    PlanNodeType::SPLAT => {
+      trace!(?path, "walk_tree ==> Apply splat node");
+
+      let child_path = path.to_vec();
+      let mut child_results = vec![];
+
+      // TODO: Need a short circuit here if any child results in an error
+      for child in &node.children {
+        let child_result = walk_tree(&child_path, child, value_resolver, context)?;
+        match &child_result.result {
+          None => child_results.push(child_result.clone()),
+          Some(result) => match result {
+            NodeResult::OK => child_results.push(child_result.clone()),
+            NodeResult::VALUE(value) => match value {
+              NodeValue::MMAP(map) => {
+                for (key, value) in map {
+                  child_results.push(child_result.clone_with_value(NodeValue::ENTRY(key.clone(), Box::new(NodeValue::SLIST(value.clone())))));
+                }
+              }
+              NodeValue::SLIST(list) => {
+                for item in list {
+                  child_results.push(child_result.clone_with_value(NodeValue::STRING(item.clone())));
+                }
+              }
+              _ => child_results.push(child_result.clone())
+            }
+            NodeResult::ERROR(_) => child_results.push(child_result.clone())
+          }
+        }
+      }
+
+      Ok(ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: Some(NodeResult::OK),
+        children: child_results
+      })
     }
   }
 }

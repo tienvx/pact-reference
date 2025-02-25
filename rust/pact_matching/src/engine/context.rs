@@ -1,12 +1,13 @@
 //! Traits and structs for dealing with the test context.
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
+use std::iter::once;
 use std::panic::RefUnwindSafe;
 
 use anyhow::anyhow;
 use itertools::Itertools;
 use serde_json::Value;
-use tracing::{instrument, trace, Level};
+use tracing::{instrument, trace, Level, debug};
 
 use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory, RuleList};
 use pact_models::path_exp::DocPath;
@@ -74,6 +75,10 @@ impl PlanMatchingContext {
         "json:match:length" => self.execute_json_match_length(action, value_resolver, node, &action_path),
         "json:expect:entries" => self.execute_json_expect_entries(action, value_resolver, node, &action_path),
         "check:exists" => self.execute_check_exists(action, value_resolver, node, &action_path),
+        "expect:entries" => self.execute_check_entries(action, value_resolver, node, &action_path),
+        "expect:only-entries" => self.execute_check_entries(action, value_resolver, node, &action_path),
+        "join" => self.execute_join(action, value_resolver, node, &action_path),
+        "join-with" => self.execute_join(action, value_resolver, node, &action_path),
         _ => {
           ExecutionPlanNode {
             node_type: node.node_type.clone(),
@@ -583,76 +588,105 @@ impl PlanMatchingContext {
     node: &ExecutionPlanNode,
     action_path: &Vec<String>
   ) -> ExecutionPlanNode {
-    match self.validate_one_arg(node, action, value_resolver, &action_path) {
-      Ok(value) => {
-        let arg_value = value.value().unwrap_or_default().as_value();
-        let result = if let Some(value) = &arg_value {
-          match value {
-            NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
-            NodeValue::STRING(s) => if s.is_empty() {
-              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-            } else {
-              Err(anyhow!("Expected {:?} to be empty", value))
-            }
-            NodeValue::BOOL(b) => Ok(NodeResult::VALUE(NodeValue::BOOL(*b))),
-            NodeValue::MMAP(m) => if m.is_empty() {
-              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-            } else {
-              Err(anyhow!("Expected {:?} to be empty", value))
-            }
-            NodeValue::SLIST(l) => if l.is_empty() {
-              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-            } else {
-              Err(anyhow!("Expected {:?} to be empty", value))
-            },
-            NodeValue::BARRAY(bytes) => if bytes.is_empty() {
-              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-            } else {
-              Err(anyhow!("Expected byte array ({} bytes) to be empty", bytes.len()))
-            },
-            NodeValue::NAMESPACED(_, _) => { todo!("Not Implemented: Need a way to resolve NodeValue::NAMESPACED") }
-            NodeValue::UINT(ui) => if *ui == 0 {
-              Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-            } else {
-              Err(anyhow!("Expected {:?} to be empty", value))
-            },
-            NodeValue::JSON(json) => match json {
-              Value::Null => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
-              Value::String(s) => if s.is_empty() {
-                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-              } else {
-                Err(anyhow!("Expected JSON String ({}) to be empty", json))
-              }
-              Value::Array(a) => if a.is_empty() {
-                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-              } else {
-                Err(anyhow!("Expected JSON Array ({}) to be empty", json))
-              }
-              Value::Object(o) => if o.is_empty() {
-                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-              } else {
-                Err(anyhow!("Expected JSON Object ({}) to be empty", json))
-              }
-              _ => Err(anyhow!("Expected json ({}) to be empty", json))
-            }
+    match self.validate_args(1, 1, node, action, value_resolver, &action_path) {
+      Ok((values, optional)) => {
+        let first = values.first().unwrap().value().unwrap_or_default();
+        if let NodeResult::ERROR(err) = first  {
+          ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: values.iter().chain(optional.iter()).cloned().collect()
           }
         } else {
-          // TODO: If the parameter value is an error, this should return an error?
-          Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
-        };
-        match result {
-          Ok(result) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(result),
-              children: vec![value]
+          let arg_value = first.as_value();
+          let result = if let Some(value) = &arg_value {
+            match value {
+              NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
+              NodeValue::STRING(s) => if s.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected {:?} to be empty", value))
+              }
+              NodeValue::BOOL(b) => Ok(NodeResult::VALUE(NodeValue::BOOL(*b))),
+              NodeValue::MMAP(m) => if m.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected {} to be empty", value))
+              }
+              NodeValue::SLIST(l) => if l.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected {} to be empty", value))
+              },
+              NodeValue::BARRAY(bytes) => if bytes.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected byte array ({} bytes) to be empty", bytes.len()))
+              },
+              NodeValue::NAMESPACED(_, _) => { todo!("Not Implemented: Need a way to resolve NodeValue::NAMESPACED") }
+              NodeValue::UINT(ui) => if *ui == 0 {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected {:?} to be empty", value))
+              },
+              NodeValue::JSON(json) => match json {
+                Value::Null => Ok(NodeResult::VALUE(NodeValue::BOOL(true))),
+                Value::String(s) => if s.is_empty() {
+                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+                } else {
+                  Err(anyhow!("Expected JSON String ({}) to be empty", json))
+                }
+                Value::Array(a) => if a.is_empty() {
+                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+                } else {
+                  Err(anyhow!("Expected JSON Array ({}) to be empty", json))
+                }
+                Value::Object(o) => if o.is_empty() {
+                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+                } else {
+                  Err(anyhow!("Expected JSON Object ({}) to be empty", json))
+                }
+                _ => Err(anyhow!("Expected json ({}) to be empty", json))
+              },
+              NodeValue::ENTRY(_, _) =>  Ok(NodeResult::VALUE(NodeValue::BOOL(false))),
             }
-          }
-          Err(err) => {
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: vec![value]
+          } else {
+            Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+          };
+          match result {
+            Ok(result) => {
+              ExecutionPlanNode {
+                node_type: node.node_type.clone(),
+                result: Some(result),
+                children: values.iter().chain(optional.iter()).cloned().collect()
+              }
+            }
+            Err(err) => {
+              debug!("expect:empty failed with an error: {}", err);
+              if optional.len() > 0 {
+                if let Ok(value) = walk_tree(action_path.as_slice(), &optional[0], value_resolver, self) {
+                  let message = value.value().unwrap_or_default().as_string().unwrap_or_default();
+                  ExecutionPlanNode {
+                    node_type: node.node_type.clone(),
+                    result: Some(NodeResult::ERROR(message)),
+                    children: values.iter().chain(once(&value)).cloned().collect()
+                  }
+                } else {
+                  // There was an error generating the optional message, so just return the
+                  // original error
+                  ExecutionPlanNode {
+                    node_type: node.node_type.clone(),
+                    result: Some(NodeResult::ERROR(err.to_string())),
+                    children: values.iter().chain(optional.iter()).cloned().collect()
+                  }
+                }
+              } else {
+                ExecutionPlanNode {
+                  node_type: node.node_type.clone(),
+                  result: Some(NodeResult::ERROR(err.to_string())),
+                  children: values.iter().chain(optional.iter()).cloned().collect()
+                }
+              }
             }
           }
         }
@@ -978,6 +1012,299 @@ impl PlanMatchingContext {
       Ok((first, second, third))
     } else {
       Err(anyhow!("Action '{}' requires three arguments, got {}", action, node.children.len()))
+    }
+  }
+
+  fn validate_args(
+    &mut self,
+    required: usize,
+    optional: usize,
+    node: &ExecutionPlanNode,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    path: &Vec<String>
+  ) -> anyhow::Result<(Vec<ExecutionPlanNode>, Vec<ExecutionPlanNode>)> {
+    if node.children.len() < required {
+      Err(anyhow!("{} requires {} arguments, got {}", action, required, node.children.len()))
+    } else if node.children.len() > required + optional {
+      Err(anyhow!("{} supports at most {} arguments, got {}", action, optional, node.children.len()))
+    } else {
+      let mut required_args = vec![];
+      for child in node.children.iter().take(required) {
+        let value = walk_tree(path.as_slice(), child, value_resolver, self)?;
+        required_args.push(value);
+      }
+      Ok((required_args, node.children.iter().dropping(required).cloned().collect()))
+    }
+  }
+
+  fn execute_join(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    let mut children = vec![];
+    let mut str_values = vec![];
+    let mut loop_items = VecDeque::from(node.children.clone());
+
+    while !loop_items.is_empty() {
+      let child = loop_items.pop_front().unwrap();
+      let value = if let Some(child_value) = child.value() {
+        child_value
+      } else {
+        match &walk_tree(path.as_slice(), &child, value_resolver, self) {
+          Ok(value) => if value.is_splat() {
+            children.push(value.clone());
+            for splat_child in value.children.iter().rev() {
+              loop_items.push_front(splat_child.clone());
+            }
+            NodeResult::OK
+          } else {
+            children.push(value.clone());
+            value.value().unwrap_or_default()
+          },
+          Err(err) => {
+            return ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: children.clone()
+            }
+          }
+        }
+      };
+
+      match value {
+        NodeResult::OK => {
+          // no-op
+        }
+        NodeResult::VALUE(value) => {
+          let str = match &value {
+            NodeValue::STRING(s) => s.to_string(),
+            NodeValue::BOOL(b) => b.to_string(),
+            NodeValue::MMAP(_) => value.str_form(),
+            NodeValue::SLIST(_) => value.str_form(),
+            NodeValue::BARRAY(_) => value.str_form(),
+            NodeValue::NAMESPACED(_, _) => value.str_form(),
+            NodeValue::UINT(u) => u.to_string(),
+            NodeValue::JSON(json) => json.to_string(),
+            _ => "".to_string()
+          };
+          str_values.push(str);
+        }
+        NodeResult::ERROR(err) => {
+          return ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: children.clone()
+          }
+        }
+      }
+    }
+
+    let result = if action == "join-with" && !str_values.is_empty() {
+      let first = &str_values[0];
+      str_values.iter().dropping(1).join(first.as_str())
+    } else {
+      str_values.iter().join("")
+    };
+
+    ExecutionPlanNode {
+      node_type: node.node_type.clone(),
+      result: Some(NodeResult::VALUE(NodeValue::STRING(result))),
+      children
+    }
+  }
+
+  fn execute_check_entries(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_args(2, 1, node, action, value_resolver, &action_path) {
+      Ok((values, optional)) => {
+        let first = values[0].value()
+          .unwrap_or_default()
+          .as_value()
+          .unwrap_or_default()
+          .as_slist()
+          .unwrap_or_default();
+        let expected_keys = first.iter()
+          .cloned()
+          .collect::<HashSet<_>>();
+        let second = values[1].value()
+          .unwrap_or_default()
+          .as_value()
+          .unwrap_or_default();
+        let result = match &second {
+          NodeValue::MMAP(map) => {
+            let actual_keys = map.keys()
+              .cloned()
+              .collect::<HashSet<_>>();
+            match action {
+              "expect:entries" => {
+                let diff = &expected_keys - &actual_keys;
+                if diff.is_empty() {
+                  Ok(())
+                } else {
+                  let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+                  Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
+                }
+              }
+              "expect:only-entries" => {
+                let diff = &actual_keys - &expected_keys;
+                if diff.is_empty() {
+                  Ok(())
+                } else {
+                  let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+                  Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
+                }
+              }
+              _ => Err((format!("'{}' is not a valid action", action), None))
+            }
+          }
+          NodeValue::SLIST(list) => {
+            let actual_keys = list.iter()
+              .cloned()
+              .collect::<HashSet<_>>();
+            match action {
+              "expect:entries" => {
+                let diff = &expected_keys - &actual_keys;
+                if diff.is_empty() {
+                  Ok(())
+                } else {
+                  let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+                  Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
+                }
+              }
+              "expect:only-entries" => {
+                let diff = &actual_keys - &expected_keys;
+                if diff.is_empty() {
+                  Ok(())
+                } else {
+                  let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+                  Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
+                }
+              }
+              _ => Err((format!("'{}' is not a valid action", action), None))
+            }
+          }
+          NodeValue::JSON(json) => match json {
+            Value::Object(map) => {
+              let actual_keys = map.keys()
+                .cloned()
+                .collect::<HashSet<_>>();
+              match action {
+                "expect:entries" => {
+                  let diff = &expected_keys - &actual_keys;
+                  if diff.is_empty() {
+                    Ok(())
+                  } else {
+                    let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+                    Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
+                  }
+                }
+                "expect:only-entries" => {
+                  let diff = &actual_keys - &expected_keys;
+                  if diff.is_empty() {
+                    Ok(())
+                  } else {
+                    let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+                    Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
+                  }
+                }
+                _ => Err((format!("'{}' is not a valid action", action), None))
+              }
+            }
+            Value::Array(list) => {
+              let actual_keys = list.iter()
+                .map(|v| v.to_string())
+                .collect::<HashSet<_>>();
+              match action {
+                "expect:entries" => {
+                  let diff = &expected_keys - &actual_keys;
+                  if diff.is_empty() {
+                    Ok(())
+                  } else {
+                    let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+                    Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
+                  }
+                }
+                "expect:only-entries" => {
+                  let diff = &actual_keys - &expected_keys;
+                  if diff.is_empty() {
+                    Ok(())
+                  } else {
+                    let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+                    Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
+                  }
+                }
+                _ => Err((format!("'{}' is not a valid action", action), None))
+              }
+            }
+            _ => Err((format!("'{}' can't be used with a {:?} node", action, second), None))
+          }
+          _ => Err((format!("'{}' can't be used with a {:?} node", action, second), None))
+        };
+
+        match result {
+          Ok(_) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::OK),
+              children: values.iter().chain(optional.iter()).cloned().collect()
+            }
+          }
+          Err((err, diff)) => {
+            debug!("expect:empty failed with an error: {}", err);
+            if optional.len() > 0 {
+              if let Some(diff) = diff {
+                self.push_result(Some(NodeResult::VALUE(NodeValue::SLIST(diff.iter().cloned().collect()))));
+                let result = if let Ok(value) = walk_tree(action_path.as_slice(), &optional[0], value_resolver, self) {
+                  let message = value.value().unwrap_or_default().as_string().unwrap_or_default();
+                  ExecutionPlanNode {
+                    node_type: node.node_type.clone(),
+                    result: Some(NodeResult::ERROR(message)),
+                    children: values.iter().chain(once(&value)).cloned().collect()
+                  }
+                } else {
+                  // There was an error generating the optional message, so just return the
+                  // original error
+                  ExecutionPlanNode {
+                    node_type: node.node_type.clone(),
+                    result: Some(NodeResult::ERROR(err.to_string())),
+                    children: values.iter().chain(optional.iter()).cloned().collect()
+                  }
+                };
+                self.pop_result();
+                result
+              } else {
+                ExecutionPlanNode {
+                  node_type: node.node_type.clone(),
+                  result: Some(NodeResult::ERROR(err.to_string())),
+                  children: values.iter().chain(optional.iter()).cloned().collect()
+                }
+              }
+            } else {
+              ExecutionPlanNode {
+                node_type: node.node_type.clone(),
+                result: Some(NodeResult::ERROR(err.to_string())),
+                children: values.iter().chain(optional.iter()).cloned().collect()
+              }
+            }
+          }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
     }
   }
 }

@@ -1,4 +1,5 @@
 use expectest::prelude::*;
+use maplit::hashmap;
 use pretty_assertions::assert_eq;
 use rstest::rstest;
 use serde_json::json;
@@ -9,7 +10,7 @@ use pact_models::matchingrules;
 use pact_models::v4::http_parts::HttpRequest;
 use pact_models::v4::interaction::V4Interaction;
 use pact_models::v4::synch_http::SynchronousHttp;
-use crate::engine::{build_request_plan, execute_request_plan, NodeResult, NodeValue, PlanMatchingContext};
+use crate::engine::{build_request_plan, execute_request_plan, ExecutionPlan, NodeResult, NodeValue, PlanMatchingContext, setup_query_plan};
 use crate::MatchingRule;
 
 mod walk_tree_tests;
@@ -64,8 +65,7 @@ fn simple_match_request_test() -> anyhow::Result<()> {
   let mut context = PlanMatchingContext::default();
   let plan = build_request_plan(&expected_request, &context)?;
 
-  assert_eq!(plan.pretty_form(),
-             r#"(
+  assert_eq!(r#"(
   :request (
     :method (
       %match:equality (
@@ -85,7 +85,11 @@ fn simple_match_request_test() -> anyhow::Result<()> {
     ),
     :"query parameters" (
       %expect:empty (
-        $.query
+        $.query,
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
       )
     ),
     :body (
@@ -106,11 +110,10 @@ fn simple_match_request_test() -> anyhow::Result<()> {
     )
   )
 )
-"#);
+"#, plan.pretty_form());
 
   let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
-  assert_eq!(executed_plan.pretty_form(),
-r#"(
+  assert_eq!(r#"(
   :request (
     :method (
       %match:equality (
@@ -130,7 +133,11 @@ r#"(
     ),
     :"query parameters" (
       %expect:empty (
-        $.query => {}
+        $.query => {},
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
       ) => BOOL(true)
     ),
     :body (
@@ -151,7 +158,7 @@ r#"(
     )
   )
 )
-"#);
+"#, executed_plan.pretty_form());
 
   Ok(())
 }
@@ -184,8 +191,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
   let mut context = PlanMatchingContext::default();
   let plan = build_request_plan(&expected_request, &context)?;
 
-  assert_eq!(plan.pretty_form(),
-r#"(
+  assert_eq!(r#"(
   :request (
     :method (
       %match:equality (
@@ -205,7 +211,11 @@ r#"(
     ),
     :"query parameters" (
       %expect:empty (
-        $.query
+        $.query,
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
       )
     ),
     :body (
@@ -247,7 +257,7 @@ r#"(
     )
   )
 )
-"#);
+"#, plan.pretty_form());
 
   let executed_plan = execute_request_plan(&plan, &request, &mut context)?;
   assert_eq!(r#"(
@@ -270,7 +280,11 @@ r#"(
     ),
     :"query parameters" (
       %expect:empty (
-        $.query => {}
+        $.query => {},
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
       ) => BOOL(true)
     ),
     :body (
@@ -364,7 +378,11 @@ r#"(
     ),
     :"query parameters" (
       %expect:empty (
-        $.query
+        $.query,
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
       )
     )
   )
@@ -392,7 +410,11 @@ r#"(
     ),
     :"query parameters" (
       %expect:empty (
-        $.query => {}
+        $.query => {},
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
       ) => BOOL(true)
     )
   )
@@ -425,7 +447,11 @@ r#"(
     ),
     :"query parameters" (
       %expect:empty (
-        $.query => {}
+        $.query => {},
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
       ) => BOOL(true)
     )
   )
@@ -433,4 +459,386 @@ r#"(
 "#, executed_plan.pretty_form());
 
   Ok(())
+}
+
+#[test]
+fn match_query_with_no_query_strings() {
+  let expected = HttpRequest::default();
+  let mut context = PlanMatchingContext::default();
+  let mut plan = ExecutionPlan::new("query-test");
+
+  plan.add(setup_query_plan(&expected, &context.for_query()).unwrap());
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      %expect:empty (
+        $.query,
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
+      )
+    )
+  )
+)
+"#, plan.pretty_form());
+
+  let request = HttpRequest::default();
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      %expect:empty (
+        $.query => {},
+        %join (
+          'Expected no query parameters but got ',
+          $.query
+        )
+      ) => BOOL(true)
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let request = HttpRequest {
+    query: Some(hashmap!{
+      "a".to_string() => vec![Some("b".to_string())]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      %expect:empty (
+        $.query => {'a': 'b'},
+        %join (
+          'Expected no query parameters but got ' => 'Expected no query parameters but got ',
+          $.query => {'a': 'b'}
+        ) => "Expected no query parameters but got {'a': 'b'}"
+      ) => ERROR(Expected no query parameters but got {'a': 'b'})
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+}
+
+#[test]
+fn match_query_with_expected_query_string() {
+  let expected = HttpRequest {
+    query: Some(hashmap!{
+      "a".to_string() => vec![Some("b".to_string())]
+    }),
+    .. HttpRequest::default()
+  };
+  let mut context = PlanMatchingContext::default();
+  let mut plan = ExecutionPlan::new("query-test");
+
+  plan.add(setup_query_plan(&expected, &context.for_query()).unwrap());
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      :$.query.a (
+        %if (
+          %check:exists (
+            $.query.a
+          ),
+          %match:equality (
+            'b',
+            $.query.a,
+            NULL
+          )
+        )
+      ),
+      %expect:entries (
+        ['a'],
+        $.query,
+        %join (
+          'The following expected query parameters were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ),
+      %expect:only-entries (
+        ['a'],
+        $.query,
+        %join (
+          'The following query parameters were not expected: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+"#, plan.pretty_form());
+
+  let request = HttpRequest::default();
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      :$.query.a (
+        %if (
+          %check:exists (
+            $.query.a => NULL
+          ) => BOOL(false),
+          %match:equality (
+            'b',
+            $.query.a,
+            NULL
+          )
+        ) => BOOL(false)
+      ),
+      %expect:entries (
+        ['a'] => ['a'],
+        $.query => {},
+        %join (
+          'The following expected query parameters were missing: ' => 'The following expected query parameters were missing: ',
+          %join-with (
+            ', ' => ', ',
+            ** (
+              %apply () => 'a'
+            ) => OK
+          ) => 'a'
+        ) => 'The following expected query parameters were missing: a'
+      ) => ERROR(The following expected query parameters were missing: a),
+      %expect:only-entries (
+        ['a'] => ['a'],
+        $.query => {},
+        %join (
+          'The following query parameters were not expected: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let request = HttpRequest {
+    query: Some(hashmap!{
+      "a".to_string() => vec![Some("b".to_string())]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      :$.query.a (
+        %if (
+          %check:exists (
+            $.query.a => 'b'
+          ) => BOOL(true),
+          %match:equality (
+            'b' => 'b',
+            $.query.a => 'b',
+            NULL => NULL
+          ) => BOOL(true)
+        ) => BOOL(true)
+      ),
+      %expect:entries (
+        ['a'] => ['a'],
+        $.query => {'a': 'b'},
+        %join (
+          'The following expected query parameters were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK,
+      %expect:only-entries (
+        ['a'] => ['a'],
+        $.query => {'a': 'b'},
+        %join (
+          'The following query parameters were not expected: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let request = HttpRequest {
+    query: Some(hashmap!{
+      "a".to_string() => vec![Some("c".to_string())]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      :$.query.a (
+        %if (
+          %check:exists (
+            $.query.a => 'c'
+          ) => BOOL(true),
+          %match:equality (
+            'b' => 'b',
+            $.query.a => 'c',
+            NULL => NULL
+          ) => ERROR(Expected 'c' to be equal to 'b')
+        ) => ERROR(Expected 'c' to be equal to 'b')
+      ),
+      %expect:entries (
+        ['a'] => ['a'],
+        $.query => {'a': 'c'},
+        %join (
+          'The following expected query parameters were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK,
+      %expect:only-entries (
+        ['a'] => ['a'],
+        $.query => {'a': 'c'},
+        %join (
+          'The following query parameters were not expected: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let request = HttpRequest {
+    query: Some(hashmap!{
+      "a".to_string() => vec![Some("b".to_string())],
+      "b".to_string() => vec![Some("c".to_string())]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      :$.query.a (
+        %if (
+          %check:exists (
+            $.query.a => 'b'
+          ) => BOOL(true),
+          %match:equality (
+            'b' => 'b',
+            $.query.a => 'b',
+            NULL => NULL
+          ) => BOOL(true)
+        ) => BOOL(true)
+      ),
+      %expect:entries (
+        ['a'] => ['a'],
+        $.query => {'a': 'b', 'b': 'c'},
+        %join (
+          'The following expected query parameters were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK,
+      %expect:only-entries (
+        ['a'] => ['a'],
+        $.query => {'a': 'b', 'b': 'c'},
+        %join (
+          'The following query parameters were not expected: ' => 'The following query parameters were not expected: ',
+          %join-with (
+            ', ' => ', ',
+            ** (
+              %apply () => 'b'
+            ) => OK
+          ) => 'b'
+        ) => 'The following query parameters were not expected: b'
+      ) => ERROR(The following query parameters were not expected: b)
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let request = HttpRequest {
+    query: Some(hashmap!{
+      "b".to_string() => vec![Some("c".to_string())]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  assert_eq!(r#"(
+  :query-test (
+    :"query parameters" (
+      :$.query.a (
+        %if (
+          %check:exists (
+            $.query.a => NULL
+          ) => BOOL(false),
+          %match:equality (
+            'b',
+            $.query.a,
+            NULL
+          )
+        ) => BOOL(false)
+      ),
+      %expect:entries (
+        ['a'] => ['a'],
+        $.query => {'b': 'c'},
+        %join (
+          'The following expected query parameters were missing: ' => 'The following expected query parameters were missing: ',
+          %join-with (
+            ', ' => ', ',
+            ** (
+              %apply () => 'a'
+            ) => OK
+          ) => 'a'
+        ) => 'The following expected query parameters were missing: a'
+      ) => ERROR(The following expected query parameters were missing: a),
+      %expect:only-entries (
+        ['a'] => ['a'],
+        $.query => {'b': 'c'},
+        %join (
+          'The following query parameters were not expected: ' => 'The following query parameters were not expected: ',
+          %join-with (
+            ', ' => ', ',
+            ** (
+              %apply () => 'b'
+            ) => OK
+          ) => 'b'
+        ) => 'The following query parameters were not expected: b'
+      ) => ERROR(The following query parameters were not expected: b)
+    )
+  )
+)
+"#, executed_plan.pretty_form());
 }
