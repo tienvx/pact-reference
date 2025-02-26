@@ -263,10 +263,24 @@ impl Matches<NodeValue> for NodeValue {
   fn matches_with(&self, actual: NodeValue, matcher: &MatchingRule, cascaded: bool) -> anyhow::Result<()> {
     match self {
       NodeValue::NULL => Value::Null.matches_with(actual.as_json().unwrap_or_default(), matcher, cascaded),
-      NodeValue::STRING(s) => s.matches_with(actual.as_string().unwrap_or_default(), matcher, cascaded),
+      NodeValue::STRING(s) => if let Some(actual_str) = actual.as_string() {
+        s.matches_with(actual_str, matcher, cascaded)
+      } else {
+        s.matches_with(actual.to_string(), matcher, cascaded)
+      },
       NodeValue::BOOL(b) => b.matches_with(actual.as_bool().unwrap_or_default(), matcher, cascaded),
       NodeValue::UINT(u) => u.matches_with(actual.as_uint().unwrap_or_default(), matcher, cascaded),
       NodeValue::JSON(json) => json.matches_with(actual.as_json().unwrap_or_default(), matcher, cascaded),
+      NodeValue::SLIST(list) => if let Some(actual_list) = actual.as_slist() {
+        list.matches_with(&actual_list, matcher, cascaded)
+      } else {
+        let actual_str = if let Some(actual_str) = actual.as_string() {
+          actual_str
+        } else {
+          actual.to_string()
+        };
+        list.matches_with(&vec![actual_str], matcher, cascaded)
+      }
       _ => Err(anyhow!("Matching rules can not be applied to {} values", self.str_form()))
     }
   }
@@ -882,7 +896,6 @@ fn setup_query_plan(
   let mut plan_node = ExecutionPlanNode::container("query parameters");
   let doc_path = DocPath::new("$.query")?;
 
-  // TODO: Look at the matching rules and generators here
   if let Some(query) = &expected.query {
     if query.is_empty() {
       plan_node
@@ -896,8 +909,11 @@ fn setup_query_plan(
             )
         );
     } else {
-      for (key, value) in query {
-        let item_path = doc_path.join(key);
+      let keys = query.keys().cloned().sorted().collect_vec();
+      for key in &keys {
+        let value = query.get(key).unwrap();
+        let mut item_node = ExecutionPlanNode::container(key);
+
         let mut presence_check = ExecutionPlanNode::action("if");
         let item_value = if value.len() == 1 {
           ExecutionPlanNode::value_node(NodeValue::STRING(value[0].clone().unwrap_or_default()))
@@ -905,25 +921,32 @@ fn setup_query_plan(
           ExecutionPlanNode::value_node(NodeValue::SLIST(value.iter()
             .map(|v| v.clone().unwrap_or_default()).collect()))
         };
-        let mut item_check = ExecutionPlanNode::action("match:equality");
-        item_check
-          .add(item_value)
-          .add(ExecutionPlanNode::resolve_value(item_path.clone()))
-          .add(ExecutionPlanNode::value_node(NodeValue::NULL));
         presence_check
           .add(
             ExecutionPlanNode::action("check:exists")
-              .add(ExecutionPlanNode::resolve_value(item_path.clone()))
-          )
-          .add(item_check);
-        plan_node.add(ExecutionPlanNode::container(item_path).add(presence_check));
+              .add(ExecutionPlanNode::resolve_value(doc_path.join(key)))
+          );
+
+        let item_path = DocPath::root().join(key);
+        if context.matcher_is_defined(&item_path) {
+          let matchers = context.select_best_matcher(&item_path);
+          presence_check.add(build_matching_rule_node(&item_value, &doc_path.join(key), &matchers));
+        } else {
+          let mut item_check = ExecutionPlanNode::action("match:equality");
+          item_check
+            .add(item_value)
+            .add(ExecutionPlanNode::resolve_value(doc_path.join(key)))
+            .add(ExecutionPlanNode::value_node(NodeValue::NULL));
+          presence_check.add(item_check);
+        }
+
+        item_node.add(presence_check);
+        plan_node.add(item_node);
       }
 
       plan_node.add(
         ExecutionPlanNode::action("expect:entries")
-          .add(ExecutionPlanNode::value_node(NodeValue::SLIST(
-            query.keys().map(|key| key.clone()).collect())
-          ))
+          .add(ExecutionPlanNode::value_node(NodeValue::SLIST(keys.clone())))
           .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
           .add(
             ExecutionPlanNode::action("join")
@@ -940,9 +963,7 @@ fn setup_query_plan(
 
       plan_node.add(
         ExecutionPlanNode::action("expect:only-entries")
-          .add(ExecutionPlanNode::value_node(NodeValue::SLIST(
-            query.keys().map(|key| key.clone()).collect())
-          ))
+          .add(ExecutionPlanNode::value_node(NodeValue::SLIST(keys.clone())))
           .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
           .add(
             ExecutionPlanNode::action("join")
