@@ -265,6 +265,19 @@ impl Matches<NodeValue> for NodeValue {
       NodeValue::NULL => Value::Null.matches_with(actual.as_json().unwrap_or_default(), matcher, cascaded),
       NodeValue::STRING(s) => if let Some(actual_str) = actual.as_string() {
         s.matches_with(actual_str, matcher, cascaded)
+      } else if let Some(list) = actual.as_slist() {
+        let result = list.iter()
+          .map(|item| s.matches_with(item, matcher, cascaded))
+          .filter_map(|r| match r {
+            Ok(_) => None,
+            Err(err) => Some(err.to_string())
+          })
+          .collect_vec();
+        if result.is_empty() {
+          Ok(())
+        } else {
+          Err(anyhow!(result.join(", ")))
+        }
       } else {
         s.matches_with(actual.to_string(), matcher, cascaded)
       },
