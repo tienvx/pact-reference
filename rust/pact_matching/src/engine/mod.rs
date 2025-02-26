@@ -1011,12 +1011,61 @@ fn setup_header_plan(
   expected: &HttpRequest,
   context: &PlanMatchingContext
 ) -> anyhow::Result<ExecutionPlanNode> {
-  // TODO: Look at the matching rules and generators here
   let mut plan_node = ExecutionPlanNode::container("headers");
+  let doc_path = DocPath::new("$.headers")?;
 
   if let Some(headers) = &expected.headers {
     if !headers.is_empty() {
-      todo!()
+      let keys = headers.keys().cloned().sorted().collect_vec();
+      for key in &keys {
+        let value = headers.get(key).unwrap();
+        let mut item_node = ExecutionPlanNode::container(key);
+
+        let mut presence_check = ExecutionPlanNode::action("if");
+        let item_value = if value.len() == 1 {
+          ExecutionPlanNode::value_node(NodeValue::STRING(value[0].clone()))
+        } else {
+          ExecutionPlanNode::value_node(NodeValue::SLIST(value.clone()))
+        };
+        presence_check
+          .add(
+            ExecutionPlanNode::action("check:exists")
+              .add(ExecutionPlanNode::resolve_value(doc_path.join(key)))
+          );
+
+        let item_path = DocPath::root().join(key);
+        if context.matcher_is_defined(&item_path) {
+          let matchers = context.select_best_matcher(&item_path);
+          presence_check.add(build_matching_rule_node(&item_value, &doc_path.join(key), &matchers));
+        } else {
+          let mut item_check = ExecutionPlanNode::action("match:equality");
+          item_check
+            .add(item_value)
+            .add(ExecutionPlanNode::resolve_value(doc_path.join(key)))
+            .add(ExecutionPlanNode::value_node(NodeValue::NULL));
+          presence_check.add(item_check);
+        }
+
+        item_node.add(presence_check);
+        plan_node.add(item_node);
+      }
+
+      plan_node.add(
+        ExecutionPlanNode::action("expect:entries")
+          .add(ExecutionPlanNode::value_node(NodeValue::SLIST(keys.clone())))
+          .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+          .add(
+            ExecutionPlanNode::action("join")
+              .add(ExecutionPlanNode::value_node("The following expected headers were missing: "))
+              .add(ExecutionPlanNode::action("join-with")
+                .add(ExecutionPlanNode::value_node(", "))
+                .add(
+                  ExecutionPlanNode::splat()
+                    .add(ExecutionPlanNode::action("apply"))
+                )
+              )
+          )
+      );
     }
   }
 

@@ -718,6 +718,7 @@ impl FromStr for Category {
       "method" => Ok(Category::METHOD),
       "path" => Ok(Category::PATH),
       "header" => Ok(Category::HEADER),
+      "headers" => Ok(Category::HEADER),
       "query" => Ok(Category::QUERY),
       "body" => Ok(Category::BODY),
       "status" => Ok(Category::STATUS),

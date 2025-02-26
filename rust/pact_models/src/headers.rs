@@ -10,6 +10,20 @@ pub static SINGLE_VALUE_HEADERS: [&str; 9] = [
   "set-cookie",
   "user-agent",
 ];
+pub static MULTI_VALUE_HEADERS: [&str; 12] = [
+  "accept",
+  "accept-encoding",
+  "accept-language",
+  "access-control-allow-headers",
+  "access-control-allow-methods",
+  "access-control-expose-headers",
+  "access-control-request-headers",
+  "allow",
+  "cache-control",
+  "if-match",
+  "if-none-match",
+  "vary"
+];
 
 /// Tries to parse the header value into multiple values, taking into account headers that should
 /// not be split.

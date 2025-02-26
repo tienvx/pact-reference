@@ -59,6 +59,28 @@ impl ValueResolver for HttpRequestValueResolver {
         } else {
           Err(anyhow!("{} is not valid for a HTTP request query parameters", path))
         },
+        "headers" => if path.len() == 2 || (path.len() == 3 && path.is_wildcard()) {
+          let headers = self.request.headers
+            .clone()
+            .unwrap_or_default();
+          Ok(NodeValue::MMAP(headers))
+        } else if path.len() == 3 {
+          let param_name = path.last_field().unwrap_or_default();
+          let headers = self.request.headers
+            .clone()
+            .unwrap_or_default();
+          if let Some(val) = headers.get(param_name) {
+            if val.len() == 1 {
+              Ok(NodeValue::STRING(val[0].clone()))
+            } else {
+              Ok(NodeValue::SLIST(val.clone()))
+            }
+          } else {
+            Ok(NodeValue::NULL)
+          }
+        } else {
+          Err(anyhow!("{} is not valid for HTTP request headers", path))
+        },
         "content-type" => {
           Ok(self.request.content_type()
             .map(|ct| NodeValue::STRING(ct.to_string()))
@@ -133,7 +155,8 @@ mod tests {
   #[rstest(
     case("$.method", NodeValue::STRING("GET".to_string())),
     case("$.path", NodeValue::STRING("/".to_string())),
-    case("$.query", NodeValue::MMAP(hashmap!{}))
+    case("$.query", NodeValue::MMAP(hashmap!{})),
+    case("$.headers", NodeValue::MMAP(hashmap!{}))
   )]
   fn http_request_resolve_values(#[case] path: &str, #[case] expected: NodeValue) {
     let path = DocPath::new(path).unwrap();
