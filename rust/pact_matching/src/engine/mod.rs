@@ -74,7 +74,9 @@ pub enum NodeValue {
   /// JSON
   JSON(Value),
   /// Key/Value Pair
-  ENTRY(String, Box<NodeValue>)
+  ENTRY(String, Box<NodeValue>),
+  /// List of values
+  LIST(Vec<NodeValue>)
 }
 
 impl NodeValue {
@@ -147,6 +149,13 @@ impl NodeValue {
         buffer.push_str(value.str_form().as_str());
         buffer
       }
+      NodeValue::LIST(list) => {
+        let mut buffer = String::new();
+        buffer.push('[');
+        buffer.push_str(list.iter().map(|v| v.str_form()).join(", ").as_str());
+        buffer.push(']');
+        buffer
+      }
     }
   }
 
@@ -171,7 +180,8 @@ impl NodeValue {
       NodeValue::NAMESPACED(_, _) => "Namespaced Value",
       NodeValue::UINT(_) => "Unsigned Integer",
       NodeValue::JSON(_) => "JSON",
-      NodeValue::ENTRY(_, _) => "Entry"
+      NodeValue::ENTRY(_, _) => "Entry",
+      NodeValue::LIST(_) => "List"
     }
   }
 
@@ -354,6 +364,7 @@ impl NodeResult {
         NodeValue::UINT(ui) => Some(ui.to_string()),
         NodeValue::JSON(json) => Some(json.to_string()),
         NodeValue::ENTRY(k, v) => Some(format!("{} -> {}", k, v)),
+        NodeValue::LIST(list) => Some(format!("{:?}", list))
       }
       NodeResult::ERROR(_) => None
     }
@@ -406,7 +417,8 @@ impl NodeResult {
         NodeValue::NAMESPACED(_, _) => false, // TODO: Need a way to resolve this
         NodeValue::UINT(ui) => *ui != 0,
         NodeValue::JSON(_) => false,
-        NodeValue::ENTRY(_, _) => false
+        NodeValue::ENTRY(_, _) => false,
+        NodeValue::LIST(l) => !l.is_empty()
       }
       NodeResult::ERROR(_) => false
     }
@@ -1052,7 +1064,8 @@ fn setup_header_plan(
 
       plan_node.add(
         ExecutionPlanNode::action("expect:entries")
-          .add(ExecutionPlanNode::value_node(NodeValue::SLIST(keys.clone())))
+          .add(ExecutionPlanNode::action("lower-case")
+            .add(ExecutionPlanNode::value_node(NodeValue::SLIST(keys.clone()))))
           .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
           .add(
             ExecutionPlanNode::action("join")

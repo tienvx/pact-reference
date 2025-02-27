@@ -42,7 +42,7 @@ fn match_headers_where_there_are_none() {
 }
 
 #[test]
-fn match_query_with_expected_header() {
+fn match_headers_with_expected_headers() {
   let expected = HttpRequest {
     headers: Some(hashmap!{
       "HEADER-X".to_string() => vec!["b".to_string()]
@@ -69,7 +69,9 @@ fn match_query_with_expected_header() {
         )
       ),
       %expect:entries (
-        ['HEADER-X'],
+        %lower-case (
+          ['HEADER-X']
+        ),
         $.headers,
         %join (
           'The following expected headers were missing: ',
@@ -104,18 +106,20 @@ fn match_query_with_expected_header() {
         ) => BOOL(false)
       ),
       %expect:entries (
-        ['HEADER-X'] => ['HEADER-X'],
+        %lower-case (
+          ['HEADER-X'] => ['HEADER-X']
+        ) => ['header-x'],
         $.headers => {},
         %join (
           'The following expected headers were missing: ' => 'The following expected headers were missing: ',
           %join-with (
             ', ' => ', ',
             ** (
-              %apply () => 'HEADER-X'
+              %apply () => 'header-x'
             ) => OK
-          ) => 'HEADER-X'
-        ) => 'The following expected headers were missing: HEADER-X'
-      ) => ERROR(The following expected headers were missing: HEADER-X)
+          ) => 'header-x'
+        ) => 'The following expected headers were missing: header-x'
+      ) => ERROR(The following expected headers were missing: header-x)
     )
   )
 )
@@ -144,8 +148,10 @@ fn match_query_with_expected_header() {
         ) => BOOL(true)
       ),
       %expect:entries (
-        ['HEADER-X'] => ['HEADER-X'],
-        $.headers => {'HEADER-X': 'b'},
+        %lower-case (
+          ['HEADER-X'] => ['HEADER-X']
+        ) => ['header-x'],
+        $.headers => {'header-x': 'b'},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -184,8 +190,10 @@ fn match_query_with_expected_header() {
         ) => ERROR(Expected 'C' to be equal to 'b')
       ),
       %expect:entries (
-        ['HEADER-X'] => ['HEADER-X'],
-        $.headers => {'HEADER-X': 'C'},
+        %lower-case (
+          ['HEADER-X'] => ['HEADER-X']
+        ) => ['header-x'],
+        $.headers => {'header-x': 'C'},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -225,8 +233,10 @@ fn match_query_with_expected_header() {
         ) => BOOL(true)
       ),
       %expect:entries (
-        ['HEADER-X'] => ['HEADER-X'],
-        $.headers => {'HEADER-X': 'b', 'HEADER-Y': 'b'},
+        %lower-case (
+          ['HEADER-X'] => ['HEADER-X']
+        ) => ['header-x'],
+        $.headers => {'header-x': 'b', 'header-y': 'b'},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -265,18 +275,20 @@ fn match_query_with_expected_header() {
         ) => BOOL(false)
       ),
       %expect:entries (
-        ['HEADER-X'] => ['HEADER-X'],
-        $.headers => {'HEADER-Y': 'b'},
+        %lower-case (
+          ['HEADER-X'] => ['HEADER-X']
+        ) => ['header-x'],
+        $.headers => {'header-y': 'b'},
         %join (
           'The following expected headers were missing: ' => 'The following expected headers were missing: ',
           %join-with (
             ', ' => ', ',
             ** (
-              %apply () => 'HEADER-X'
+              %apply () => 'header-x'
             ) => OK
-          ) => 'HEADER-X'
-        ) => 'The following expected headers were missing: HEADER-X'
-      ) => ERROR(The following expected headers were missing: HEADER-X)
+          ) => 'header-x'
+        ) => 'The following expected headers were missing: header-x'
+      ) => ERROR(The following expected headers were missing: header-x)
     )
   )
 )
@@ -336,7 +348,9 @@ fn match_headers_with_matching_rule() {
         )
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'],
+        %lower-case (
+          ['REF-CODE', 'REF-ID']
+        ),
         $.headers,
         %join (
           'The following expected headers were missing: ',
@@ -389,8 +403,10 @@ fn match_headers_with_matching_rule() {
         ) => BOOL(true)
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': '9023470945622'},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': '9023470945622'},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -442,8 +458,10 @@ fn match_headers_with_matching_rule() {
         ) => ERROR(Expected '9023470X945622' to match '^[0-9]+$')
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': '9023470X945622'},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': '9023470X945622'},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -509,7 +527,9 @@ fn match_headers_with_values_having_different_lengths() {
         )
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'],
+        %lower-case (
+          ['REF-CODE', 'REF-ID']
+        ),
         $.headers,
         %join (
           'The following expected headers were missing: ',
@@ -562,8 +582,10 @@ fn match_headers_with_values_having_different_lengths() {
         ) => BOOL(true)
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': ['test', 'test2'], 'REF-ID': '1234'},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': ['test', 'test2'], 'ref-id': '1234'},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -615,8 +637,10 @@ fn match_headers_with_values_having_different_lengths() {
         ) => ERROR(Expected '4567' to be equal to '1234')
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': ['1234', '1234', '4567']},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': ['1234', '1234', '4567']},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -686,7 +710,9 @@ fn match_headers_with_number_type_matching_rule() {
         )
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'],
+        %lower-case (
+          ['REF-CODE', 'REF-ID']
+        ),
         $.headers,
         %join (
           'The following expected headers were missing: ',
@@ -739,8 +765,10 @@ fn match_headers_with_number_type_matching_rule() {
         ) => BOOL(true)
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': '9023470945622'},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': '9023470945622'},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -792,8 +820,10 @@ fn match_headers_with_number_type_matching_rule() {
         ) => ERROR(Expected '9023470X945622' to match an integer number)
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': '9023470X945622'},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': '9023470X945622'},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -845,8 +875,10 @@ fn match_headers_with_number_type_matching_rule() {
         ) => BOOL(true)
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': ['1111', '2222']},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': ['1111', '2222']},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -898,8 +930,10 @@ fn match_headers_with_number_type_matching_rule() {
         ) => ERROR(Expected 'two' to match an integer number)
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': ['1111', 'two']},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': ['1111', 'two']},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -969,7 +1003,9 @@ fn match_headers_with_min_type_matching_rules() {
         )
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'],
+        %lower-case (
+          ['REF-CODE', 'REF-ID']
+        ),
         $.headers,
         %join (
           'The following expected headers were missing: ',
@@ -1022,8 +1058,10 @@ fn match_headers_with_min_type_matching_rules() {
         ) => BOOL(true)
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': ['1', '1', '1']},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': ['1', '1', '1']},
         %join (
           'The following expected headers were missing: ',
           %join-with (
@@ -1075,8 +1113,10 @@ fn match_headers_with_min_type_matching_rules() {
         ) => ERROR(Expected [1] (size 1) to have minimum size of 2)
       ),
       %expect:entries (
-        ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID'],
-        $.headers => {'REF-CODE': 'test', 'REF-ID': '1'},
+        %lower-case (
+          ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
+        ) => ['ref-code', 'ref-id'],
+        $.headers => {'ref-code': 'test', 'ref-id': '1'},
         %join (
           'The following expected headers were missing: ',
           %join-with (

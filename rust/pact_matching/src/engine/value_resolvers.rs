@@ -1,5 +1,6 @@
 //! Structs and traits to resolve values required while executing a plan
 
+use std::collections::HashMap;
 use anyhow::anyhow;
 use itertools::Itertools;
 use serde_json::Value;
@@ -62,14 +63,20 @@ impl ValueResolver for HttpRequestValueResolver {
         "headers" => if path.len() == 2 || (path.len() == 3 && path.is_wildcard()) {
           let headers = self.request.headers
             .clone()
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .iter()
+            .map(|(k, v)| (k.to_lowercase(), v.clone()))
+            .collect();
           Ok(NodeValue::MMAP(headers))
         } else if path.len() == 3 {
-          let param_name = path.last_field().unwrap_or_default();
+          let param_name = path.last_field().unwrap_or_default().to_lowercase();
           let headers = self.request.headers
             .clone()
-            .unwrap_or_default();
-          if let Some(val) = headers.get(param_name) {
+            .unwrap_or_default()
+            .iter()
+            .map(|(k, v)| (k.to_lowercase(), v.clone()))
+            .collect::<HashMap<_, _>>();
+          if let Some(val) = headers.get(&param_name) {
             if val.len() == 1 {
               Ok(NodeValue::STRING(val[0].clone()))
             } else {

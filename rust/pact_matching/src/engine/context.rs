@@ -63,7 +63,8 @@ impl PlanMatchingContext {
       }
     } else {
       match action {
-        "upper-case" => self.execute_upper_case(action, value_resolver, node, &action_path),
+        "upper-case" => self.execute_change_case(action, value_resolver, node, &action_path, true),
+        "lower-case" => self.execute_change_case(action, value_resolver, node, &action_path, false),
         "expect:empty" => self.execute_expect_empty(action, value_resolver, node, &action_path),
         "convert:UTF8" => self.execute_convert_utf8(action, value_resolver, node, &action_path),
         "if" => self.execute_if(value_resolver, node, &action_path),
@@ -649,6 +650,11 @@ impl PlanMatchingContext {
                 _ => Err(anyhow!("Expected json ({}) to be empty", json))
               },
               NodeValue::ENTRY(_, _) =>  Ok(NodeResult::VALUE(NodeValue::BOOL(false))),
+              NodeValue::LIST(l) => if l.is_empty() {
+                Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+              } else {
+                Err(anyhow!("Expected {} to be empty", value))
+              }
             }
           } else {
             Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
@@ -781,32 +787,45 @@ impl PlanMatchingContext {
     }
   }
 
-  fn execute_upper_case(
+  fn execute_change_case(
     &mut self,
-    action: &str,
+    _action: &str,
     value_resolver: &dyn ValueResolver,
     node: &ExecutionPlanNode,
-    action_path: &Vec<String>
+    action_path: &Vec<String>,
+    upper_case: bool
   ) -> ExecutionPlanNode {
-    match self.validate_one_arg(node, action, value_resolver, &action_path) {
-      Ok(value) => {
-        let result = value.value()
-          .unwrap_or_default()
-          .as_string()
-          .unwrap_or_default();
-        ExecutionPlanNode {
-          node_type: node.node_type.clone(),
-          result: Some(NodeResult::VALUE(NodeValue::STRING(result.to_uppercase()))),
-          children: vec![value]
+    let (children, values) = match self.evaluate_children(value_resolver, node, action_path) {
+      Ok(value) => value,
+      Err(value) => return value
+    };
+
+    let results = values.iter()
+      .map(|v| {
+        if upper_case {
+          match v {
+            NodeValue::STRING(s) => NodeValue::STRING(s.to_uppercase()),
+            NodeValue::SLIST(list) => NodeValue::SLIST(list.iter().map(|s| s.to_uppercase()).collect()),
+            _ => v.clone()
+          }
+        } else {
+          match v {
+            NodeValue::STRING(s) => NodeValue::STRING(s.to_lowercase()),
+            NodeValue::SLIST(list) => NodeValue::SLIST(list.iter().map(|s| s.to_lowercase()).collect()),
+            _ => v.clone()
+          }
         }
-      }
-      Err(err) => {
-        ExecutionPlanNode {
-          node_type: node.node_type.clone(),
-          result: Some(NodeResult::ERROR(err.to_string())),
-          children: node.children.clone()
-        }
-      }
+      })
+      .collect_vec();
+    let result = if results.len() == 1 {
+      results[0].clone()
+    } else {
+      NodeValue::LIST(results)
+    };
+    ExecutionPlanNode {
+      node_type: node.node_type.clone(),
+      result: Some(NodeResult::VALUE(result)),
+      children
     }
   }
 
@@ -1045,8 +1064,47 @@ impl PlanMatchingContext {
     node: &ExecutionPlanNode,
     path: &Vec<String>
   ) -> ExecutionPlanNode {
+    let (children, str_values) = match self.evaluate_children(value_resolver, node, path) {
+      Ok((children, values)) => {
+        (children, values.iter().flat_map(|v| {
+          match v {
+            NodeValue::STRING(s) => vec![s.clone()],
+            NodeValue::BOOL(b) => vec![b.to_string()],
+            NodeValue::MMAP(_) => vec![v.str_form()],
+            NodeValue::SLIST(list) => list.clone(),
+            NodeValue::BARRAY(_) => vec![v.str_form()],
+            NodeValue::NAMESPACED(_, _) => vec![v.str_form()],
+            NodeValue::UINT(u) => vec![u.to_string()],
+            NodeValue::JSON(json) => vec![json.to_string()],
+            _ => vec![]
+          }
+        }).collect_vec())
+      },
+      Err(value) => return value
+    };
+
+    let result = if action == "join-with" && !str_values.is_empty() {
+      let first = &str_values[0];
+      str_values.iter().dropping(1).join(first.as_str())
+    } else {
+      str_values.iter().join("")
+    };
+
+    ExecutionPlanNode {
+      node_type: node.node_type.clone(),
+      result: Some(NodeResult::VALUE(NodeValue::STRING(result))),
+      children
+    }
+  }
+
+  fn evaluate_children(
+    &mut self,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    path: &Vec<String>
+  ) -> Result<(Vec<ExecutionPlanNode>, Vec<NodeValue>), ExecutionPlanNode> {
     let mut children = vec![];
-    let mut str_values = vec![];
+    let mut values = vec![];
     let mut loop_items = VecDeque::from(node.children.clone());
 
     while !loop_items.is_empty() {
@@ -1066,11 +1124,11 @@ impl PlanMatchingContext {
             value.value().unwrap_or_default()
           },
           Err(err) => {
-            return ExecutionPlanNode {
+            return Err(ExecutionPlanNode {
               node_type: node.node_type.clone(),
               result: Some(NodeResult::ERROR(err.to_string())),
               children: children.clone()
-            }
+            })
           }
         }
       };
@@ -1080,41 +1138,18 @@ impl PlanMatchingContext {
           // no-op
         }
         NodeResult::VALUE(value) => {
-          let str = match &value {
-            NodeValue::STRING(s) => s.to_string(),
-            NodeValue::BOOL(b) => b.to_string(),
-            NodeValue::MMAP(_) => value.str_form(),
-            NodeValue::SLIST(_) => value.str_form(),
-            NodeValue::BARRAY(_) => value.str_form(),
-            NodeValue::NAMESPACED(_, _) => value.str_form(),
-            NodeValue::UINT(u) => u.to_string(),
-            NodeValue::JSON(json) => json.to_string(),
-            _ => "".to_string()
-          };
-          str_values.push(str);
+          values.push(value);
         }
         NodeResult::ERROR(err) => {
-          return ExecutionPlanNode {
+          return Err(ExecutionPlanNode {
             node_type: node.node_type.clone(),
             result: Some(NodeResult::ERROR(err.to_string())),
             children: children.clone()
-          }
+          })
         }
       }
     }
-
-    let result = if action == "join-with" && !str_values.is_empty() {
-      let first = &str_values[0];
-      str_values.iter().dropping(1).join(first.as_str())
-    } else {
-      str_values.iter().join("")
-    };
-
-    ExecutionPlanNode {
-      node_type: node.node_type.clone(),
-      result: Some(NodeResult::VALUE(NodeValue::STRING(result))),
-      children
-    }
+    Ok((children, values))
   }
 
   fn execute_check_entries(
