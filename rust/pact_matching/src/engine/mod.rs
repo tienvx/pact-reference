@@ -15,6 +15,7 @@ use tracing::trace;
 
 use pact_models::bodies::OptionalBody;
 use pact_models::content_types::TEXT;
+use pact_models::headers::PARAMETERISED_HEADERS;
 use pact_models::matchingrules::{MatchingRule, RuleList, RuleLogic};
 use pact_models::path_exp::DocPath;
 use pact_models::v4::http_parts::HttpRequest;
@@ -22,6 +23,7 @@ use pact_models::v4::http_parts::HttpRequest;
 use crate::engine::bodies::{get_body_plan_builder, PlainTextBuilder, PlanBodyBuilder};
 use crate::engine::context::PlanMatchingContext;
 use crate::engine::value_resolvers::{CurrentStackValueResolver, HttpRequestValueResolver, ValueResolver};
+use crate::headers::{parse_charset_parameters, strip_whitespace};
 use crate::matchers::Matches;
 
 mod bodies;
@@ -461,6 +463,15 @@ impl ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: self.node_type.clone(),
       result: Some(NodeResult::VALUE(value)),
+      children: self.children.clone()
+    }
+  }
+
+  /// Clones this node, replacng the result with the given one
+  pub fn clone_with_result(&self, result: NodeResult) -> ExecutionPlanNode {
+    ExecutionPlanNode {
+      node_type: self.node_type.clone(),
+      result: Some(result),
       children: self.children.clone()
     }
   }
@@ -1049,6 +1060,51 @@ fn setup_header_plan(
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
           presence_check.add(build_matching_rule_node(&item_value, &doc_path.join(key), &matchers));
+        } else if PARAMETERISED_HEADERS.contains(&key.to_lowercase().as_str()) {
+          if value.len() == 1 {
+            let values: Vec<&str> = strip_whitespace(value[0].as_str(), ";");
+            let (header_value, header_params) = values.as_slice()
+              .split_first()
+              .unwrap_or((&"", &[]));
+            let parameter_map = parse_charset_parameters(header_params);
+
+            let mut apply_node = ExecutionPlanNode::action("tee");
+            apply_node
+              .add(ExecutionPlanNode::action("header:parse")
+                .add(ExecutionPlanNode::resolve_value(doc_path.join(key))));
+            apply_node.add(
+              ExecutionPlanNode::action("match:equality")
+                .add(ExecutionPlanNode::value_node(*header_value))
+                .add(ExecutionPlanNode::action("to-string")
+                  .add(ExecutionPlanNode::resolve_current_value(DocPath::new_unwrap("value"))))
+                .add(ExecutionPlanNode::value_node(NodeValue::NULL))
+            );
+
+            if !parameter_map.is_empty() {
+              let parameter_path = DocPath::new_unwrap("parameters");
+              for (k, v) in &parameter_map {
+                let mut parameter_node = ExecutionPlanNode::container(k.as_str());
+                parameter_node.add(
+                  ExecutionPlanNode::action("if")
+                    .add(ExecutionPlanNode::action("check:exists")
+                      .add(ExecutionPlanNode::resolve_current_value(parameter_path.join(k.as_str()))))
+                    .add(ExecutionPlanNode::action("match:equality")
+                      .add(ExecutionPlanNode::value_node(v.as_str()))
+                      .add(ExecutionPlanNode::action("to-string")
+                        .add(ExecutionPlanNode::resolve_current_value(parameter_path.join(k.as_str()))))
+                      .add(ExecutionPlanNode::value_node(NodeValue::NULL)))
+                    .add(ExecutionPlanNode::action("error")
+                      .add(ExecutionPlanNode::value_node(
+                        format!("Expected a {} value of '{}' but it was missing", k, v)))
+                    )
+                );
+                apply_node.add(parameter_node);
+              }
+            }
+            presence_check.add(apply_node);
+          } else {
+            todo!("Need to deal with parameterized header with multiple values (i.e. accept)");
+          }
         } else {
           let mut item_check = ExecutionPlanNode::action("match:equality");
           item_check

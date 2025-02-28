@@ -6,7 +6,7 @@ use std::panic::RefUnwindSafe;
 
 use anyhow::anyhow;
 use itertools::Itertools;
-use serde_json::Value;
+use serde_json::{json, Value};
 use tracing::{instrument, trace, Level, debug};
 
 use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory, RuleList};
@@ -16,6 +16,7 @@ use pact_models::v4::interaction::V4Interaction;
 
 use crate::engine::{ExecutionPlanNode, NodeResult, NodeValue, walk_tree};
 use crate::engine::value_resolvers::ValueResolver;
+use crate::headers::{parse_charset_parameters, strip_whitespace};
 use crate::json::type_of;
 use crate::matchers::Matches;
 
@@ -65,9 +66,11 @@ impl PlanMatchingContext {
       match action {
         "upper-case" => self.execute_change_case(action, value_resolver, node, &action_path, true),
         "lower-case" => self.execute_change_case(action, value_resolver, node, &action_path, false),
+        "to-string" => self.execute_to_string(action, value_resolver, node, &action_path),
         "expect:empty" => self.execute_expect_empty(action, value_resolver, node, &action_path),
         "convert:UTF8" => self.execute_convert_utf8(action, value_resolver, node, &action_path),
         "if" => self.execute_if(value_resolver, node, &action_path),
+        "tee" => self.execute_tee(value_resolver, node, &action_path),
         "apply" => self.execute_apply(node),
         "push" => self.execute_push(node),
         "pop" => self.execute_pop(node),
@@ -80,6 +83,8 @@ impl PlanMatchingContext {
         "expect:only-entries" => self.execute_check_entries(action, value_resolver, node, &action_path),
         "join" => self.execute_join(action, value_resolver, node, &action_path),
         "join-with" => self.execute_join(action, value_resolver, node, &action_path),
+        "error" => self.execute_error(action, value_resolver, node, &action_path),
+        "header:parse" => self.execute_header_parse(action, value_resolver, node, &action_path),
         _ => {
           ExecutionPlanNode {
             node_type: node.node_type.clone(),
@@ -484,13 +489,33 @@ impl PlanMatchingContext {
       match walk_tree(action_path.as_slice(), first_node, value_resolver, self) {
         Ok(first) => {
           let node_result = first.value().unwrap_or_default();
+          let mut children = node.children.clone();
+          children[0] = first.clone();
           if !node_result.is_truthy() {
-            let mut children = node.children.clone();
-            children[0] = first;
-            ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(node_result),
-              children
+            if node.children.len() > 2 {
+              match walk_tree(action_path.as_slice(), &node.children[2], value_resolver, self) {
+                Ok(else_node) => {
+                  children[2] = else_node.clone();
+                  ExecutionPlanNode {
+                    node_type: node.node_type.clone(),
+                    result: else_node.result.clone(),
+                    children
+                  }
+                }
+                Err(err) => {
+                  ExecutionPlanNode {
+                    node_type: node.node_type.clone(),
+                    result: Some(NodeResult::ERROR(err.to_string())),
+                    children
+                  }
+                }
+              }
+            } else {
+              ExecutionPlanNode {
+                node_type: node.node_type.clone(),
+                result: Some(node_result),
+                children
+              }
             }
           } else if let Some(second_node) = node.children.get(1) {
             match walk_tree(action_path.as_slice(), second_node, value_resolver, self) {
@@ -499,14 +524,20 @@ impl PlanMatchingContext {
                 ExecutionPlanNode {
                   node_type: node.node_type.clone(),
                   result: Some(second_result),
-                  children: vec![first, second]
+                  children: vec![first, second].iter()
+                    .chain(node.children.iter().dropping(2))
+                    .cloned()
+                    .collect()
                 }
               }
               Err(err) => {
                 ExecutionPlanNode {
                   node_type: node.node_type.clone(),
                   result: Some(NodeResult::ERROR(err.to_string())),
-                  children: vec![first, second_node.clone()]
+                  children: vec![first, second_node.clone()].iter()
+                    .chain(node.children.iter().dropping(2))
+                    .cloned()
+                    .collect()
                 }
               }
             }
@@ -514,7 +545,9 @@ impl PlanMatchingContext {
             ExecutionPlanNode {
               node_type: node.node_type.clone(),
               result: Some(node_result),
-              children: vec![first]
+              children: vec![first].iter().chain(node.children.iter().dropping(1))
+                .cloned()
+                .collect()
             }
           }
         }
@@ -530,6 +563,56 @@ impl PlanMatchingContext {
       ExecutionPlanNode {
         node_type: node.node_type.clone(),
         result: Some(NodeResult::ERROR("'if' action requires at least one argument".to_string())),
+        children: node.children.clone()
+      }
+    }
+  }
+
+  fn execute_tee(
+    &mut self,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    if let Some(first_node) = node.children.first() {
+      match walk_tree(action_path.as_slice(), first_node, value_resolver, self) {
+        Ok(first) => {
+          let mut result = NodeResult::OK;
+          self.push_result(first.result.clone());
+          let mut child_results = vec![first.clone()];
+          for child in node.children.iter().dropping(1) {
+            match walk_tree(&action_path, &child, value_resolver, self) {
+              Ok(value) => {
+                result = result.or(&value.result);
+                child_results.push(value.clone());
+              }
+              Err(err) => {
+                let node_result = NodeResult::ERROR(err.to_string());
+                result = result.or(&Some(node_result.clone()));
+                child_results.push(child.clone_with_result(node_result));
+              }
+            }
+          }
+
+          self.pop_result();
+          ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(result),
+            children: child_results
+          }
+        }
+        Err(err) => {
+          ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(NodeResult::ERROR(err.to_string())),
+            children: node.children.clone()
+          }
+        }
+      }
+    } else {
+      ExecutionPlanNode {
+        node_type: node.node_type.clone(),
+        result: Some(NodeResult::OK),
         children: node.children.clone()
       }
     }
@@ -829,6 +912,43 @@ impl PlanMatchingContext {
     }
   }
 
+  fn execute_to_string(
+    &mut self,
+    _action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    let (children, values) = match self.evaluate_children(value_resolver, node, action_path) {
+      Ok(value) => value,
+      Err(value) => return value
+    };
+
+    let results = values.iter()
+      .map(|v| {
+        match v {
+          NodeValue::STRING(_) => v.clone(),
+          NodeValue::SLIST(_) => v.clone(),
+          NodeValue::JSON(json) => match json {
+            Value::String(s) => NodeValue::STRING(s.clone()),
+            _ => NodeValue::STRING(json.to_string())
+          }
+          _ => NodeValue::STRING(v.str_form())
+        }
+      })
+      .collect_vec();
+    let result = if results.len() == 1 {
+      results[0].clone()
+    } else {
+      NodeValue::LIST(results)
+    };
+    ExecutionPlanNode {
+      node_type: node.node_type.clone(),
+      result: Some(NodeResult::VALUE(result)),
+      children
+    }
+  }
+
   fn execute_check_exists(
     &mut self,
     action: &str,
@@ -1097,6 +1217,40 @@ impl PlanMatchingContext {
     }
   }
 
+  fn execute_error(
+    &mut self,
+    _action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    let (children, str_values) = match self.evaluate_children(value_resolver, node, path) {
+      Ok((children, values)) => {
+        (children, values.iter().flat_map(|v| {
+          match v {
+            NodeValue::STRING(s) => vec![s.clone()],
+            NodeValue::BOOL(b) => vec![b.to_string()],
+            NodeValue::MMAP(_) => vec![v.str_form()],
+            NodeValue::SLIST(list) => list.clone(),
+            NodeValue::BARRAY(_) => vec![v.str_form()],
+            NodeValue::NAMESPACED(_, _) => vec![v.str_form()],
+            NodeValue::UINT(u) => vec![u.to_string()],
+            NodeValue::JSON(json) => vec![json.to_string()],
+            _ => vec![]
+          }
+        }).collect_vec())
+      },
+      Err(value) => return value
+    };
+
+    let result = str_values.iter().join("");
+    ExecutionPlanNode {
+      node_type: node.node_type.clone(),
+      result: Some(NodeResult::ERROR(result)),
+      children
+    }
+  }
+
   fn evaluate_children(
     &mut self,
     value_resolver: &dyn ValueResolver,
@@ -1331,6 +1485,44 @@ impl PlanMatchingContext {
               }
             }
           }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_header_parse(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let arg_value = value.value()
+          .unwrap_or_default()
+          .as_string()
+          .unwrap_or_default();
+        let values: Vec<&str> = strip_whitespace(arg_value.as_str(), ";");
+        let (header_value, header_params) = values.as_slice()
+          .split_first()
+          .unwrap_or((&"", &[]));
+        let parameter_map = parse_charset_parameters(header_params);
+
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::VALUE(NodeValue::JSON(json!({
+            "value": header_value,
+            "parameters": parameter_map
+          })))),
+          children: vec![value]
         }
       }
       Err(err) => {

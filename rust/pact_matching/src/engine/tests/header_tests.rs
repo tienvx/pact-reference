@@ -1132,3 +1132,376 @@ fn match_headers_with_min_type_matching_rules() {
 )
 "#, executed_plan.pretty_form());
 }
+
+#[test]
+fn match_content_type_header() {
+  let expected = HttpRequest {
+    headers: Some(hashmap!{
+      "Content-Type".to_string() => vec![
+        "application/hal+json".to_string()
+      ]
+    }),
+    .. HttpRequest::default()
+  };
+  let mut context = PlanMatchingContext::default();
+  let mut plan = ExecutionPlan::new("header-test");
+
+  plan.add(setup_header_plan(&expected, &context.for_query()).unwrap());
+  pretty_assertions::assert_eq!(r#"(
+  :header-test (
+    :headers (
+      :Content-Type (
+        %if (
+          %check:exists (
+            $.headers['Content-Type']
+          ),
+          %tee (
+            %header:parse (
+              $.headers['Content-Type']
+            ),
+            %match:equality (
+              'application/hal+json',
+              %to-string (
+                ~>value
+              ),
+              NULL
+            )
+          )
+        )
+      ),
+      %expect:entries (
+        %lower-case (
+          ['Content-Type']
+        ),
+        $.headers,
+        %join (
+          'The following expected headers were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+"#, plan.pretty_form());
+
+  let request = HttpRequest {
+    headers: Some(hashmap!{
+      "content-type".to_string() => vec!["application/hal+json;charset=UTF-8".to_string()]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  pretty_assertions::assert_eq!(r#"(
+  :header-test (
+    :headers (
+      :Content-Type (
+        %if (
+          %check:exists (
+            $.headers['Content-Type'] => 'application/hal+json;charset=UTF-8'
+          ) => BOOL(true),
+          %tee (
+            %header:parse (
+              $.headers['Content-Type'] => 'application/hal+json;charset=UTF-8'
+            ) => json:{"parameters":{"charset":"UTF-8"},"value":"application/hal+json"},
+            %match:equality (
+              'application/hal+json' => 'application/hal+json',
+              %to-string (
+                ~>value => json:"application/hal+json"
+              ) => 'application/hal+json',
+              NULL => NULL
+            ) => BOOL(true)
+          ) => BOOL(true)
+        ) => BOOL(true)
+      ),
+      %expect:entries (
+        %lower-case (
+          ['Content-Type'] => ['Content-Type']
+        ) => ['content-type'],
+        $.headers => {'content-type': 'application/hal+json;charset=UTF-8'},
+        %join (
+          'The following expected headers were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let expected = HttpRequest {
+    headers: Some(hashmap!{
+      "Content-Type".to_string() => vec![
+        "application/json;charset=UTF-8".to_string()
+      ]
+    }),
+    .. HttpRequest::default()
+  };
+  let mut plan = ExecutionPlan::new("header-test");
+  plan.add(setup_header_plan(&expected, &context.for_query()).unwrap());
+  pretty_assertions::assert_eq!(r#"(
+  :header-test (
+    :headers (
+      :Content-Type (
+        %if (
+          %check:exists (
+            $.headers['Content-Type']
+          ),
+          %tee (
+            %header:parse (
+              $.headers['Content-Type']
+            ),
+            %match:equality (
+              'application/json',
+              %to-string (
+                ~>value
+              ),
+              NULL
+            ),
+            :charset (
+              %if (
+                %check:exists (
+                  ~>parameters.charset
+                ),
+                %match:equality (
+                  'UTF-8',
+                  %to-string (
+                    ~>parameters.charset
+                  ),
+                  NULL
+                ),
+                %error (
+                  "Expected a charset value of 'UTF-8' but it was missing"
+                )
+              )
+            )
+          )
+        )
+      ),
+      %expect:entries (
+        %lower-case (
+          ['Content-Type']
+        ),
+        $.headers,
+        %join (
+          'The following expected headers were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+"#, plan.pretty_form());
+
+  let request = HttpRequest {
+    headers: Some(hashmap!{
+      "content-type".to_string() => vec!["application/json; charset=UTF-8".to_string()]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  pretty_assertions::assert_eq!(r#"(
+  :header-test (
+    :headers (
+      :Content-Type (
+        %if (
+          %check:exists (
+            $.headers['Content-Type'] => 'application/json; charset=UTF-8'
+          ) => BOOL(true),
+          %tee (
+            %header:parse (
+              $.headers['Content-Type'] => 'application/json; charset=UTF-8'
+            ) => json:{"parameters":{"charset":"UTF-8"},"value":"application/json"},
+            %match:equality (
+              'application/json' => 'application/json',
+              %to-string (
+                ~>value => json:"application/json"
+              ) => 'application/json',
+              NULL => NULL
+            ) => BOOL(true),
+            :charset (
+              %if (
+                %check:exists (
+                  ~>parameters.charset => json:"UTF-8"
+                ) => BOOL(true),
+                %match:equality (
+                  'UTF-8' => 'UTF-8',
+                  %to-string (
+                    ~>parameters.charset => json:"UTF-8"
+                  ) => 'UTF-8',
+                  NULL => NULL
+                ) => BOOL(true),
+                %error (
+                  "Expected a charset value of 'UTF-8' but it was missing"
+                )
+              ) => BOOL(true)
+            )
+          ) => BOOL(true)
+        ) => BOOL(true)
+      ),
+      %expect:entries (
+        %lower-case (
+          ['Content-Type'] => ['Content-Type']
+        ) => ['content-type'],
+        $.headers => {'content-type': 'application/json; charset=UTF-8'},
+        %join (
+          'The following expected headers were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let request = HttpRequest {
+    headers: Some(hashmap!{
+      "content-type".to_string() => vec!["application/json".to_string()]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  pretty_assertions::assert_eq!(r#"(
+  :header-test (
+    :headers (
+      :Content-Type (
+        %if (
+          %check:exists (
+            $.headers['Content-Type'] => 'application/json'
+          ) => BOOL(true),
+          %tee (
+            %header:parse (
+              $.headers['Content-Type'] => 'application/json'
+            ) => json:{"parameters":{},"value":"application/json"},
+            %match:equality (
+              'application/json' => 'application/json',
+              %to-string (
+                ~>value => json:"application/json"
+              ) => 'application/json',
+              NULL => NULL
+            ) => BOOL(true),
+            :charset (
+              %if (
+                %check:exists (
+                  ~>parameters.charset => NULL
+                ) => BOOL(false),
+                %match:equality (
+                  'UTF-8',
+                  %to-string (
+                    ~>parameters.charset
+                  ),
+                  NULL
+                ),
+                %error (
+                  "Expected a charset value of 'UTF-8' but it was missing" => "Expected a charset value of 'UTF-8' but it was missing"
+                ) => ERROR(Expected a charset value of 'UTF-8' but it was missing)
+              ) => ERROR(Expected a charset value of 'UTF-8' but it was missing)
+            )
+          ) => ERROR(One or more children failed)
+        ) => ERROR(One or more children failed)
+      ),
+      %expect:entries (
+        %lower-case (
+          ['Content-Type'] => ['Content-Type']
+        ) => ['content-type'],
+        $.headers => {'content-type': 'application/json'},
+        %join (
+          'The following expected headers were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+
+  let request = HttpRequest {
+    headers: Some(hashmap!{
+      "content-type".to_string() => vec!["application/json;charset=UTF-16;other=stuff".to_string()]
+    }),
+    .. HttpRequest::default()
+  };
+  let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
+  pretty_assertions::assert_eq!(r#"(
+  :header-test (
+    :headers (
+      :Content-Type (
+        %if (
+          %check:exists (
+            $.headers['Content-Type'] => 'application/json;charset=UTF-16;other=stuff'
+          ) => BOOL(true),
+          %tee (
+            %header:parse (
+              $.headers['Content-Type'] => 'application/json;charset=UTF-16;other=stuff'
+            ) => json:{"parameters":{"charset":"UTF-16","other":"stuff"},"value":"application/json"},
+            %match:equality (
+              'application/json' => 'application/json',
+              %to-string (
+                ~>value => json:"application/json"
+              ) => 'application/json',
+              NULL => NULL
+            ) => BOOL(true),
+            :charset (
+              %if (
+                %check:exists (
+                  ~>parameters.charset => json:"UTF-16"
+                ) => BOOL(true),
+                %match:equality (
+                  'UTF-8' => 'UTF-8',
+                  %to-string (
+                    ~>parameters.charset => json:"UTF-16"
+                  ) => 'UTF-16',
+                  NULL => NULL
+                ) => ERROR(Expected 'UTF-16' to be equal to 'UTF-8'),
+                %error (
+                  "Expected a charset value of 'UTF-8' but it was missing"
+                )
+              ) => ERROR(Expected 'UTF-16' to be equal to 'UTF-8')
+            )
+          ) => ERROR(One or more children failed)
+        ) => ERROR(One or more children failed)
+      ),
+      %expect:entries (
+        %lower-case (
+          ['Content-Type'] => ['Content-Type']
+        ) => ['content-type'],
+        $.headers => {'content-type': 'application/json;charset=UTF-16;other=stuff'},
+        %join (
+          'The following expected headers were missing: ',
+          %join-with (
+            ', ',
+            ** (
+              %apply ()
+            )
+          )
+        )
+      ) => OK
+    )
+  )
+)
+"#, executed_plan.pretty_form());
+}

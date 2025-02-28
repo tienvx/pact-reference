@@ -14,11 +14,11 @@ use crate::{matchers, MatchingContext, Mismatch, CommonMismatch};
 use crate::matchers::Matches;
 use crate::matchingrules::compare_lists_with_matchingrules;
 
-fn strip_whitespace<'a, T: FromIterator<&'a str>>(val: &'a str, split_by: &'a str) -> T {
+pub(crate) fn strip_whitespace<'a, T: FromIterator<&'a str>>(val: &'a str, split_by: &'a str) -> T {
   val.split(split_by).map(|v| v.trim()).filter(|v| !v.is_empty()).collect()
 }
 
-fn parse_charset_parameters(parameters: &[&str]) -> HashMap<String, String> {
+pub(crate) fn parse_charset_parameters(parameters: &[&str]) -> HashMap<String, String> {
   parameters.iter().map(|v| v.split_once('=')
     .map(|(k, v)| (k.trim(), v.trim())))
     .fold(HashMap::new(), |mut map, name_value| {
