@@ -453,7 +453,8 @@ impl MatchingRule {
           value: json_to_string(&value),
           value_type: ValueType::Unknown,
           rules,
-          generator
+          generator,
+          expression: "".to_string()
         };
         Ok(MatchingRule::EachKey(definition))
       }
@@ -465,7 +466,8 @@ impl MatchingRule {
           value: json_to_string(&value),
           value_type: ValueType::Unknown,
           rules,
-          generator
+          generator,
+          expression: "".to_string()
         };
         Ok(MatchingRule::EachValue(definition))
       }
@@ -489,6 +491,44 @@ impl MatchingRule {
       MatchingRule::EachValue(_) => false,
       MatchingRule::EachKey(_) => false,
       _ => true
+    }
+  }
+
+  /// Generates a description of the matching rule that can be used in a test report
+  pub fn generate_description(&self) -> String {
+    match self {
+      MatchingRule::Equality => "must be equal to the expected value".to_string(),
+      MatchingRule::Regex(r) => format!("must match the regular expression /{}/", r),
+      MatchingRule::Type => "must match by type".to_string(),
+      MatchingRule::MinType(min) => format!("must match by type and have at least {} items", min),
+      MatchingRule::MaxType(max) => format!("must match by type and have at most {} items", max),
+      MatchingRule::MinMaxType(min, max) => format!("must match by type and have at {}..{} items", min, max),
+      MatchingRule::Timestamp(f) => format!("must match the date-time format '{}'", f),
+      MatchingRule::Time(f) => format!("must match the time format '{}'", f),
+      MatchingRule::Date(f) => format!("must match the date format '{}'", f),
+      MatchingRule::Include(s) => format!("must include the string '{}'", s),
+      MatchingRule::Number => "must be a number".to_string(),
+      MatchingRule::Integer => "must be an integer".to_string(),
+      MatchingRule::Decimal => "must be a number with at least one digit after the decimal point".to_string(),
+      MatchingRule::Null => "must be null".to_string(),
+      MatchingRule::ContentType(ct) => format!("the content type must be '{}'", ct),
+      MatchingRule::ArrayContains(_) => "must be a list/array that has at least one matching item".to_string(),
+      MatchingRule::Values => "have values that match".to_string(),
+      MatchingRule::Boolean => "must be a boolean".to_string(),
+      MatchingRule::StatusCode(s) => match s {
+        HttpStatus::Information => "must be an Information (10x) status".to_string(),
+        HttpStatus::Success => "must be a Success (20x) status".to_string(),
+        HttpStatus::Redirect => "must be a redirect (30x) status".to_string(),
+        HttpStatus::ClientError => "must be a Client Error (40x) status".to_string(),
+        HttpStatus::ServerError => "must be an Server Error (50x) status".to_string(),
+        HttpStatus::StatusCodes(c) => format!("must be a status code of {}", c.iter().join(", ")),
+        HttpStatus::NonError => "must not be an Error (40x/50x) status".to_string(),
+        HttpStatus::Error => "must be an Error (40x/50x) status".to_string(),
+      }
+      MatchingRule::NotEmpty => "must not be empty".to_string(),
+      MatchingRule::Semver => "must match a semver version".to_string(),
+      MatchingRule::EachKey(m) => format!("each key must match '{}'", m.expression()),
+      MatchingRule::EachValue(m) => format!("each value must match '{}'", m.expression())
     }
   }
 }
@@ -654,6 +694,19 @@ impl RuleList {
   pub fn add_rules(&mut self, rules: &RuleList) {
     for rule in &rules.rules {
       self.add_rule(rule);
+    }
+  }
+
+  /// Generates a description of the matching rules that can be displayed in a test report
+  pub fn generate_description(&self) -> String {
+    if self.rules.len() == 0 {
+      "no-op".to_string()
+    } else if self.rules.len() == 1 {
+      self.rules[0].generate_description()
+    } else {
+      self.rules.iter()
+        .map(|rule| rule.generate_description())
+        .join(", ")
     }
   }
 }
@@ -2162,7 +2215,7 @@ mod tests {
     });
     expect!(MatchingRule::from_json(&json)).to(be_ok().value(
       MatchingRule::EachValue(MatchingRuleDefinition::new("{\"price\":1.23}".to_string(),
-        ValueType::Unknown, MatchingRule::Decimal, None)))
+        ValueType::Unknown, MatchingRule::Decimal, None, "".to_string())))
     );
   }
 
@@ -2317,7 +2370,8 @@ mod tests {
         value: "".to_string(),
         value_type: ValueType::Unknown,
         rules: vec![],
-        generator: None
+        generator: None,
+        expression: "".to_string()
       }), MatchingRule::Null ],
       rule_logic: RuleLogic::And,
       cascaded: false
@@ -2641,8 +2695,12 @@ mod tests {
   #[should_panic]
   fn each_value_matching_rule_comparation_test() {
     assert_eq!(
-      matchingrules_list!{"body"; "$.array_values" => [MatchingRule::EachValue(MatchingRuleDefinition::new("[\"string value\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None))]},
-      matchingrules_list!{"body"; "$.array_values" => [MatchingRule::EachValue(MatchingRuleDefinition::new("[\"something else\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None))]}
+      matchingrules_list!{"body"; "$.array_values" => [
+        MatchingRule::EachValue(MatchingRuleDefinition::new("[\"string value\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None, "".to_string()))
+      ]},
+      matchingrules_list!{"body"; "$.array_values" => [
+        MatchingRule::EachValue(MatchingRuleDefinition::new("[\"something else\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None, "".to_string()))
+      ]}
     )
   }
 
@@ -2650,8 +2708,12 @@ mod tests {
   #[should_panic]
   fn each_key_matching_rule_comparation_test() {
     assert_eq!(
-      matchingrules_list!{"body"; "$.array_values" => [MatchingRule::EachKey(MatchingRuleDefinition::new("a_key".to_string(), ValueType::Unknown, MatchingRule::Type, None))]},
-      matchingrules_list!{"body"; "$.array_values" => [MatchingRule::EachKey(MatchingRuleDefinition::new("another_key".to_string(), ValueType::Unknown, MatchingRule::Type, None))]}
+      matchingrules_list!{"body"; "$.array_values" => [
+        MatchingRule::EachKey(MatchingRuleDefinition::new("a_key".to_string(), ValueType::Unknown, MatchingRule::Type, None, "".to_string()))
+      ]},
+      matchingrules_list!{"body"; "$.array_values" => [
+        MatchingRule::EachKey(MatchingRuleDefinition::new("another_key".to_string(), ValueType::Unknown, MatchingRule::Type, None, "".to_string()))
+      ]}
     )
   }
 }

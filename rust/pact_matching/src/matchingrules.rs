@@ -677,7 +677,8 @@ mod tests {
       value: "".to_string(),
       value_type: ValueType::Unknown,
       rules: vec![],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     });
     let result2 = compare_maps_with_matchingrule(&rule, false, &DocPath::root(),
       &expected, &actual, &context, &mut callback);
@@ -721,7 +722,8 @@ mod tests {
       value: "".to_string(),
       value_type: ValueType::Unknown,
       rules: vec![],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     });
     let result = compare_maps_with_matchingrule(&rule, false, &DocPath::root(),
       &expected, &actual, &context, &mut callback);
@@ -887,7 +889,8 @@ mod tests {
       value: "".to_string(),
       value_type: ValueType::Unknown,
       rules: vec![],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     });
     let result = compare_lists_with_matchingrule(&rule, &DocPath::root(),
       &expected, &actual, &context, false, &mut callback);
@@ -913,7 +916,8 @@ mod tests {
         "00000000000000000000000000000000".to_string(),
         ValueType::Unknown,
         MatchingRule::Regex(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\*".to_string()),
-        None
+        None,
+        "".to_string()
       )
     );
     let expected: &[&str] = &["*"];

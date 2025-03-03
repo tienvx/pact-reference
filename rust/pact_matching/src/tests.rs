@@ -403,7 +403,7 @@ fn match_query_with_each_value_matching_rules() {
   let actual = hashmap! { "id".to_string() => vec![Some("3".to_string()), Some("4".to_string()), Some("567".to_string())] };
   let rules = matchingrules! {
     "query" => { "id" => [ MatchingRule::EachValue(MatchingRuleDefinition::new("100".to_string(), ValueType::String,
-      MatchingRule::Regex("\\d+".to_string()), None)) ] }
+      MatchingRule::Regex("\\d+".to_string()), None, "".to_string())) ] }
   };
   let context = CoreMatchingContext::new(
     DiffConfig::AllowUnexpectedKeys,
@@ -421,7 +421,7 @@ fn match_query_with_each_value_matching_rules_fails() {
   let actual = hashmap! { "id".to_string() => vec![Some("3".to_string()), Some("abc123".to_string()), Some("test".to_string())] };
   let rules = matchingrules! {
     "query" => { "id" => [ MatchingRule::EachValue(MatchingRuleDefinition::new("100".to_string(), ValueType::String,
-      MatchingRule::Regex("\\d+".to_string()), None)) ] }
+      MatchingRule::Regex("\\d+".to_string()), None, "".to_string())) ] }
   };
   let context = CoreMatchingContext::new(
     DiffConfig::AllowUnexpectedKeys,

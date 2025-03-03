@@ -50,7 +50,9 @@ pub enum PlanNodeType {
   /// Leaf node that stores an expression to resolve against the current stack item
   RESOLVE_CURRENT(DocPath),
   /// Splat node, which executes its children and then replaces itself with the result
-  SPLAT
+  SPLAT,
+  /// Annotation node to help with the description of the plan. Not executable.
+  ANNOTATION(String),
 }
 
 /// Enum for the value stored in a leaf node
@@ -579,6 +581,15 @@ impl ExecutionPlanNode {
           buffer.push_str(result.to_string().as_str());
         }
       }
+      PlanNodeType::ANNOTATION(label) => {
+        buffer.push_str(pad.as_str());
+        buffer.push('#');
+        if label.contains(|ch: char| ch.is_whitespace()) {
+          buffer.push_str(format!("\"{}\"", label).as_str());
+        } else {
+          buffer.push_str(label.as_str());
+        }
+      }
     }
   }
 
@@ -670,6 +681,14 @@ impl ExecutionPlanNode {
           buffer.push_str(result.to_string().as_str());
         }
       }
+      PlanNodeType::ANNOTATION(label) => {
+        buffer.push(':');
+        if label.contains(|ch: char| ch.is_whitespace()) {
+          buffer.push_str(format!("\"{}\"", label).as_str());
+        } else {
+          buffer.push_str(label.as_str());
+        }
+      }
     }
 
     buffer.push(')');
@@ -744,6 +763,14 @@ impl ExecutionPlanNode {
   pub fn splat() -> ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: PlanNodeType::SPLAT,
+      result: None,
+      children: vec![]
+    }
+  }
+
+  fn annotation<S: Into<String>>(description: S) -> ExecutionPlanNode {
+    ExecutionPlanNode {
+      node_type: PlanNodeType::ANNOTATION(description.into()),
       result: None,
       children: vec![]
     }
@@ -861,12 +888,14 @@ fn setup_method_plan(
   let mut method_container = ExecutionPlanNode::container("method");
 
   let mut match_method = ExecutionPlanNode::action("match:equality");
+  let expected_method = expected.method.as_str().to_uppercase();
   match_method
-    .add(ExecutionPlanNode::value_node(expected.method.as_str().to_uppercase()))
+    .add(ExecutionPlanNode::value_node(expected_method.clone()))
     .add(ExecutionPlanNode::action("upper-case")
       .add(ExecutionPlanNode::resolve_value(DocPath::new("$.method")?)))
     .add(ExecutionPlanNode::value_node(NodeValue::NULL));
 
+  method_container.add(ExecutionPlanNode::annotation(format!("request method == {}", expected_method)));
   method_container.add(match_method);
 
   Ok(method_container)
@@ -881,8 +910,10 @@ fn setup_path_plan(
   let doc_path = DocPath::new("$.path")?;
   if context.matcher_is_defined(&doc_path) {
     let matchers = context.select_best_matcher(&doc_path);
+    plan_node.add(ExecutionPlanNode::annotation(format!("path {}", matchers.generate_description())));
     plan_node.add(build_matching_rule_node(&expected_node, &doc_path, &matchers));
   } else {
+    plan_node.add(ExecutionPlanNode::annotation(format!("path == '{}'", expected.path)));
     plan_node
       .add(
         ExecutionPlanNode::action("match:equality")
@@ -1370,6 +1401,7 @@ fn walk_tree(
         children: child_results
       })
     }
+    PlanNodeType::ANNOTATION(_) => Ok(node.clone())
   }
 }
 

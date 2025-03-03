@@ -1111,8 +1111,13 @@ mod tests {
     "#);
 
     let rules = matchingrules! {
-      "body" => { "$" => [ MatchingRule::EachValue(MatchingRuleDefinition::new("100".to_string(), ValueType::String,
-        MatchingRule::Integer, None)) ] }
+      "body" => {
+        "$" => [
+          MatchingRule::EachValue(
+            MatchingRuleDefinition::new("100".to_string(), ValueType::String, MatchingRule::Integer, None, "".to_string())
+          )
+        ]
+      }
     };
     let context = CoreMatchingContext::new(
       DiffConfig::AllowUnexpectedKeys,
@@ -1134,8 +1139,12 @@ mod tests {
     "#);
 
     let rules = matchingrules! {
-      "body" => { "$" => [ MatchingRule::EachValue(MatchingRuleDefinition::new("100".to_string(), ValueType::String,
-        MatchingRule::Integer, None)) ] }
+      "body" => {
+        "$" => [
+          MatchingRule::EachValue(MatchingRuleDefinition::new("100".to_string(), ValueType::String,
+            MatchingRule::Integer, None, "".to_string()))
+        ]
+      }
     };
     let context = CoreMatchingContext::new(
       DiffConfig::AllowUnexpectedKeys,
@@ -1312,7 +1321,7 @@ mod tests {
     let matchingrules = matchingrules_list! {
        "body"; "$" => [
         MatchingRule::EachValue(MatchingRuleDefinition::new("{\"id1\":\"book1\"}".to_string(),
-          ValueType::Unknown, MatchingRule::Regex("\\w+\\d+".to_string()), None))
+          ValueType::Unknown, MatchingRule::Regex("\\w+\\d+".to_string()), None, "".to_string()))
       ]
     };
 

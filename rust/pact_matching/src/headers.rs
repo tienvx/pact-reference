@@ -803,7 +803,7 @@ mod tests {
         "header" => {
           "X-Id" => [
             MatchingRule::EachValue(MatchingRuleDefinition::new("100".to_string(), ValueType::String,
-              MatchingRule::Regex("\\d+".to_string()), None))
+              MatchingRule::Regex("\\d+".to_string()), None, "".to_string()))
           ]
         }
       }.rules_for_category("header").unwrap_or_default(), &hashmap!{}
@@ -822,7 +822,7 @@ mod tests {
         "header" => {
           "X-Id" => [
             MatchingRule::EachValue(MatchingRuleDefinition::new("100".to_string(), ValueType::String,
-              MatchingRule::Regex("\\d+".to_string()), None))
+              MatchingRule::Regex("\\d+".to_string()), None, "".to_string()))
           ]
         }
       }.rules_for_category("header").unwrap_or_default(), &hashmap!{}

@@ -197,7 +197,8 @@ pub struct MatchingRuleDefinition {
   pub value: String,
   pub value_type: ValueType,
   pub rules: Vec<Either<MatchingRule, MatchingReference>>,
-  pub generator: Option<Generator>
+  pub generator: Option<Generator>,
+  pub expression: String
 }
 
 impl MatchingRuleDefinition {
@@ -206,13 +207,15 @@ impl MatchingRuleDefinition {
     value: String,
     value_type: ValueType,
     matching_rule: MatchingRule,
-    generator: Option<Generator>
+    generator: Option<Generator>,
+    expression: String
   ) -> Self {
     MatchingRuleDefinition {
       value,
       value_type,
       rules: vec![ Either::Left(matching_rule) ],
-      generator
+      generator,
+      expression
     }
   }
 
@@ -234,8 +237,19 @@ impl MatchingRuleDefinition {
       value: if self.value.is_empty() { other.value.clone() } else { self.value.clone() },
       value_type: self.value_type.merge(other.value_type),
       rules: [self.rules.clone(), other.rules.clone()].concat(),
-      generator: self.generator.as_ref().or_else(|| other.generator.as_ref()).cloned()
+      generator: self.generator.as_ref().or_else(|| other.generator.as_ref()).cloned(),
+      expression: if self.expression.is_empty() {
+        other.expression.clone()
+      } else if other.expression.is_empty() || self.expression == other.expression {
+        self.expression.clone()
+      } else {
+        format!("{}, {}", self.expression, other.expression)
+      }
     }
+  }
+
+  pub fn expression(&self) -> String {
+    self.expression.clone()
   }
 }
 
@@ -375,14 +389,16 @@ fn matching_definition_exp(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> 
           value,
           value_type: ValueType::Unknown,
           rules: vec![ Either::Right(reference) ],
-          generator
+          generator,
+          expression: v.to_string()
         })
       } else {
         Ok(MatchingRuleDefinition {
           value,
           value_type,
           rules: vec![ Either::Left(matching_rule.unwrap()) ],
-          generator
+          generator,
+          expression: v.to_string()
         })
       }
     } else if token == &MatcherDefinitionToken::NotEmpty {
@@ -391,7 +407,8 @@ fn matching_definition_exp(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> 
         value,
         value_type,
         rules: vec![Either::Left(NotEmpty)],
-        generator
+        generator,
+        expression: v.to_string()
       })
     } else if token == &MatcherDefinitionToken::EachKey {
       let definition = parse_each_key(lex, v)?;
@@ -405,7 +422,8 @@ fn matching_definition_exp(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> 
         value: String::default(),
         value_type: ValueType::Unknown,
         rules: vec![Either::Left(MinType(length))],
-        generator: None
+        generator: None,
+        expression: v.to_string()
       })
     } else if token == &MatcherDefinitionToken::AtMost {
       let length = parse_length_param(lex, v)?;
@@ -413,7 +431,8 @@ fn matching_definition_exp(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> 
         value: String::default(),
         value_type: ValueType::Unknown,
         rules: vec![Either::Left(MaxType(length))],
-        generator: None
+        generator: None,
+        expression: v.to_string()
       })
     } else {
       let mut buffer = BytesMut::new().writer();
@@ -459,7 +478,8 @@ fn parse_each_value(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow:
         value: "".to_string(),
         value_type: ValueType::Unknown,
         rules: vec![ Either::Left(MatchingRule::EachValue(result)) ],
-        generator: None
+        generator: None,
+        expression: v.to_string()
       })
     } else {
       Err(anyhow!(error_message(lex, v, "Expected a closing bracket", "Expected a closing bracket before this")?))
@@ -503,7 +523,8 @@ fn parse_each_key(lex: &mut Lexer<MatcherDefinitionToken>, v: &str) -> anyhow::R
         value: "".to_string(),
         value_type: ValueType::Unknown,
         rules: vec![ Either::Left(MatchingRule::EachKey(result)) ],
-        generator: None
+        generator: None,
+        expression: v.to_string()
       })
     } else {
       let mut buffer = BytesMut::new().writer();
@@ -1100,126 +1121,151 @@ mod test {
 
   #[test]
   fn parse_type_matcher() {
-    expect!(parse_matcher_def("matching(type,'Name')").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition::new("Name".to_string(), ValueType::String, MatchingRule::Type, None)));
-    expect!(parse_matcher_def("matching( type, 'Name' )").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition::new("Name".to_string(), ValueType::String, MatchingRule::Type, None)));
-    expect!(parse_matcher_def("matching(type,123.4)").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition::new("123.4".to_string(), ValueType::Decimal, MatchingRule::Type, None)));
-    expect!(parse_matcher_def("matching(type, fromProviderState('exp', 3))").unwrap()).to(
+    let exp = "matching(type,'Name')";
+    expect!(parse_matcher_def(exp).unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("Name".to_string(), ValueType::String, MatchingRule::Type, None, exp.to_string())));
+    let exp = "matching( type, 'Name' )";
+    expect!(parse_matcher_def(exp).unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("Name".to_string(), ValueType::String, MatchingRule::Type, None, exp.to_string())));
+    let exp = "matching(type,123.4)";
+    expect!(parse_matcher_def(exp).unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("123.4".to_string(), ValueType::Decimal, MatchingRule::Type, None, exp.to_string())));
+    let exp = "matching(type, fromProviderState('exp', 3))";
+    expect!(parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("3".to_string(), ValueType::Integer, MatchingRule::Type,
-        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))))));
+        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))), exp.to_string())));
   }
 
   #[test]
   fn parse_number_matcher() {
-    expect!(super::parse_matcher_def("matching(number,100)").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition::new("100".to_string(), ValueType::Number, MatchingRule::Number, None)));
-    expect!(super::parse_matcher_def("matching(number,200.22)").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition::new("200.22".to_string(), ValueType::Number, MatchingRule::Number, None)));
-    expect!(super::parse_matcher_def("matching(integer,-100)").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition::new("-100".to_string(), ValueType::Integer, MatchingRule::Integer, None)));
-    expect!(super::parse_matcher_def("matching(decimal,100)").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition::new("100".to_string(), ValueType::Decimal, MatchingRule::Decimal, None)));
-    expect!(super::parse_matcher_def("matching(decimal,100.22)").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition::new("100.22".to_string(), ValueType::Decimal, MatchingRule::Decimal, None)));
-    expect!(parse_matcher_def("matching(number, fromProviderState('exp', 3))").unwrap()).to(
+    let exp = "matching(number,100)";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("100".to_string(), ValueType::Number, MatchingRule::Number, None, exp.to_string())));
+    let exp = "matching(number,200.22)";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("200.22".to_string(), ValueType::Number, MatchingRule::Number, None, exp.to_string())));
+    let exp = "matching(integer,-100)";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("-100".to_string(), ValueType::Integer, MatchingRule::Integer, None, exp.to_string())));
+    let exp = "matching(decimal,100)";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("100".to_string(), ValueType::Decimal, MatchingRule::Decimal, None, exp.to_string())));
+    let exp = "matching(decimal,100.22)";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
+      be_equal_to(MatchingRuleDefinition::new("100.22".to_string(), ValueType::Decimal, MatchingRule::Decimal, None, exp.to_string())));
+    let exp = "matching(number, fromProviderState('exp', 3))";
+    expect!(parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("3".to_string(), ValueType::Integer, MatchingRule::Number,
-        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))))));
+        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))), exp.to_string())));
   }
 
   #[test]
   fn parse_datetime_matcher() {
-    expect!(super::parse_matcher_def("matching(datetime, 'yyyy-MM-dd','2000-01-01')").unwrap()).to(
+    let exp = "matching(datetime, 'yyyy-MM-dd','2000-01-01')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("2000-01-01".to_string(),
                    ValueType::String,
                    MatchingRule::Timestamp("yyyy-MM-dd".to_string()),
-                   Some(DateTime(Some("yyyy-MM-dd".to_string()), None)))));
-    expect!(super::parse_matcher_def("matching(date, 'yyyy-MM-dd','2000-01-01')").unwrap()).to(
+                   Some(DateTime(Some("yyyy-MM-dd".to_string()), None)), exp.to_string())));
+    let exp = "matching(date, 'yyyy-MM-dd','2000-01-01')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("2000-01-01".to_string(),
                    ValueType::String,
                    MatchingRule::Date("yyyy-MM-dd".to_string()),
-                   Some(Date(Some("yyyy-MM-dd".to_string()), None)))));
-    expect!(super::parse_matcher_def("matching(time, 'HH:mm:ss','12:00:00')").unwrap()).to(
+                   Some(Date(Some("yyyy-MM-dd".to_string()), None)), exp.to_string())));
+    let exp = "matching(time, 'HH:mm:ss','12:00:00')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("12:00:00".to_string(),
                    ValueType::String,
                    MatchingRule::Time("HH:mm:ss".to_string()),
-                   Some(Time(Some("HH:mm:ss".to_string()), None)))));
-    expect!(super::parse_matcher_def("matching(datetime, 'yyyy-MM-dd', fromProviderState('exp', '2000-01-01'))").unwrap()).to(
+                   Some(Time(Some("HH:mm:ss".to_string()), None)), exp.to_string())));
+    let exp = "matching(datetime, 'yyyy-MM-dd', fromProviderState('exp', '2000-01-01'))";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("2000-01-01".to_string(),
                    ValueType::String,
                    MatchingRule::Timestamp("yyyy-MM-dd".to_string()),
-                   Some(ProviderStateGenerator("exp".to_string(), Some(DataType::STRING))))));
+                   Some(ProviderStateGenerator("exp".to_string(), Some(DataType::STRING))),
+                   exp.to_string())));
   }
 
   #[test]
   fn parse_regex_matcher() {
-    expect!(super::parse_matcher_def("matching(regex,'\\w+', 'Fred')").unwrap()).to(
+    let exp = "matching(regex,'\\w+', 'Fred')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("Fred".to_string(),
                                               ValueType::String,
                                               MatchingRule::Regex("\\w+".to_string()),
-                                              None)));
+                                              None, exp.to_string())));
   }
 
   #[test]
   fn parse_boolean_matcher() {
-    expect!(super::parse_matcher_def("matching(boolean,true)").unwrap()).to(
+    let exp = "matching(boolean,true)";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("true".to_string(),
                                               ValueType::Boolean,
                                               MatchingRule::Boolean,
-                                              None)));
+                                              None, exp.to_string())));
   }
 
   #[test]
   fn parse_include_matcher() {
-    expect!(super::parse_matcher_def("matching(include,'Name')").unwrap()).to(
+    let exp = "matching(include,'Name')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("Name".to_string(),
                                               ValueType::String,
                                               MatchingRule::Include("Name".to_string()),
-                                              None)));
+                                              None, exp.to_string())));
   }
 
   #[test]
   fn parse_equals_matcher() {
-    expect!(super::parse_matcher_def("matching(equalTo,'Name')").unwrap()).to(
+    let exp = "matching(equalTo,'Name')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("Name".to_string(),
                                               ValueType::String,
                                               MatchingRule::Equality,
-                                              None)));
-    expect!(super::parse_matcher_def("matching(equalTo,123.4)").unwrap()).to(
+                                              None, exp.to_string())));
+    let exp = "matching(equalTo,123.4)";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("123.4".to_string(),
                                               ValueType::Decimal,
                                               MatchingRule::Equality,
-                                              None)));
-    expect!(parse_matcher_def("matching(equalTo, fromProviderState('exp', 3))").unwrap()).to(
+                                              None, exp.to_string())));
+    let exp = "matching(equalTo, fromProviderState('exp', 3))";
+    expect!(parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("3".to_string(), ValueType::Integer, MatchingRule::Equality,
-        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))))));
+        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))), exp.to_string())));
   }
 
   #[test]
   fn parse_content_type_matcher() {
-    expect!(super::parse_matcher_def("matching(contentType,'Name', 'Value')").unwrap()).to(
+    let exp = "matching(contentType,'Name', 'Value')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("Value".to_string(),
                                               ValueType::Unknown,
                                               MatchingRule::ContentType("Name".to_string()),
-                                              None)));
+                                              None, exp.to_string())));
   }
 
   #[test]
   fn parse_not_empty() {
-    expect!(super::parse_matcher_def("notEmpty('Value')").unwrap()).to(
+    let exp = "notEmpty('Value')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("Value".to_string(),
                                               ValueType::String,
                                               MatchingRule::NotEmpty,
-                                              None)));
-    expect!(super::parse_matcher_def("notEmpty(100)").unwrap()).to(
+                                              None, exp.to_string())));
+    let exp = "notEmpty(100)";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("100".to_string(),
                                               ValueType::Integer,
                                               MatchingRule::NotEmpty,
-                                              None)));
-    expect!(parse_matcher_def("notEmpty(fromProviderState('exp', 3))").unwrap()).to(
+                                              None, exp.to_string())));
+    let exp = "notEmpty(fromProviderState('exp', 3))";
+    expect!(parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("3".to_string(), ValueType::Integer, MatchingRule::NotEmpty,
-        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))))));
+        Some(ProviderStateGenerator("exp".to_string(), Some(DataType::INTEGER))), exp.to_string())));
   }
 
   #[test]
@@ -1299,11 +1345,12 @@ mod test {
 
   #[test]
   fn parse_semver_matcher() {
-    expect!(super::parse_matcher_def("matching(semver, '1.0.0')").unwrap()).to(
+    let exp = "matching(semver, '1.0.0')";
+    expect!(super::parse_matcher_def(exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition::new("1.0.0".to_string(),
                                               ValueType::String,
                                               MatchingRule::Semver,
-                                              None)));
+                                              None, exp.to_string())));
 
     expect!(as_string!(super::parse_matcher_def("matching(semver, '100')"))).to(
       be_err().value(
@@ -1430,38 +1477,45 @@ mod test {
 
   #[test]
   fn matching_definition_exp_test() {
-    let mut lex = MatcherDefinitionToken::lexer("notEmpty('test')");
-    expect!(super::matching_definition_exp(&mut lex, "notEmpty('test')")).to(
+    let exp = "notEmpty('test')";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    expect!(super::matching_definition_exp(&mut lex, exp)).to(
       be_ok().value(MatchingRuleDefinition {
         value: "test".to_string(),
         value_type: ValueType::String,
         rules: vec![ Either::Left(NotEmpty) ],
-        generator: None
+        generator: None,
+        expression: exp.to_string()
       })
     );
 
-    let mut lex = MatcherDefinitionToken::lexer("matching(regex, '.*', 'aaabbb')");
-    expect!(super::matching_definition_exp(&mut lex, "matching(regex, '.*', 'aaabbb')")).to(
+    let exp = "matching(regex, '.*', 'aaabbb')";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    expect!(super::matching_definition_exp(&mut lex, exp)).to(
       be_ok().value(MatchingRuleDefinition {
         value: "aaabbb".to_string(),
         value_type: ValueType::String,
         rules: vec![ Either::Left(Regex(".*".to_string())) ],
-        generator: None
+        generator: None,
+        expression: exp.to_string()
       })
     );
 
-    let mut lex = MatcherDefinitionToken::lexer("matching($'test')");
-    expect!(super::matching_definition_exp(&mut lex, "matching($'test')")).to(
+    let exp = "matching($'test')";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    expect!(super::matching_definition_exp(&mut lex, exp)).to(
       be_ok().value(MatchingRuleDefinition {
         value: "test".to_string(),
         value_type: ValueType::Unknown,
         rules: vec![ Either::Right(MatchingReference { name: "test".to_string() }) ],
-        generator: None
+        generator: None,
+        expression: exp.to_string(),
       })
     );
 
-    let mut lex = MatcherDefinitionToken::lexer("eachKey(matching(regex, '.*', 'aaabbb'))");
-    expect!(super::matching_definition_exp(&mut lex, "eachKey(matching(regex, '.*', 'aaabbb'))")).to(
+    let exp = "eachKey(matching(regex, '.*', 'aaabbb'))";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    expect!(super::matching_definition_exp(&mut lex, exp)).to(
       be_ok().value(MatchingRuleDefinition {
         value: "".to_string(),
         value_type: ValueType::Unknown,
@@ -1469,14 +1523,17 @@ mod test {
           value: "aaabbb".to_string(),
           value_type: ValueType::String,
           rules: vec![ Either::Left(Regex(".*".to_string())) ],
-          generator: None
+          generator: None,
+          expression: exp.to_string()
         })) ],
-        generator: None
+        generator: None,
+        expression: exp.to_string()
       })
     );
 
-    let mut lex = MatcherDefinitionToken::lexer("eachValue(matching(regex, '.*', 'aaabbb'))");
-    expect!(super::matching_definition_exp(&mut lex, "eachValue(matching(regex, '.*', 'aaabbb'))")).to(
+    let exp = "eachValue(matching(regex, '.*', 'aaabbb'))";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    expect!(super::matching_definition_exp(&mut lex, exp)).to(
       be_ok().value(MatchingRuleDefinition {
         value: "".to_string(),
         value_type: ValueType::Unknown,
@@ -1484,9 +1541,11 @@ mod test {
           value: "aaabbb".to_string(),
           value_type: ValueType::String,
           rules: vec![ Either::Left(Regex(".*".to_string())) ],
-          generator: None
+          generator: None,
+          expression: exp.to_string()
         })) ],
-        generator: None
+        generator: None,
+        expression: exp.to_string()
       })
     );
 
@@ -1524,8 +1583,9 @@ mod test {
 
   #[test]
   fn parse_each_key_test() {
-    let mut lex = MatcherDefinitionToken::lexer("(matching($'bob'))");
-    expect!(super::parse_each_key(&mut lex, "(matching($'bob'))").unwrap()).to(
+    let exp = "(matching($'bob'))";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    expect!(super::parse_each_key(&mut lex, exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition {
         value: "".to_string(),
         value_type: ValueType::Unknown,
@@ -1533,9 +1593,12 @@ mod test {
           value: "bob".to_string(),
           value_type: ValueType::Unknown,
           rules: vec![ Either::Right(MatchingReference { name: "bob".to_string() }) ],
-          generator: None }))
+          generator: None,
+          expression: exp.to_string()
+        }))
         ],
-        generator: None
+        generator: None,
+        expression: exp.to_string()
       }));
 
     let mut lex = MatcherDefinitionToken::lexer("eachKey");
@@ -1597,8 +1660,9 @@ mod test {
 
   #[test]
   fn parse_each_value_test() {
-    let mut lex = MatcherDefinitionToken::lexer("(matching($'bob'))");
-    expect!(super::parse_each_value(&mut lex, "(matching($'bob'))").unwrap()).to(
+    let exp = "(matching($'bob'))";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    expect!(super::parse_each_value(&mut lex, exp).unwrap()).to(
       be_equal_to(MatchingRuleDefinition {
         value: "".to_string(),
         value_type: ValueType::Unknown,
@@ -1606,9 +1670,12 @@ mod test {
           value: "bob".to_string(),
           value_type: ValueType::Unknown,
           rules: vec![ Either::Right(MatchingReference { name: "bob".to_string() }) ],
-          generator: None }))
+          generator: None,
+          expression: exp.to_string()
+        }))
         ],
-        generator: None
+        generator: None,
+        expression: exp.to_string()
       }));
 
     let mut lex = MatcherDefinitionToken::lexer("eachKey");
@@ -1670,16 +1737,30 @@ mod test {
 
   #[test_log::test]
   fn parse_multiple_matcher_definitions() {
-    expect!(super::parse_matcher_def("eachKey(matching(regex, '\\$(\\.\\w+)+', '$.test.one')), eachValue(matching(type, null))").unwrap()).to(
-      be_equal_to(MatchingRuleDefinition {
+    let exp = "eachKey(matching(regex, '\\$(\\.\\w+)+', '$.test.one')), eachValue(matching(type, null))";
+    assert_eq!(super::parse_matcher_def(exp).unwrap(),
+      MatchingRuleDefinition {
         value: "".to_string(),
         value_type: ValueType::Unknown,
         rules: vec![
-          Either::Left(MatchingRule::EachKey(MatchingRuleDefinition { value: "$.test.one".to_string(), value_type: ValueType::String, rules: vec![Either::Left(MatchingRule::Regex("\\$(\\.\\w+)+".to_string()))], generator: None } )),
-          Either::Left(MatchingRule::EachValue(MatchingRuleDefinition { value: "".to_string(), value_type: ValueType::String, rules: vec![Either::Left(MatchingRule::Type)], generator: None } ))
+          Either::Left(MatchingRule::EachKey(MatchingRuleDefinition {
+            value: "$.test.one".to_string(),
+            value_type: ValueType::String,
+            rules: vec![Either::Left(MatchingRule::Regex("\\$(\\.\\w+)+".to_string()))],
+            generator: None,
+            expression: exp.to_string()
+          })),
+          Either::Left(MatchingRule::EachValue(MatchingRuleDefinition {
+            value: "".to_string(),
+            value_type: ValueType::String,
+            rules: vec![Either::Left(MatchingRule::Type)],
+            generator: None,
+            expression: exp.to_string()
+          }))
         ],
-        generator: None
-      }));
+        generator: None,
+        expression: exp.to_string()
+      });
   }
 
   #[test_log::test]
@@ -1688,31 +1769,36 @@ mod test {
       value: "".to_string(),
       value_type: ValueType::Unknown,
       rules: vec![],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     };
     let with_value = MatchingRuleDefinition {
       value: "value".to_string(),
       value_type: ValueType::Unknown,
       rules: vec![],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     };
     let with_type = MatchingRuleDefinition {
       value: "value".to_string(),
       value_type: ValueType::String,
       rules: vec![],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     };
     let with_generator = MatchingRuleDefinition {
       value: "".to_string(),
       value_type: ValueType::String,
       rules: vec![],
-      generator: Some(Date(None, None))
+      generator: Some(Date(None, None)),
+      expression: "".to_string()
     };
     let with_matching_rule = MatchingRuleDefinition {
       value: "".to_string(),
       value_type: ValueType::String,
       rules: vec![ Either::Left(Type) ],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     };
     expect!(basic.merge(&basic)).to(be_equal_to(basic.clone()));
     expect!(basic.merge(&with_value)).to(be_equal_to(with_value.clone()));
@@ -1723,7 +1809,8 @@ mod test {
       value: "".to_string(),
       value_type: ValueType::String,
       rules: vec![ Either::Left(Type), Either::Left(Type) ],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     }));
 
     let each_key = MatchingRuleDefinition {
@@ -1734,10 +1821,12 @@ mod test {
           value: "$.test.one".to_string(),
           value_type: ValueType::String,
           rules: vec![ Either::Left(Regex("\\$(\\.\\w+)+".to_string())) ],
-          generator: None
+          generator: None,
+          expression: "".to_string()
         }))
       ],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     };
     let each_value = MatchingRuleDefinition {
       value: "".to_string(),
@@ -1747,10 +1836,12 @@ mod test {
           value: "".to_string(),
           value_type: ValueType::String,
           rules: vec![ Either::Left(Type) ],
-          generator: None
+          generator: None,
+          expression: "".to_string()
         }))
       ],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     };
     expect!(each_key.merge(&each_value)).to(be_equal_to(MatchingRuleDefinition {
       value: "".to_string(),
@@ -1760,16 +1851,19 @@ mod test {
           value: "$.test.one".to_string(),
           value_type: ValueType::String,
           rules: vec![ Either::Left(Regex("\\$(\\.\\w+)+".to_string())) ],
-          generator: None
+          generator: None,
+          expression: "".to_string()
         })),
         Either::Left(MatchingRule::EachValue(MatchingRuleDefinition {
           value: "".to_string(),
           value_type: ValueType::String,
           rules: vec![ Either::Left(Type) ],
-          generator: None
+          generator: None,
+          expression: "".to_string()
         }))
       ],
-      generator: None
+      generator: None,
+      expression: "".to_string()
     }));
   }
 
@@ -1829,13 +1923,15 @@ mod test {
 
   #[test]
   fn parse_at_least_test() {
-    let mut lex = MatcherDefinitionToken::lexer("atLeast(1)");
-    assert_eq!(super::matching_definition_exp(&mut lex, "atLeast(1)").unwrap(),
+    let exp = "atLeast(1)";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    assert_eq!(super::matching_definition_exp(&mut lex, exp).unwrap(),
       MatchingRuleDefinition {
         value: "".to_string(),
         value_type: ValueType::Unknown,
         rules: vec![ Either::Left(MatchingRule::MinType(1)) ],
-        generator: None
+        generator: None,
+        expression: exp.to_string()
       }
     );
 
@@ -1891,13 +1987,15 @@ mod test {
 
   #[test]
   fn parse_at_most_test() {
-    let mut lex = MatcherDefinitionToken::lexer("atMost(100)");
-    assert_eq!(super::matching_definition_exp(&mut lex, "atMost(100)").unwrap(),
+    let exp = "atMost(100)";
+    let mut lex = MatcherDefinitionToken::lexer(exp);
+    assert_eq!(super::matching_definition_exp(&mut lex, exp).unwrap(),
       MatchingRuleDefinition {
-       value: "".to_string(),
-       value_type: ValueType::Unknown,
-       rules: vec![ Either::Left(MatchingRule::MaxType(100)) ],
-       generator: None
+        value: "".to_string(),
+        value_type: ValueType::Unknown,
+        rules: vec![ Either::Left(MatchingRule::MaxType(100)) ],
+        generator: None,
+        expression: exp.to_string()
       }
     );
 
