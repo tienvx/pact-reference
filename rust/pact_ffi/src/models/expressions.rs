@@ -73,7 +73,8 @@ ffi_fn! {
           value: expression.to_string(),
           value_type: ValueType::String,
           rules: vec![],
-          generator: None
+          generator: None,
+          expression: expression.to_string()
         })
       }
     };

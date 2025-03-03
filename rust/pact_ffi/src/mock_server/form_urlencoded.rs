@@ -158,7 +158,7 @@ mod test {
   #[case(
     json!({ "array_values_with_matcher": { "pact:matcher:type": "eachValue", "value": ["string value"], "rules": [{ "pact:matcher:type": "type", "value": "string" }] } }),
     "array_values_with_matcher=string+value".to_string(),
-    matchingrules_list!{"body"; "$.array_values_with_matcher" => [MatchingRule::EachValue(MatchingRuleDefinition::new("[\"string value\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None))]},
+    matchingrules_list!{"body"; "$.array_values_with_matcher" => [MatchingRule::EachValue(MatchingRuleDefinition::new("[\"string value\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None, "".to_string()))]},
     generators! {"BODY" => {}}
   )]
   #[case(

@@ -476,10 +476,11 @@ fn object_matching_is_pattern() {
     }),
     vec![
       MatchingRule::EachKey(MatchingRuleDefinition::new(
-        "key1".to_string(), ValueType::String, MatchingRule::Regex("[a-z]{3,}[0-9]".to_string()), None
+        "key1".to_string(), ValueType::String, MatchingRule::Regex("[a-z]{3,}[0-9]".to_string()),
+        None, "".to_string()
       )),
       MatchingRule::EachValue(MatchingRuleDefinition::new(
-        "some string".to_string(), ValueType::Unknown, MatchingRule::Type, None
+        "some string".to_string(), ValueType::Unknown, MatchingRule::Type, None, "".to_string()
       ))
     ]
   );
@@ -492,9 +493,9 @@ fn object_matching_is_pattern() {
   expect!(rules).to(be_equal_to(matchingrules_list! {
     "body"; "$" => [
       MatchingRule::EachKey(MatchingRuleDefinition::new("key1".to_string(), ValueType::String,
-        MatchingRule::Regex("[a-z]{3,}[0-9]".to_string()), None)),
+        MatchingRule::Regex("[a-z]{3,}[0-9]".to_string()), None, "".to_string())),
       MatchingRule::EachValue(MatchingRuleDefinition::new("some string".to_string(), ValueType::Unknown,
-        MatchingRule::Type, None))
+        MatchingRule::Type, None, "".to_string()))
     ]
   }));
 }
@@ -565,9 +566,9 @@ fn object_matching_test() {
   assert_eq!(matchingrules_list! {
     "body"; "$" => [
       MatchingRule::EachKey(MatchingRuleDefinition::new("key1".to_string(), ValueType::String,
-        MatchingRule::Regex("[a-z]{3}[0-9]".to_string()), None)),
+        MatchingRule::Regex("[a-z]{3}[0-9]".to_string()), None, "".to_string())),
       MatchingRule::EachValue(MatchingRuleDefinition::new("\"value1\"".to_string(),
-        ValueType::String, MatchingRule::Type, None))
+        ValueType::String, MatchingRule::Type, None, "".to_string()))
     ]
   }, rules);
 }
@@ -602,7 +603,7 @@ fn object_matching_supports_nested_matching_rules() {
   assert_eq!(matchingrules_list! {
     "body"; "$" => [
       MatchingRule::EachKey(MatchingRuleDefinition::new("key1".to_string(), ValueType::String,
-        MatchingRule::Regex("[a-z]{3}[0-9]".to_string()), None))
+        MatchingRule::Regex("[a-z]{3}[0-9]".to_string()), None, "".to_string()))
     ],
     "$.*.id" => [ MatchingRule::Regex("[0-9]+".to_string()) ],
     "$.*.desc" => [ MatchingRule::Type ]
@@ -658,7 +659,8 @@ impl Into<MatchingRule> for &EachKey {
         .flat_map(|list| list.rules.iter())
         .map(|rule| Either::Left(rule.clone()))
         .collect(),
-      generator: None
+      generator: None,
+      expression: "".to_string()
     })
   }
 }
@@ -678,7 +680,7 @@ fn each_key_is_pattern() {
   expect!(rules).to(be_equal_to(matchingrules_list! {
     "body"; "$" => [
       MatchingRule::EachKey(MatchingRuleDefinition::new("100".to_string(), ValueType::String,
-        MatchingRule::Regex("\\d+".to_string()), None))
+        MatchingRule::Regex("\\d+".to_string()), None, "".to_string()))
     ]
   }));
 }
@@ -712,7 +714,7 @@ fn each_key_test() {
   expect!(rules).to(be_equal_to(matchingrules_list! {
     "body"; "$" => [
       MatchingRule::EachKey(MatchingRuleDefinition::new("key1".to_string(), ValueType::String,
-        MatchingRule::Regex("[a-z]{3}[0-9]".to_string()), None))
+        MatchingRule::Regex("[a-z]{3}[0-9]".to_string()), None, "".to_string()))
     ]
   }));
 }
@@ -767,7 +769,8 @@ impl Into<MatchingRule> for &EachValue {
         .flat_map(|list| list.rules.iter())
         .map(|rule| Either::Left(rule.clone()))
         .collect(),
-      generator: None
+      generator: None,
+      expression: "".to_string()
     })
   }
 }
@@ -787,7 +790,7 @@ fn each_value_is_pattern() {
   expect!(rules).to(be_equal_to(matchingrules_list! {
     "body"; "$" => [
       MatchingRule::EachValue(MatchingRuleDefinition::new("\"100\"".to_string(), ValueType::String,
-        MatchingRule::Regex("\\d+".to_string()), None))
+        MatchingRule::Regex("\\d+".to_string()), None, "".to_string()))
     ]
   }));
 }
@@ -821,7 +824,7 @@ fn each_value_test() {
   expect!(rules).to(be_equal_to(matchingrules_list! {
     "body"; "$" => [
       MatchingRule::EachValue(MatchingRuleDefinition::new("\"value1\"".to_string(), ValueType::String,
-        MatchingRule::Regex("[a-z]{5}[0-9]".to_string()), None))
+        MatchingRule::Regex("[a-z]{5}[0-9]".to_string()), None, "".to_string()))
     ]
   }));
 }

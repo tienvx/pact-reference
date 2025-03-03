@@ -660,7 +660,7 @@ use pretty_assertions::assert_eq;
     expect!(matching_rules).to(be_equal_to(matchingrules_list!{
       "body";
       "$" => [ MatchingRule::EachValue(MatchingRuleDefinition::new("{\"price\":1.23}".to_string(),
-        ValueType::Unknown, MatchingRule::Decimal, None)) ]
+        ValueType::Unknown, MatchingRule::Decimal, None, "".to_string())) ]
     }));
     expect!(generators).to(be_equal_to(Generators::default()));
   }
@@ -691,7 +691,7 @@ use pretty_assertions::assert_eq;
     expect!(matching_rules).to(be_equal_to(matchingrules_list!{
       "body";
       "$" => [ MatchingRule::EachKey(MatchingRuleDefinition::new("{\"123\":\"cool book\"}".to_string(),
-        ValueType::Unknown, MatchingRule::Regex("\\d+".to_string()), None)) ]
+        ValueType::Unknown, MatchingRule::Regex("\\d+".to_string()), None, "".to_string())) ]
     }));
     expect!(generators).to(be_equal_to(Generators::default()));
   }
@@ -808,6 +808,7 @@ use pretty_assertions::assert_eq;
         value_type: ValueType::Unknown,
         rules: vec![],
         generator: None,
+        expression: "".to_string()
       })));
     expect!(matcher_from_integration_json(&json!({ "pact:matcher:type": "each-key" }).as_object().unwrap()))
       .to(be_some().value(MatchingRule::EachKey(MatchingRuleDefinition {
@@ -815,6 +816,7 @@ use pretty_assertions::assert_eq;
         value_type: ValueType::Unknown,
         rules: vec![],
         generator: None,
+        expression: "".to_string()
       })));
     expect!(matcher_from_integration_json(&json!({ "pact:matcher:type": "eachValue" }).as_object().unwrap()))
       .to(be_some().value(MatchingRule::EachValue(MatchingRuleDefinition {
@@ -822,6 +824,7 @@ use pretty_assertions::assert_eq;
         value_type: ValueType::Unknown,
         rules: vec![],
         generator: None,
+        expression: "".to_string()
       })));
     expect!(matcher_from_integration_json(&json!({ "pact:matcher:type": "each-value" }).as_object().unwrap()))
       .to(be_some().value(MatchingRule::EachValue(MatchingRuleDefinition {
@@ -829,6 +832,7 @@ use pretty_assertions::assert_eq;
         value_type: ValueType::Unknown,
         rules: vec![],
         generator: None,
+        expression: "".to_string()
       })));
   }
 
@@ -884,24 +888,28 @@ use pretty_assertions::assert_eq;
       value_type: ValueType::Unknown,
       rules: vec![],
       generator: None,
+      expression: "".to_string()
     })])]
   #[case(json!({ "pact:matcher:type": "each-key" }), vec![MatchingRule::EachKey(MatchingRuleDefinition {
     value: "".to_string(),
     value_type: ValueType::Unknown,
     rules: vec![],
     generator: None,
+    expression: "".to_string()
     })])]
   #[case(json!({ "pact:matcher:type": "eachValue" }), vec![MatchingRule::EachValue(MatchingRuleDefinition {
     value: "".to_string(),
     value_type: ValueType::Unknown,
     rules: vec![],
     generator: None,
+    expression: "".to_string()
     })])]
   #[case(json!({ "pact:matcher:type": "each-value" }), vec![MatchingRule::EachValue(MatchingRuleDefinition {
     value: "".to_string(),
     value_type: ValueType::Unknown,
     rules: vec![],
     generator: None,
+    expression: "".to_string()
     })])]
   #[case(json!({ "pact:matcher:type": [{"pact:matcher:type": "regex", "regex": "[a-z]"}] }), vec![MatchingRule::Regex("[a-z]".to_string())])]
   #[case(json!({ "pact:matcher:type": [
