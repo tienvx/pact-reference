@@ -75,7 +75,7 @@ fn simple_match_request_test() -> anyhow::Result<()> {
   assert_eq!(r#"(
   :request (
     :method (
-      #"request method == POST",
+      #{'method == POST'},
       %match:equality (
         'POST',
         %upper-case (
@@ -85,7 +85,7 @@ fn simple_match_request_test() -> anyhow::Result<()> {
       )
     ),
     :path (
-      #"path == '/test'",
+      #{"path == '/test'"},
       %match:equality (
         '/test',
         $.path,
@@ -125,7 +125,7 @@ fn simple_match_request_test() -> anyhow::Result<()> {
   assert_eq!(r#"(
   :request (
     :method (
-      #"request method == POST",
+      #{'method == POST'},
       %match:equality (
         'POST' => 'POST',
         %upper-case (
@@ -135,7 +135,7 @@ fn simple_match_request_test() -> anyhow::Result<()> {
       ) => ERROR(Expected 'PUT' to be equal to 'POST')
     ),
     :path (
-      #"path == '/test'",
+      #{"path == '/test'"},
       %match:equality (
         '/test' => '/test',
         $.path => '/test',
@@ -205,7 +205,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
   assert_eq!(r#"(
   :request (
     :method (
-      #"request method == POST",
+      #{'method == POST'},
       %match:equality (
         'POST',
         %upper-case (
@@ -215,7 +215,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
       )
     ),
     :path (
-      #"path == '/test'",
+      #{"path == '/test'"},
       %match:equality (
         '/test',
         $.path,
@@ -276,7 +276,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
   assert_eq!(r#"(
   :request (
     :method (
-      #"request method == POST",
+      #{'method == POST'},
       %match:equality (
         'POST' => 'POST',
         %upper-case (
@@ -286,7 +286,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
       ) => BOOL(true)
     ),
     :path (
-      #"path == '/test'",
+      #{"path == '/test'"},
       %match:equality (
         '/test' => '/test',
         $.path => '/test',
@@ -376,7 +376,7 @@ fn match_path_with_matching_rule() -> anyhow::Result<()> {
 r#"(
   :request (
     :method (
-      #"request method == GET",
+      #{'method == GET'},
       %match:equality (
         'GET',
         %upper-case (
@@ -386,7 +386,7 @@ r#"(
       )
     ),
     :path (
-      #"path must match the regular expression /\/test[0-9]+/",
+      #{"path must match the regular expression /\\/test[0-9]+/"},
       %match:regex (
         '/test',
         $.path,
@@ -410,7 +410,7 @@ r#"(
   assert_eq!(r#"(
   :request (
     :method (
-      #"request method == GET",
+      #{'method == GET'},
       %match:equality (
         'GET' => 'GET',
         %upper-case (
@@ -420,7 +420,7 @@ r#"(
       ) => BOOL(true)
     ),
     :path (
-      #"path must match the regular expression /\/test[0-9]+/",
+      #{"path must match the regular expression /\\/test[0-9]+/"},
       %match:regex (
         '/test' => '/test',
         $.path => '/test12345',
@@ -449,7 +449,7 @@ r#"(
   assert_eq!(r#"(
   :request (
     :method (
-      #"request method == GET",
+      #{'method == GET'},
       %match:equality (
         'GET' => 'GET',
         %upper-case (
@@ -459,7 +459,7 @@ r#"(
       ) => BOOL(true)
     ),
     :path (
-      #"path must match the regular expression /\/test[0-9]+/",
+      #{"path must match the regular expression /\\/test[0-9]+/"},
       %match:regex (
         '/test' => '/test',
         $.path => '/test12345X',

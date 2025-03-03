@@ -87,6 +87,7 @@ fn match_query_with_expected_query_string() {
   :query-test (
     :"query parameters" (
       :a (
+        #{"a='b'"},
         %if (
           %check:exists (
             $.query.a
@@ -135,6 +136,7 @@ fn match_query_with_expected_query_string() {
   :query-test (
     :"query parameters" (
       :a (
+        #{"a='b'"},
         %if (
           %check:exists (
             $.query.a => NULL
@@ -188,6 +190,7 @@ fn match_query_with_expected_query_string() {
   :query-test (
     :"query parameters" (
       :a (
+        #{"a='b'"},
         %if (
           %check:exists (
             $.query.a => 'b'
@@ -241,6 +244,7 @@ fn match_query_with_expected_query_string() {
   :query-test (
     :"query parameters" (
       :a (
+        #{"a='b'"},
         %if (
           %check:exists (
             $.query.a => 'c'
@@ -295,6 +299,7 @@ fn match_query_with_expected_query_string() {
   :query-test (
     :"query parameters" (
       :a (
+        #{"a='b'"},
         %if (
           %check:exists (
             $.query.a => 'b'
@@ -348,6 +353,7 @@ fn match_query_with_expected_query_string() {
   :query-test (
     :"query parameters" (
       :a (
+        #{"a='b'"},
         %if (
           %check:exists (
             $.query.a => NULL
@@ -420,6 +426,7 @@ fn match_query_with_matching_rule() {
   :query-test (
     :"query parameters" (
       :field (
+        #{"field='test'"},
         %if (
           %check:exists (
             $.query.field
@@ -432,6 +439,7 @@ fn match_query_with_matching_rule() {
         )
       ),
       :user_id (
+        #{'user_id must match the regular expression /^[0-9]+$/'},
         %if (
           %check:exists (
             $.query.user_id
@@ -486,6 +494,7 @@ fn match_query_with_matching_rule() {
   :query-test (
     :"query parameters" (
       :field (
+        #{"field='test'"},
         %if (
           %check:exists (
             $.query.field => 'test'
@@ -498,6 +507,7 @@ fn match_query_with_matching_rule() {
         ) => BOOL(true)
       ),
       :user_id (
+        #{'user_id must match the regular expression /^[0-9]+$/'},
         %if (
           %check:exists (
             $.query.user_id => '2455324356421'
@@ -552,6 +562,7 @@ fn match_query_with_matching_rule() {
   :query-test (
     :"query parameters" (
       :field (
+        #{"field='test'"},
         %if (
           %check:exists (
             $.query.field => 'test'
@@ -564,6 +575,7 @@ fn match_query_with_matching_rule() {
         ) => BOOL(true)
       ),
       :user_id (
+        #{'user_id must match the regular expression /^[0-9]+$/'},
         %if (
           %check:exists (
             $.query.user_id => '100Kb'
@@ -632,6 +644,7 @@ fn match_query_with_query_values_having_different_lengths() {
   :query-test (
     :"query parameters" (
       :a (
+        #{"a='b'"},
         %if (
           %check:exists (
             $.query.a => 'b'
@@ -644,6 +657,7 @@ fn match_query_with_query_values_having_different_lengths() {
         ) => BOOL(true)
       ),
       :c (
+        #{"c=['d', 'e']"},
         %if (
           %check:exists (
             $.query.c => ['d', 'e']
@@ -698,6 +712,7 @@ fn match_query_with_query_values_having_different_lengths() {
   :query-test (
     :"query parameters" (
       :a (
+        #{"a='b'"},
         %if (
           %check:exists (
             $.query.a => ['b', 'e']
@@ -710,6 +725,7 @@ fn match_query_with_query_values_having_different_lengths() {
         ) => ERROR(Expected 'e' to be equal to 'b')
       ),
       :c (
+        #{"c=['d', 'e']"},
         %if (
           %check:exists (
             $.query.c => 'd'
@@ -788,6 +804,7 @@ fn match_query_with_number_type_matching_rule() {
   :query-test (
     :"query parameters" (
       :user_id (
+        #{'user_id must be an integer'},
         %if (
           %check:exists (
             $.query.user_id => '2455324356421'
@@ -841,6 +858,7 @@ fn match_query_with_number_type_matching_rule() {
   :query-test (
     :"query parameters" (
       :user_id (
+        #{'user_id must be an integer'},
         %if (
           %check:exists (
             $.query.user_id => ['100', '200']
@@ -894,6 +912,7 @@ fn match_query_with_number_type_matching_rule() {
   :query-test (
     :"query parameters" (
       :user_id (
+        #{'user_id must be an integer'},
         %if (
           %check:exists (
             $.query.user_id => ['100x', '200']
@@ -977,6 +996,7 @@ fn match_query_with_min_type_matching_rules() {
   :query-test (
     :"query parameters" (
       :id (
+        #{'id must match by type and have at least 2 items'},
         %if (
           %check:exists (
             $.query.id => ['1', '2', '3', '4']
@@ -1030,6 +1050,7 @@ fn match_query_with_min_type_matching_rules() {
   :query-test (
     :"query parameters" (
       :id (
+        #{'id must match by type and have at least 2 items'},
         %if (
           %check:exists (
             $.query.id => '100'

@@ -583,12 +583,9 @@ impl ExecutionPlanNode {
       }
       PlanNodeType::ANNOTATION(label) => {
         buffer.push_str(pad.as_str());
-        buffer.push('#');
-        if label.contains(|ch: char| ch.is_whitespace()) {
-          buffer.push_str(format!("\"{}\"", label).as_str());
-        } else {
-          buffer.push_str(label.as_str());
-        }
+        buffer.push_str("#{");
+        buffer.push_str(escape(label).as_ref());
+        buffer.push('}')
       }
     }
   }
@@ -682,12 +679,9 @@ impl ExecutionPlanNode {
         }
       }
       PlanNodeType::ANNOTATION(label) => {
-        buffer.push(':');
-        if label.contains(|ch: char| ch.is_whitespace()) {
-          buffer.push_str(format!("\"{}\"", label).as_str());
-        } else {
-          buffer.push_str(label.as_str());
-        }
+        buffer.push_str("#{");
+        buffer.push_str(escape(label).as_ref());
+        buffer.push('}')
       }
     }
 
@@ -895,7 +889,7 @@ fn setup_method_plan(
       .add(ExecutionPlanNode::resolve_value(DocPath::new("$.method")?)))
     .add(ExecutionPlanNode::value_node(NodeValue::NULL));
 
-  method_container.add(ExecutionPlanNode::annotation(format!("request method == {}", expected_method)));
+  method_container.add(ExecutionPlanNode::annotation(format!("method == {}", expected_method)));
   method_container.add(match_method);
 
   Ok(method_container)
@@ -983,10 +977,10 @@ fn setup_query_plan(
 
         let mut presence_check = ExecutionPlanNode::action("if");
         let item_value = if value.len() == 1 {
-          ExecutionPlanNode::value_node(NodeValue::STRING(value[0].clone().unwrap_or_default()))
+          NodeValue::STRING(value[0].clone().unwrap_or_default())
         } else {
-          ExecutionPlanNode::value_node(NodeValue::SLIST(value.iter()
-            .map(|v| v.clone().unwrap_or_default()).collect()))
+          NodeValue::SLIST(value.iter()
+            .map(|v| v.clone().unwrap_or_default()).collect())
         };
         presence_check
           .add(
@@ -997,11 +991,14 @@ fn setup_query_plan(
         let item_path = DocPath::root().join(key);
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
-          presence_check.add(build_matching_rule_node(&item_value, &doc_path.join(key), &matchers));
+          item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
+          presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
+            &doc_path.join(key), &matchers));
         } else {
+          item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           let mut item_check = ExecutionPlanNode::action("match:equality");
           item_check
-            .add(item_value)
+            .add(ExecutionPlanNode::value_node(item_value))
             .add(ExecutionPlanNode::resolve_value(doc_path.join(key)))
             .add(ExecutionPlanNode::value_node(NodeValue::NULL));
           presence_check.add(item_check);
