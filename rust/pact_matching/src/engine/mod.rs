@@ -1074,9 +1074,9 @@ fn setup_header_plan(
 
         let mut presence_check = ExecutionPlanNode::action("if");
         let item_value = if value.len() == 1 {
-          ExecutionPlanNode::value_node(NodeValue::STRING(value[0].clone()))
+          NodeValue::STRING(value[0].clone())
         } else {
-          ExecutionPlanNode::value_node(NodeValue::SLIST(value.clone()))
+          NodeValue::SLIST(value.clone())
         };
         presence_check
           .add(
@@ -1087,8 +1087,10 @@ fn setup_header_plan(
         let item_path = DocPath::root().join(key);
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
-          presence_check.add(build_matching_rule_node(&item_value, &doc_path.join(key), &matchers));
+          item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
+          presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value), &doc_path.join(key), &matchers));
         } else if PARAMETERISED_HEADERS.contains(&key.to_lowercase().as_str()) {
+          item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           if value.len() == 1 {
             let values: Vec<&str> = strip_whitespace(value[0].as_str(), ";");
             let (header_value, header_params) = values.as_slice()
@@ -1134,9 +1136,10 @@ fn setup_header_plan(
             todo!("Need to deal with parameterized header with multiple values (i.e. accept)");
           }
         } else {
+          item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           let mut item_check = ExecutionPlanNode::action("match:equality");
           item_check
-            .add(item_value)
+            .add(ExecutionPlanNode::value_node(item_value))
             .add(ExecutionPlanNode::resolve_value(doc_path.join(key)))
             .add(ExecutionPlanNode::value_node(NodeValue::NULL));
           presence_check.add(item_check);
