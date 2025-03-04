@@ -1,6 +1,7 @@
 //! Structs and traits to support a general matching engine
 
 use std::borrow::Cow;
+use std::cmp::PartialEq;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 
@@ -28,7 +29,7 @@ use crate::matchers::Matches;
 
 mod bodies;
 mod value_resolvers;
-mod context;
+pub mod context;
 
 /// Enum for the type of Plan Node
 #[derive(Clone, Debug, Default)]
@@ -228,6 +229,32 @@ impl NodeValue {
       _ => None
     }
   }
+
+  /// Calculates an AND of two values
+  pub fn and(&self, other: &Self) -> Self {
+    match self {
+      NodeValue::NULL => other.clone(),
+      NodeValue::BOOL(b) => NodeValue::BOOL(*b && other.thruthy()),
+      _ => NodeValue::BOOL(self.thruthy() && other.thruthy())
+    }
+  }
+
+  /// Convert this value into a boolean using a "thruthy" test
+  pub fn thruthy(&self) -> bool {
+    match self {
+      NodeValue::NULL => false,
+      NodeValue::STRING(s) => !s.is_empty(),
+      NodeValue::BOOL(b) => *b,
+      NodeValue::MMAP(m) => !m.is_empty(),
+      NodeValue::SLIST(s) => !s.is_empty(),
+      NodeValue::BARRAY(b) => !b.is_empty(),
+      NodeValue::NAMESPACED(_, _) => false,
+      NodeValue::UINT(u) => *u != 0,
+      NodeValue::JSON(json) => false,
+      NodeValue::ENTRY(_, _) => false,
+      NodeValue::LIST(l) => !l.is_empty()
+    }
+  }
 }
 
 impl From<String> for NodeValue {
@@ -332,21 +359,21 @@ pub enum NodeResult {
 }
 
 impl NodeResult {
-  /// Return the OR of this result with the given one
-  pub fn or(&self, option: &Option<NodeResult>) -> NodeResult {
+  /// Return the AND of this result with the given one
+  pub fn and(&self, option: &Option<NodeResult>) -> NodeResult {
     if let Some(result) = option {
-      match result {
-        NodeResult::OK => match self {
+      match self {
+        NodeResult::OK => match result {
           NodeResult::OK => NodeResult::OK,
-          NodeResult::VALUE(_) => self.clone(),
-          NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())
-        },
-        NodeResult::VALUE(_) => match self {
-          NodeResult::OK => result.clone(),
-          NodeResult::VALUE(_) => self.clone(),
-          NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())
+          NodeResult::VALUE(_) => result.clone(),
+          NodeResult::ERROR(_) => result.clone()
         }
-        NodeResult::ERROR(_) => NodeResult::ERROR("One or more children failed".to_string())
+        NodeResult::VALUE(v1) => match result {
+          NodeResult::OK => self.clone(),
+          NodeResult::VALUE(v2) => NodeResult::VALUE(v1.and(v2)),
+          NodeResult::ERROR(_) => result.clone()
+        }
+        NodeResult::ERROR(_) => self.clone()
       }
     } else {
       self.clone()
@@ -428,6 +455,26 @@ impl NodeResult {
     }
   }
 
+  pub fn truthy(&self) -> NodeResult {
+    match self {
+      NodeResult::OK => NodeResult::VALUE(NodeValue::BOOL(true)),
+      NodeResult::VALUE(v) => match v {
+        NodeValue::NULL => NodeResult::VALUE(NodeValue::BOOL(false)),
+        NodeValue::STRING(s) => NodeResult::VALUE(NodeValue::BOOL(!s.is_empty())),
+        NodeValue::BOOL(b) => NodeResult::VALUE(NodeValue::BOOL(*b)),
+        NodeValue::MMAP(m) => NodeResult::VALUE(NodeValue::BOOL(!m.is_empty())),
+        NodeValue::SLIST(l) => NodeResult::VALUE(NodeValue::BOOL(!l.is_empty())),
+        NodeValue::BARRAY(b) => NodeResult::VALUE(NodeValue::BOOL(!b.is_empty())),
+        NodeValue::NAMESPACED(_, _) => NodeResult::VALUE(NodeValue::BOOL(false)), // TODO: Need a way to resolve this
+        NodeValue::UINT(ui) => NodeResult::VALUE(NodeValue::BOOL(*ui != 0)),
+        NodeValue::JSON(_) => NodeResult::VALUE(NodeValue::BOOL(false)),
+        NodeValue::ENTRY(_, _) => NodeResult::VALUE(NodeValue::BOOL(false)),
+        NodeValue::LIST(l) => NodeResult::VALUE(NodeValue::BOOL(!l.is_empty()))
+      }
+      NodeResult::ERROR(_) => NodeResult::VALUE(NodeValue::BOOL(false))
+    }
+  }
+
   /// Unwraps the result into a value, or returns the error results as an error
   pub fn value_or_error(&self) -> anyhow::Result<NodeValue> {
     match self {
@@ -446,6 +493,15 @@ impl Display for NodeResult {
       NodeResult::ERROR(err) => write!(f, "ERROR({})", err),
     }
   }
+}
+
+/// Terminator for tree transversal
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub enum Terminator {
+  /// No termination
+  ALL,
+  /// Terminate at containers
+  CONTAINERS
 }
 
 /// Node in an executable plan tree
@@ -499,6 +555,11 @@ impl ExecutionPlanNode {
           self.pretty_form_children(buffer, indent);
           buffer.push_str(pad.as_str());
           buffer.push(')');
+        }
+
+        if let Some(result) = &self.result {
+          buffer.push_str(" => ");
+          buffer.push_str(result.to_string().as_str());
         }
       }
       PlanNodeType::ACTION(value) => {
@@ -618,6 +679,11 @@ impl ExecutionPlanNode {
         buffer.push('(');
         self.str_form_children(&mut buffer);
         buffer.push(')');
+
+        if let Some(result) = &self.result {
+          buffer.push_str("=>");
+          buffer.push_str(result.to_string().as_str());
+        }
       }
       PlanNodeType::ACTION(value) => {
         buffer.push('%');
@@ -801,6 +867,139 @@ impl ExecutionPlanNode {
   pub fn value(&self) -> Option<NodeResult> {
     self.result.clone()
   }
+
+  /// Return a summary of the execution to display in a console
+  pub fn generate_summary(
+    &self,
+    ansi_color: bool,
+    buffer: &mut String,
+    indent: usize
+  ) {
+    let pad = " ".repeat(indent);
+
+    match &self.node_type {
+      PlanNodeType::CONTAINER(label) => {
+        buffer.push_str(pad.as_str());
+        buffer.push_str(label.as_str());
+        buffer.push(':');
+
+        if let Some(annotation) = self.annotation_node() {
+          buffer.push(' ');
+          buffer.push_str(annotation.as_str());
+        }
+
+        if let Some(result) = &self.result {
+          if self.is_leaf_node() || self.is_terminal_container() {
+            if result.is_truthy() {
+              buffer.push_str(" - OK");
+            } else {
+              let errors = self.child_errors(Terminator::ALL);
+              if let NodeResult::ERROR(err) = result {
+                buffer.push_str(format!(" - ERROR {}", err).as_str());
+                let error_pad = " ".repeat(indent + label.len() + 2);
+                for error in errors {
+                  buffer.push('\n');
+                  buffer.push_str(error_pad.as_str());
+                  buffer.push_str(format!(" - ERROR {}", error).as_str());
+                }
+              } else if errors.len() == 1 {
+                buffer.push_str(format!(" - ERROR {}", errors[0]).as_str())
+              } else if errors.is_empty() {
+                buffer.push_str(" - FAILED")
+              } else {
+                let error_pad = " ".repeat(indent + label.len() + 2);
+                for error in errors {
+                  buffer.push('\n');
+                  buffer.push_str(error_pad.as_str());
+                  buffer.push_str(format!(" - ERROR {}", error).as_str());
+                }
+              }
+            }
+          } else {
+            let errors = self.child_errors(Terminator::CONTAINERS);
+            if let NodeResult::ERROR(err) = result {
+              buffer.push_str(format!(" - ERROR {}", err).as_str());
+              let error_pad = " ".repeat(indent + label.len() + 2);
+              for error in errors {
+                buffer.push('\n');
+                buffer.push_str(error_pad.as_str());
+                buffer.push_str(format!(" - ERROR {}", error).as_str());
+              }
+            } else if errors.len() == 1 {
+              buffer.push_str(format!(" - ERROR {}", errors[0]).as_str())
+            } else if !errors.is_empty() {
+              let error_pad = " ".repeat(indent + label.len() + 2);
+              for error in errors {
+                buffer.push('\n');
+                buffer.push_str(error_pad.as_str());
+                buffer.push_str(format!(" - ERROR {}", error).as_str());
+              }
+            }
+          }
+        }
+
+        buffer.push('\n');
+
+        self.generate_children_summary(ansi_color, buffer, indent + 2);
+      }
+      _ => self.generate_children_summary(ansi_color, buffer, indent)
+    }
+  }
+
+  fn generate_children_summary(&self, ansi_color: bool, buffer: &mut String, indent: usize) {
+    for child in &self.children {
+      child.generate_summary(ansi_color, buffer, indent);
+    }
+  }
+
+  fn annotation_node(&self) -> Option<String> {
+    self.children.iter().find_map(|child| {
+      if let PlanNodeType::ANNOTATION(annotation) = &child.node_type {
+        Some(annotation.clone())
+      } else {
+        None
+      }
+    })
+  }
+
+  fn is_leaf_node(&self) -> bool {
+    self.children.is_empty()
+  }
+
+  fn is_terminal_container(&self) -> bool {
+    self.is_container() && !self.has_child_containers()
+  }
+
+  fn is_container(&self) -> bool {
+    if let PlanNodeType::CONTAINER(_) = &self.node_type {
+      true
+    } else {
+      false
+    }
+  }
+
+  fn has_child_containers(&self) -> bool {
+    self.children.iter().any(|child| {
+      if let PlanNodeType::CONTAINER(_) = &child.node_type {
+        true
+      } else {
+        child.has_child_containers()
+      }
+    })
+  }
+
+  fn child_errors(&self, terminator: Terminator) -> Vec<String> {
+    let mut errors = vec![];
+    for child in &self.children {
+      if child.is_container() && terminator == Terminator::ALL || !child.is_container() {
+        if let Some(NodeResult::ERROR(error)) = &child.result {
+          errors.push(error.clone());
+        }
+        errors.extend_from_slice(child.child_errors(terminator).as_slice());
+      }
+    }
+    errors
+  }
 }
 
 impl From<&mut ExecutionPlanNode> for ExecutionPlanNode {
@@ -855,6 +1054,13 @@ impl ExecutionPlan {
     buffer.push_str("(\n");
     self.plan_root.pretty_form(&mut buffer, 2);
     buffer.push_str("\n)\n");
+    buffer
+  }
+
+  /// Return a summary of the execution to display in a console
+  pub fn generate_summary(&self, ansi_color: bool) -> String {
+    let mut buffer = String::new();
+    self.plan_root.generate_summary(ansi_color, &mut buffer, 0);
     buffer
   }
 }
@@ -1247,7 +1453,7 @@ fn walk_tree(
       while !loop_items.is_empty() {
         let child = loop_items.pop_front().unwrap();
         let child_result = walk_tree(&child_path, &child, value_resolver, context)?;
-        status = status.or(&child_result.result);
+        status = status.and(&child_result.result);
         result.push(child_result.clone());
         if child_result.is_splat() {
           for item in child_result.children.iter().rev() {
@@ -1258,7 +1464,7 @@ fn walk_tree(
 
       Ok(ExecutionPlanNode {
         node_type: node.node_type.clone(),
-        result: Some(status),
+        result: Some(status.truthy()),
         children: result
       })
     }

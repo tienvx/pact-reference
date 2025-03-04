@@ -43,8 +43,8 @@ fn match_query_with_no_query_strings() {
           $.query
         )
       ) => BOOL(true)
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -65,8 +65,8 @@ fn match_query_with_no_query_strings() {
           $.query => {'a': 'b'}
         ) => "Expected no query parameters but got {'a': 'b'}"
       ) => ERROR(Expected no query parameters but got {'a': 'b'})
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -147,7 +147,7 @@ fn match_query_with_expected_query_string() {
             NULL
           )
         ) => BOOL(false)
-      ),
+      ) => BOOL(false),
       %expect:entries (
         ['a'] => ['a'],
         $.query => {},
@@ -174,8 +174,8 @@ fn match_query_with_expected_query_string() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 
@@ -201,7 +201,7 @@ fn match_query_with_expected_query_string() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         ['a'] => ['a'],
         $.query => {'a': 'b'},
@@ -228,8 +228,8 @@ fn match_query_with_expected_query_string() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -254,8 +254,8 @@ fn match_query_with_expected_query_string() {
             $.query.a => 'c',
             NULL => NULL
           ) => ERROR(Expected 'c' to be equal to 'b')
-        ) => ERROR(Expected 'c' to be equal to 'b')
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         ['a'] => ['a'],
         $.query => {'a': 'c'},
@@ -282,8 +282,8 @@ fn match_query_with_expected_query_string() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 
@@ -310,7 +310,7 @@ fn match_query_with_expected_query_string() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         ['a'] => ['a'],
         $.query => {'a': 'b', 'b': 'c'},
@@ -337,8 +337,8 @@ fn match_query_with_expected_query_string() {
           ) => 'b'
         ) => 'The following query parameters were not expected: b'
       ) => ERROR(The following query parameters were not expected: b)
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 
@@ -364,7 +364,7 @@ fn match_query_with_expected_query_string() {
             NULL
           )
         ) => BOOL(false)
-      ),
+      ) => BOOL(false),
       %expect:entries (
         ['a'] => ['a'],
         $.query => {'b': 'c'},
@@ -391,8 +391,8 @@ fn match_query_with_expected_query_string() {
           ) => 'b'
         ) => 'The following query parameters were not expected: b'
       ) => ERROR(The following query parameters were not expected: b)
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -505,7 +505,7 @@ fn match_query_with_matching_rule() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :user_id (
         #{'user_id must match the regular expression /^[0-9]+$/'},
         %if (
@@ -518,7 +518,7 @@ fn match_query_with_matching_rule() {
             json:{"regex":"^[0-9]+$"} => json:{"regex":"^[0-9]+$"}
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         ['field', 'user_id'] => ['field', 'user_id'],
         $.query => {'field': 'test', 'user_id': '2455324356421'},
@@ -545,8 +545,8 @@ fn match_query_with_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -573,7 +573,7 @@ fn match_query_with_matching_rule() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :user_id (
         #{'user_id must match the regular expression /^[0-9]+$/'},
         %if (
@@ -585,8 +585,8 @@ fn match_query_with_matching_rule() {
             $.query.user_id => '100Kb',
             json:{"regex":"^[0-9]+$"} => json:{"regex":"^[0-9]+$"}
           ) => ERROR(Expected '100Kb' to match '^[0-9]+$')
-        ) => ERROR(Expected '100Kb' to match '^[0-9]+$')
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         ['field', 'user_id'] => ['field', 'user_id'],
         $.query => {'field': 'test', 'user_id': '100Kb'},
@@ -613,8 +613,8 @@ fn match_query_with_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -655,7 +655,7 @@ fn match_query_with_query_values_having_different_lengths() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :c (
         #{"c=['d', 'e']"},
         %if (
@@ -668,7 +668,7 @@ fn match_query_with_query_values_having_different_lengths() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         ['a', 'c'] => ['a', 'c'],
         $.query => {'a': 'b', 'c': ['d', 'e']},
@@ -695,8 +695,8 @@ fn match_query_with_query_values_having_different_lengths() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -722,8 +722,8 @@ fn match_query_with_query_values_having_different_lengths() {
             $.query.a => ['b', 'e'],
             NULL => NULL
           ) => ERROR(Expected 'e' to be equal to 'b')
-        ) => ERROR(Expected 'e' to be equal to 'b')
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       :c (
         #{"c=['d', 'e']"},
         %if (
@@ -735,8 +735,8 @@ fn match_query_with_query_values_having_different_lengths() {
             $.query.c => 'd',
             NULL => NULL
           ) => ERROR(Expected ["d"] to be equal to ["d","e"])
-        ) => ERROR(Expected ["d"] to be equal to ["d","e"])
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         ['a', 'c'] => ['a', 'c'],
         $.query => {'a': ['b', 'e'], 'c': 'd'},
@@ -763,8 +763,8 @@ fn match_query_with_query_values_having_different_lengths() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -815,7 +815,7 @@ fn match_query_with_number_type_matching_rule() {
             json:{} => json:{}
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         ['user_id'] => ['user_id'],
         $.query => {'user_id': '2455324356421'},
@@ -842,8 +842,8 @@ fn match_query_with_number_type_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -869,7 +869,7 @@ fn match_query_with_number_type_matching_rule() {
             json:{} => json:{}
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         ['user_id'] => ['user_id'],
         $.query => {'user_id': ['100', '200']},
@@ -896,8 +896,8 @@ fn match_query_with_number_type_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -922,8 +922,8 @@ fn match_query_with_number_type_matching_rule() {
             $.query.user_id => ['100x', '200'],
             json:{} => json:{}
           ) => ERROR(Expected '100x' to match an integer number)
-        ) => ERROR(Expected '100x' to match an integer number)
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         ['user_id'] => ['user_id'],
         $.query => {'user_id': ['100x', '200']},
@@ -950,8 +950,8 @@ fn match_query_with_number_type_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -1007,7 +1007,7 @@ fn match_query_with_min_type_matching_rules() {
             json:{"min":2} => json:{"min":2}
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         ['id'] => ['id'],
         $.query => {'id': ['1', '2', '3', '4']},
@@ -1034,8 +1034,8 @@ fn match_query_with_min_type_matching_rules() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -1060,8 +1060,8 @@ fn match_query_with_min_type_matching_rules() {
             $.query.id => '100',
             json:{"min":2} => json:{"min":2}
           ) => ERROR(Expected [100] (size 1) to have minimum size of 2)
-        ) => ERROR(Expected [100] (size 1) to have minimum size of 2)
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         ['id'] => ['id'],
         $.query => {'id': '100'},
@@ -1088,8 +1088,8 @@ fn match_query_with_min_type_matching_rules() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }

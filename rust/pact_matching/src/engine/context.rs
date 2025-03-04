@@ -513,7 +513,7 @@ impl PlanMatchingContext {
             } else {
               ExecutionPlanNode {
                 node_type: node.node_type.clone(),
-                result: Some(node_result),
+                result: Some(NodeResult::VALUE(NodeValue::BOOL(false))),
                 children
               }
             }
@@ -523,7 +523,7 @@ impl PlanMatchingContext {
                 let second_result = second.value().unwrap_or_default();
                 ExecutionPlanNode {
                   node_type: node.node_type.clone(),
-                  result: Some(second_result),
+                  result: Some(second_result.truthy()),
                   children: vec![first, second].iter()
                     .chain(node.children.iter().dropping(2))
                     .cloned()
@@ -533,7 +533,7 @@ impl PlanMatchingContext {
               Err(err) => {
                 ExecutionPlanNode {
                   node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(err.to_string())),
+                  result: Some(NodeResult::VALUE(NodeValue::BOOL(false))),
                   children: vec![first, second_node.clone()].iter()
                     .chain(node.children.iter().dropping(2))
                     .cloned()
@@ -583,12 +583,12 @@ impl PlanMatchingContext {
           for child in node.children.iter().dropping(1) {
             match walk_tree(&action_path, &child, value_resolver, self) {
               Ok(value) => {
-                result = result.or(&value.result);
+                result = result.and(&value.result);
                 child_results.push(value.clone());
               }
               Err(err) => {
                 let node_result = NodeResult::ERROR(err.to_string());
-                result = result.or(&Some(node_result.clone()));
+                result = result.and(&Some(node_result.clone()));
                 child_results.push(child.clone_with_result(node_result));
               }
             }
@@ -597,7 +597,7 @@ impl PlanMatchingContext {
           self.pop_result();
           ExecutionPlanNode {
             node_type: node.node_type.clone(),
-            result: Some(result),
+            result: Some(result.truthy()),
             children: child_results
           }
         }

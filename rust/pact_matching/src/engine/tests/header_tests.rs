@@ -24,7 +24,7 @@ fn match_headers_where_there_are_none() {
   let request = HttpRequest::default();
   let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
   pretty_assertions::assert_eq!(r#"(
-  :header-test ()
+  :header-test () => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -36,7 +36,7 @@ fn match_headers_where_there_are_none() {
   };
   let executed_plan = execute_request_plan(&plan, &request, &mut context).unwrap();
   pretty_assertions::assert_eq!(r#"(
-  :header-test ()
+  :header-test () => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 }
@@ -106,7 +106,7 @@ fn match_headers_with_expected_headers() {
             NULL
           )
         ) => BOOL(false)
-      ),
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['HEADER-X'] => ['HEADER-X']
@@ -122,8 +122,8 @@ fn match_headers_with_expected_headers() {
           ) => 'header-x'
         ) => 'The following expected headers were missing: header-x'
       ) => ERROR(The following expected headers were missing: header-x)
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 
@@ -149,7 +149,7 @@ fn match_headers_with_expected_headers() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['HEADER-X'] => ['HEADER-X']
@@ -165,8 +165,8 @@ fn match_headers_with_expected_headers() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -191,8 +191,8 @@ fn match_headers_with_expected_headers() {
             $.headers['HEADER-X'] => 'C',
             NULL => NULL
           ) => ERROR(Expected 'C' to be equal to 'b')
-        ) => ERROR(Expected 'C' to be equal to 'b')
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['HEADER-X'] => ['HEADER-X']
@@ -208,8 +208,8 @@ fn match_headers_with_expected_headers() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 
@@ -236,7 +236,7 @@ fn match_headers_with_expected_headers() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['HEADER-X'] => ['HEADER-X']
@@ -252,8 +252,8 @@ fn match_headers_with_expected_headers() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -279,7 +279,7 @@ fn match_headers_with_expected_headers() {
             NULL
           )
         ) => BOOL(false)
-      ),
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['HEADER-X'] => ['HEADER-X']
@@ -295,8 +295,8 @@ fn match_headers_with_expected_headers() {
           ) => 'header-x'
         ) => 'The following expected headers were missing: header-x'
       ) => ERROR(The following expected headers were missing: header-x)
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -398,7 +398,7 @@ fn match_headers_with_matching_rule() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{'REF-ID must match the regular expression /^[0-9]+$/'},
         %if (
@@ -411,7 +411,7 @@ fn match_headers_with_matching_rule() {
             json:{"regex":"^[0-9]+$"} => json:{"regex":"^[0-9]+$"}
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -427,8 +427,8 @@ fn match_headers_with_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -455,7 +455,7 @@ fn match_headers_with_matching_rule() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{'REF-ID must match the regular expression /^[0-9]+$/'},
         %if (
@@ -467,8 +467,8 @@ fn match_headers_with_matching_rule() {
             $.headers['REF-ID'] => '9023470X945622',
             json:{"regex":"^[0-9]+$"} => json:{"regex":"^[0-9]+$"}
           ) => ERROR(Expected '9023470X945622' to match '^[0-9]+$')
-        ) => ERROR(Expected '9023470X945622' to match '^[0-9]+$')
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -484,8 +484,8 @@ fn match_headers_with_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -583,7 +583,7 @@ fn match_headers_with_values_having_different_lengths() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{"REF-ID='1234'"},
         %if (
@@ -596,7 +596,7 @@ fn match_headers_with_values_having_different_lengths() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -612,8 +612,8 @@ fn match_headers_with_values_having_different_lengths() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -639,8 +639,8 @@ fn match_headers_with_values_having_different_lengths() {
             $.headers['REF-CODE'] => 'test',
             NULL => NULL
           ) => ERROR(Expected ["test"] to be equal to ["test","test2"])
-        ) => ERROR(Expected ["test"] to be equal to ["test","test2"])
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       :REF-ID (
         #{"REF-ID='1234'"},
         %if (
@@ -652,8 +652,8 @@ fn match_headers_with_values_having_different_lengths() {
             $.headers['REF-ID'] => ['1234', '1234', '4567'],
             NULL => NULL
           ) => ERROR(Expected '4567' to be equal to '1234')
-        ) => ERROR(Expected '4567' to be equal to '1234')
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -669,8 +669,8 @@ fn match_headers_with_values_having_different_lengths() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -772,7 +772,7 @@ fn match_headers_with_number_type_matching_rule() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{'REF-ID must be an integer'},
         %if (
@@ -785,7 +785,7 @@ fn match_headers_with_number_type_matching_rule() {
             json:{} => json:{}
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -801,8 +801,8 @@ fn match_headers_with_number_type_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -829,7 +829,7 @@ fn match_headers_with_number_type_matching_rule() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{'REF-ID must be an integer'},
         %if (
@@ -841,8 +841,8 @@ fn match_headers_with_number_type_matching_rule() {
             $.headers['REF-ID'] => '9023470X945622',
             json:{} => json:{}
           ) => ERROR(Expected '9023470X945622' to match an integer number)
-        ) => ERROR(Expected '9023470X945622' to match an integer number)
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -858,8 +858,8 @@ fn match_headers_with_number_type_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 
@@ -886,7 +886,7 @@ fn match_headers_with_number_type_matching_rule() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{'REF-ID must be an integer'},
         %if (
@@ -899,7 +899,7 @@ fn match_headers_with_number_type_matching_rule() {
             json:{} => json:{}
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -915,8 +915,8 @@ fn match_headers_with_number_type_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -943,7 +943,7 @@ fn match_headers_with_number_type_matching_rule() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{'REF-ID must be an integer'},
         %if (
@@ -955,8 +955,8 @@ fn match_headers_with_number_type_matching_rule() {
             $.headers['REF-ID'] => ['1111', 'two'],
             json:{} => json:{}
           ) => ERROR(Expected 'two' to match an integer number)
-        ) => ERROR(Expected 'two' to match an integer number)
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -972,8 +972,8 @@ fn match_headers_with_number_type_matching_rule() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -1075,7 +1075,7 @@ fn match_headers_with_min_type_matching_rules() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{'REF-ID must match by type and have at least 2 items'},
         %if (
@@ -1088,7 +1088,7 @@ fn match_headers_with_min_type_matching_rules() {
             json:{"min":2} => json:{"min":2}
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -1104,8 +1104,8 @@ fn match_headers_with_min_type_matching_rules() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -1132,7 +1132,7 @@ fn match_headers_with_min_type_matching_rules() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :REF-ID (
         #{'REF-ID must match by type and have at least 2 items'},
         %if (
@@ -1144,8 +1144,8 @@ fn match_headers_with_min_type_matching_rules() {
             $.headers['REF-ID'] => '1',
             json:{"min":2} => json:{"min":2}
           ) => ERROR(Expected [1] (size 1) to have minimum size of 2)
-        ) => ERROR(Expected [1] (size 1) to have minimum size of 2)
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['REF-CODE', 'REF-ID'] => ['REF-CODE', 'REF-ID']
@@ -1161,8 +1161,8 @@ fn match_headers_with_min_type_matching_rules() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }
@@ -1253,7 +1253,7 @@ fn match_content_type_header() {
             ) => BOOL(true)
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['Content-Type'] => ['Content-Type']
@@ -1269,8 +1269,8 @@ fn match_content_type_header() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -1387,10 +1387,10 @@ fn match_content_type_header() {
                   "Expected a charset value of 'UTF-8' but it was missing"
                 )
               ) => BOOL(true)
-            )
+            ) => BOOL(true)
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       %expect:entries (
         %lower-case (
           ['Content-Type'] => ['Content-Type']
@@ -1406,8 +1406,8 @@ fn match_content_type_header() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -1454,10 +1454,10 @@ fn match_content_type_header() {
                   "Expected a charset value of 'UTF-8' but it was missing" => "Expected a charset value of 'UTF-8' but it was missing"
                 ) => ERROR(Expected a charset value of 'UTF-8' but it was missing)
               ) => ERROR(Expected a charset value of 'UTF-8' but it was missing)
-            )
-          ) => ERROR(One or more children failed)
-        ) => ERROR(One or more children failed)
-      ),
+            ) => BOOL(false)
+          ) => BOOL(false)
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['Content-Type'] => ['Content-Type']
@@ -1473,8 +1473,8 @@ fn match_content_type_header() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 
@@ -1520,11 +1520,11 @@ fn match_content_type_header() {
                 %error (
                   "Expected a charset value of 'UTF-8' but it was missing"
                 )
-              ) => ERROR(Expected 'UTF-16' to be equal to 'UTF-8')
-            )
-          ) => ERROR(One or more children failed)
-        ) => ERROR(One or more children failed)
-      ),
+              ) => BOOL(false)
+            ) => BOOL(false)
+          ) => BOOL(false)
+        ) => BOOL(false)
+      ) => BOOL(false),
       %expect:entries (
         %lower-case (
           ['Content-Type'] => ['Content-Type']
@@ -1540,8 +1540,8 @@ fn match_content_type_header() {
           )
         )
       ) => OK
-    )
-  )
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 }

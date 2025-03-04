@@ -41,16 +41,20 @@ fn node_value_str_form_escapes_strings(#[case] input: &str, #[case] expected: &s
   case(NodeResult::ERROR("".to_string()), None, NodeResult::ERROR("".to_string())),
   case(NodeResult::OK, Some(NodeResult::OK), NodeResult::OK),
   case(NodeResult::OK, Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::VALUE(NodeValue::NULL)),
-  case(NodeResult::OK, Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
+  case(NodeResult::OK, Some(NodeResult::ERROR("error".to_string())), NodeResult::ERROR("error".to_string())),
   case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::OK), NodeResult::VALUE(NodeValue::NULL)),
   case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::VALUE(NodeValue::NULL)),
-  case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
-  case(NodeResult::ERROR("".to_string()), Some(NodeResult::OK), NodeResult::ERROR("One or more children failed".to_string())),
-  case(NodeResult::ERROR("".to_string()), Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::ERROR("One or more children failed".to_string())),
-  case(NodeResult::ERROR("".to_string()), Some(NodeResult::ERROR("".to_string())), NodeResult::ERROR("One or more children failed".to_string())),
+  case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::VALUE(NodeValue::UINT(100))), NodeResult::VALUE(NodeValue::UINT(100))),
+  case(NodeResult::VALUE(NodeValue::BOOL(false)), Some(NodeResult::VALUE(NodeValue::UINT(100))), NodeResult::VALUE(NodeValue::BOOL(false))),
+  case(NodeResult::VALUE(NodeValue::BOOL(true)), Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::VALUE(NodeValue::BOOL(false))),
+  case(NodeResult::VALUE(NodeValue::BOOL(true)), Some(NodeResult::VALUE(NodeValue::BOOL(false))), NodeResult::VALUE(NodeValue::BOOL(false))),
+  case(NodeResult::VALUE(NodeValue::NULL), Some(NodeResult::ERROR("error".to_string())), NodeResult::ERROR("error".to_string())),
+  case(NodeResult::ERROR("error".to_string()), Some(NodeResult::OK), NodeResult::ERROR("error".to_string())),
+  case(NodeResult::ERROR("error".to_string()), Some(NodeResult::VALUE(NodeValue::NULL)), NodeResult::ERROR("error".to_string())),
+  case(NodeResult::ERROR("error".to_string()), Some(NodeResult::ERROR("error2".to_string())), NodeResult::ERROR("error".to_string())),
 )]
-fn node_result_or(#[case] a: NodeResult, #[case] b: Option<NodeResult>, #[case] result: NodeResult) {
-  expect!(a.or(&b)).to(be_equal_to(result));
+fn node_result_and(#[case] a: NodeResult, #[case] b: Option<NodeResult>, #[case] result: NodeResult) {
+  expect!(a.and(&b)).to(be_equal_to(result));
 }
 
 #[test_log::test]
@@ -133,7 +137,7 @@ fn simple_match_request_test() -> anyhow::Result<()> {
         ) => 'PUT',
         NULL => NULL
       ) => ERROR(Expected 'PUT' to be equal to 'POST')
-    ),
+    ) => BOOL(false),
     :path (
       #{"path == '/test'"},
       %match:equality (
@@ -141,7 +145,7 @@ fn simple_match_request_test() -> anyhow::Result<()> {
         $.path => '/test',
         NULL => NULL
       ) => BOOL(true)
-    ),
+    ) => BOOL(true),
     :"query parameters" (
       %expect:empty (
         $.query => {},
@@ -150,7 +154,7 @@ fn simple_match_request_test() -> anyhow::Result<()> {
           $.query
         )
       ) => BOOL(true)
-    ),
+    ) => BOOL(true),
     :body (
       %if (
         %match:equality (
@@ -166,10 +170,17 @@ fn simple_match_request_test() -> anyhow::Result<()> {
           NULL => NULL
         ) => BOOL(true)
       ) => BOOL(true)
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
+
+  assert_eq!(r#"request:
+  method: method == POST - ERROR Expected 'PUT' to be equal to 'POST'
+  path: path == '/test' - OK
+  query parameters: - OK
+  body: - OK
+"#, executed_plan.generate_summary(false));
 
   Ok(())
 }
@@ -238,18 +249,16 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
           $.content-type,
           NULL
         ),
-        -> (
+        %tee (
           %json:parse (
             $.body
           ),
-          %push (),
-          %json:expect:entries (
-            'OBJECT',
-            ['a', 'b'],
-            %apply ()
-          ),
-          %pop (),
           :$ (
+            %json:expect:entries (
+              'OBJECT',
+              ['a', 'b'],
+              %apply ()
+            ),
             :$.a (
               %match:equality (
                 json:100,
@@ -284,7 +293,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
         ) => 'POST',
         NULL => NULL
       ) => BOOL(true)
-    ),
+    ) => BOOL(true),
     :path (
       #{"path == '/test'"},
       %match:equality (
@@ -292,7 +301,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
         $.path => '/test',
         NULL => NULL
       ) => BOOL(true)
-    ),
+    ) => BOOL(true),
     :"query parameters" (
       %expect:empty (
         $.query => {},
@@ -301,7 +310,7 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
           $.query
         )
       ) => BOOL(true)
-    ),
+    ) => BOOL(true),
     :body (
       %if (
         %match:equality (
@@ -309,39 +318,47 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
           $.content-type => 'application/json;charset=utf-8',
           NULL => NULL
         ) => BOOL(true),
-        -> (
+        %tee (
           %json:parse (
             $.body => BYTES(10, eyJiIjoiMjIifQ==)
           ) => json:{"b":"22"},
-          %push () => json:{"b":"22"},
-          %json:expect:entries (
-            'OBJECT' => 'OBJECT',
-            ['a', 'b'] => ['a', 'b'],
-            %apply () => json:{"b":"22"}
-          ) => ERROR(The following expected entries were missing from the actual Object: a),
-          %pop () => json:{"b":"22"},
           :$ (
+            %json:expect:entries (
+              'OBJECT' => 'OBJECT',
+              ['a', 'b'] => ['a', 'b'],
+              %apply () => json:{"b":"22"}
+            ) => ERROR(The following expected entries were missing from the actual Object: a),
             :$.a (
               %match:equality (
                 json:100 => json:100,
                 ~>$.a => NULL,
                 NULL => NULL
               ) => ERROR(Expected null (Null) to be equal to 100 (Integer))
-            ),
+            ) => BOOL(false),
             :$.b (
               %match:equality (
                 json:200.1 => json:200.1,
                 ~>$.b => json:"22",
                 NULL => NULL
               ) => ERROR(Expected '22' (String) to be equal to 200.1 (Decimal))
-            )
-          )
-        ) => ERROR(One or more children failed)
-      ) => ERROR(One or more children failed)
-    )
-  )
+            ) => BOOL(false)
+          ) => BOOL(false)
+        ) => BOOL(false)
+      ) => BOOL(false)
+    ) => BOOL(false)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
+
+  assert_eq!(r#"request:
+  method: method == POST - OK
+  path: path == '/test' - OK
+  query parameters: - OK
+  body:
+    $: - ERROR The following expected entries were missing from the actual Object: a
+      $.a: - ERROR Expected null (Null) to be equal to 100 (Integer)
+      $.b: - ERROR Expected '22' (String) to be equal to 200.1 (Decimal)
+"#, executed_plan.generate_summary(false));
 
   Ok(())
 }
@@ -418,7 +435,7 @@ r#"(
         ) => 'GET',
         NULL => NULL
       ) => BOOL(true)
-    ),
+    ) => BOOL(true),
     :path (
       #{"path must match the regular expression /\\/test[0-9]+/"},
       %match:regex (
@@ -426,7 +443,7 @@ r#"(
         $.path => '/test12345',
         json:{"regex":"\\/test[0-9]+"} => json:{"regex":"\\/test[0-9]+"}
       ) => BOOL(true)
-    ),
+    ) => BOOL(true),
     :"query parameters" (
       %expect:empty (
         $.query => {},
@@ -435,8 +452,8 @@ r#"(
           $.query
         )
       ) => BOOL(true)
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(true)
 )
 "#, executed_plan.pretty_form());
 
@@ -457,7 +474,7 @@ r#"(
         ) => 'GET',
         NULL => NULL
       ) => BOOL(true)
-    ),
+    ) => BOOL(true),
     :path (
       #{"path must match the regular expression /\\/test[0-9]+/"},
       %match:regex (
@@ -465,7 +482,7 @@ r#"(
         $.path => '/test12345X',
         json:{"regex":"\\/test[0-9]+"} => json:{"regex":"\\/test[0-9]+"}
       ) => ERROR(Expected '/test12345X' to match '\/test[0-9]+')
-    ),
+    ) => BOOL(false),
     :"query parameters" (
       %expect:empty (
         $.query => {},
@@ -474,8 +491,8 @@ r#"(
           $.query
         )
       ) => BOOL(true)
-    )
-  )
+    ) => BOOL(true)
+  ) => BOOL(false)
 )
 "#, executed_plan.pretty_form());
 

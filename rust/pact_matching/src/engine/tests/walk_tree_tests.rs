@@ -36,7 +36,7 @@ fn json_with_null() {
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!(buffer,
-  "  -> (
+  "  %tee (
     %json:parse (
       $.body => BYTES(4, bnVsbA==)
     ) => json:null,
@@ -54,8 +54,7 @@ fn json_with_null() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(4, dHJ1ZQ==)
     ) => json:true,
@@ -64,7 +63,7 @@ fn json_with_null() {
       %apply () => json:true,
       NULL => NULL
     ) => ERROR(Expected true (Boolean) to be equal to null (Null))
-  ) => ERROR(Expected true (Boolean) to be equal to null (Null))");
+  ) => BOOL(false)", buffer);
 
   let content = Bytes::copy_from_slice("{".as_bytes());
   let resolver = TestValueResolver {
@@ -74,7 +73,7 @@ fn json_with_null() {
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!(buffer,
-  "  -> (
+  "  %tee (
     %json:parse (
       $.body => BYTES(1, ew==)
     ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
@@ -83,7 +82,7 @@ fn json_with_null() {
       %apply () => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
       NULL => NULL
     ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1)
-  ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1)");
+  ) => BOOL(false)");
 }
 
 #[test_log::test]
@@ -100,8 +99,7 @@ fn json_with_boolean() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(4, dHJ1ZQ==)
     ) => json:true,
@@ -110,7 +108,7 @@ fn json_with_boolean() {
       %apply () => json:true,
       NULL => NULL
     ) => BOOL(true)
-  ) => BOOL(true)");
+  ) => BOOL(true)", buffer);
 
   let content = Bytes::copy_from_slice(Value::Bool(false).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -119,8 +117,7 @@ fn json_with_boolean() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(5, ZmFsc2U=)
     ) => json:false,
@@ -129,7 +126,7 @@ fn json_with_boolean() {
       %apply () => json:false,
       NULL => NULL
     ) => ERROR(Expected false (Boolean) to be equal to true (Boolean))
-  ) => ERROR(Expected false (Boolean) to be equal to true (Boolean))");
+  ) => BOOL(false)", buffer);
 }
 
 #[test_log::test]
@@ -146,16 +143,17 @@ fn json_with_empty_array() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(2, W10=)
     ) => json:[],
-    %json:expect:empty (
-      'ARRAY' => 'ARRAY',
-      %apply () => json:[]
+    :$ (
+      %json:expect:empty (
+        'ARRAY' => 'ARRAY',
+        %apply () => json:[]
+      ) => BOOL(true)
     ) => BOOL(true)
-  ) => BOOL(true)");
+  ) => BOOL(true)", buffer);
 
   let content = Bytes::copy_from_slice(Value::Bool(false).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -164,16 +162,17 @@ fn json_with_empty_array() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(5, ZmFsc2U=)
     ) => json:false,
-    %json:expect:empty (
-      'ARRAY' => 'ARRAY',
-      %apply () => json:false
-    ) => ERROR(Was expecting a JSON Array but got a Boolean)
-  ) => ERROR(Was expecting a JSON Array but got a Boolean)");
+    :$ (
+      %json:expect:empty (
+        'ARRAY' => 'ARRAY',
+        %apply () => json:false
+      ) => ERROR(Was expecting a JSON Array but got a Boolean)
+    ) => BOOL(false)
+  ) => BOOL(false)", buffer);
 
   let content = Bytes::copy_from_slice(Value::Array(vec![Value::Bool(true)]).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -182,16 +181,17 @@ fn json_with_empty_array() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(6, W3RydWVd)
     ) => json:[true],
-    %json:expect:empty (
-      'ARRAY' => 'ARRAY',
-      %apply () => json:[true]
-    ) => ERROR(Expected JSON Array ([true]) to be empty)
-  ) => ERROR(Expected JSON Array ([true]) to be empty)");
+    :$ (
+      %json:expect:empty (
+        'ARRAY' => 'ARRAY',
+        %apply () => json:[true]
+      ) => ERROR(Expected JSON Array ([true]) to be empty)
+    ) => BOOL(false)
+  ) => BOOL(false)", buffer);
 }
 
 #[test_log::test]
@@ -208,19 +208,16 @@ fn json_with_array() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(7, WzEsMiwzXQ==)
     ) => json:[1,2,3],
-    %push () => json:[1,2,3],
-    %json:match:length (
-      'ARRAY' => 'ARRAY',
-      UINT(3) => UINT(3),
-      %apply () => json:[1,2,3]
-    ) => BOOL(true),
-    %pop () => json:[1,2,3],
     :$ (
+      %json:match:length (
+        'ARRAY' => 'ARRAY',
+        UINT(3) => UINT(3),
+        %apply () => json:[1,2,3]
+      ) => BOOL(true),
       :$[0] (
         %if (
           %check:exists (
@@ -232,7 +229,7 @@ fn json_with_array() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :$[1] (
         %if (
           %check:exists (
@@ -244,7 +241,7 @@ fn json_with_array() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :$[2] (
         %if (
           %check:exists (
@@ -256,9 +253,9 @@ fn json_with_array() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      )
-    )
-  ) => BOOL(true)");
+      ) => BOOL(true)
+    ) => BOOL(true)
+  ) => BOOL(true)", buffer);
 
   let content = Bytes::copy_from_slice(Value::Bool(false).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -267,19 +264,16 @@ fn json_with_array() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(5, ZmFsc2U=)
     ) => json:false,
-    %push () => json:false,
-    %json:match:length (
-      'ARRAY' => 'ARRAY',
-      UINT(3) => UINT(3),
-      %apply () => json:false
-    ) => ERROR(Was expecting a JSON Array but got a Boolean),
-    %pop () => json:false,
     :$ (
+      %json:match:length (
+        'ARRAY' => 'ARRAY',
+        UINT(3) => UINT(3),
+        %apply () => json:false
+      ) => ERROR(Was expecting a JSON Array but got a Boolean),
       :$[0] (
         %if (
           %check:exists (
@@ -291,7 +285,7 @@ fn json_with_array() {
             NULL
           )
         ) => BOOL(false)
-      ),
+      ) => BOOL(false),
       :$[1] (
         %if (
           %check:exists (
@@ -303,7 +297,7 @@ fn json_with_array() {
             NULL
           )
         ) => BOOL(false)
-      ),
+      ) => BOOL(false),
       :$[2] (
         %if (
           %check:exists (
@@ -315,9 +309,9 @@ fn json_with_array() {
             NULL
           )
         ) => BOOL(false)
-      )
-    )
-  ) => BOOL(false)");
+      ) => BOOL(false)
+    ) => BOOL(false)
+  ) => BOOL(false)", buffer);
 
   let content = Bytes::copy_from_slice(Value::Array(vec![Value::Bool(true)]).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -326,19 +320,16 @@ fn json_with_array() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(6, W3RydWVd)
     ) => json:[true],
-    %push () => json:[true],
-    %json:match:length (
-      'ARRAY' => 'ARRAY',
-      UINT(3) => UINT(3),
-      %apply () => json:[true]
-    ) => ERROR(Was expecting a length of 3, but actual length is 1),
-    %pop () => json:[true],
     :$ (
+      %json:match:length (
+        'ARRAY' => 'ARRAY',
+        UINT(3) => UINT(3),
+        %apply () => json:[true]
+      ) => ERROR(Was expecting a length of 3, but actual length is 1),
       :$[0] (
         %if (
           %check:exists (
@@ -349,8 +340,8 @@ fn json_with_array() {
             ~>$[0] => json:true,
             NULL => NULL
           ) => ERROR(Expected true (Boolean) to be equal to 1 (Integer))
-        ) => ERROR(Expected true (Boolean) to be equal to 1 (Integer))
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       :$[1] (
         %if (
           %check:exists (
@@ -362,7 +353,7 @@ fn json_with_array() {
             NULL
           )
         ) => BOOL(false)
-      ),
+      ) => BOOL(false),
       :$[2] (
         %if (
           %check:exists (
@@ -374,9 +365,9 @@ fn json_with_array() {
             NULL
           )
         ) => BOOL(false)
-      )
-    )
-  ) => ERROR(One or more children failed)");
+      ) => BOOL(false)
+    ) => BOOL(false)
+  ) => BOOL(false)", buffer);
 
   let content = Bytes::copy_from_slice(json!([1, 3, 3]).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -385,19 +376,16 @@ fn json_with_array() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  -> (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(7, WzEsMywzXQ==)
     ) => json:[1,3,3],
-    %push () => json:[1,3,3],
-    %json:match:length (
-      'ARRAY' => 'ARRAY',
-      UINT(3) => UINT(3),
-      %apply () => json:[1,3,3]
-    ) => BOOL(true),
-    %pop () => json:[1,3,3],
     :$ (
+      %json:match:length (
+        'ARRAY' => 'ARRAY',
+        UINT(3) => UINT(3),
+        %apply () => json:[1,3,3]
+      ) => BOOL(true),
       :$[0] (
         %if (
           %check:exists (
@@ -409,7 +397,7 @@ fn json_with_array() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      ),
+      ) => BOOL(true),
       :$[1] (
         %if (
           %check:exists (
@@ -420,8 +408,8 @@ fn json_with_array() {
             ~>$[1] => json:3,
             NULL => NULL
           ) => ERROR(Expected 3 (Integer) to be equal to 2 (Integer))
-        ) => ERROR(Expected 3 (Integer) to be equal to 2 (Integer))
-      ),
+        ) => BOOL(false)
+      ) => BOOL(false),
       :$[2] (
         %if (
           %check:exists (
@@ -433,7 +421,7 @@ fn json_with_array() {
             NULL => NULL
           ) => BOOL(true)
         ) => BOOL(true)
-      )
-    )
-  ) => ERROR(One or more children failed)");
+      ) => BOOL(true)
+    ) => BOOL(false)
+  ) => BOOL(false)", buffer);
 }
