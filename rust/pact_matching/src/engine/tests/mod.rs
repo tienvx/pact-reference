@@ -1,4 +1,5 @@
 use expectest::prelude::*;
+use maplit::hashmap;
 use pretty_assertions::assert_eq;
 use rstest::rstest;
 use serde_json::json;
@@ -16,7 +17,8 @@ use crate::engine::{
   NodeValue,
   PlanMatchingContext
 };
-use crate::MatchingRule;
+use crate::{BodyMatchResult, MatchingRule, RequestMatchResult};
+use crate::Mismatch::{ MethodMismatch, BodyMismatch };
 
 mod walk_tree_tests;
 mod query_tests;
@@ -110,7 +112,11 @@ fn simple_match_request_test() -> anyhow::Result<()> {
         %match:equality (
           'text/plain',
           $.content-type,
-          NULL
+          NULL,
+          %error (
+            'Body type error - ',
+            %apply ()
+          )
         ),
         %match:equality (
           'Some nice bit of text',
@@ -160,7 +166,11 @@ fn simple_match_request_test() -> anyhow::Result<()> {
         %match:equality (
           'text/plain' => 'text/plain',
           $.content-type => 'text/plain',
-          NULL => NULL
+          NULL => NULL,
+          %error (
+            'Body type error - ',
+            %apply ()
+          )
         ) => BOOL(true),
         %match:equality (
           'Some nice bit of text' => 'Some nice bit of text',
@@ -181,6 +191,19 @@ fn simple_match_request_test() -> anyhow::Result<()> {
   query parameters: - OK
   body: - OK
 "#, executed_plan.generate_summary(false));
+
+  let mismatches: RequestMatchResult = executed_plan.into();
+  assert_eq!(RequestMatchResult {
+    method: Some(MethodMismatch {
+      expected: "".to_string(),
+      actual: "".to_string(),
+      mismatch: "Expected 'PUT' to be equal to 'POST'".to_string()
+    }),
+    path: None,
+    headers: hashmap!{},
+    query: hashmap!{},
+    body: BodyMatchResult::Ok,
+  }, mismatches);
 
   Ok(())
 }
@@ -247,7 +270,11 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
         %match:equality (
           'application/json;charset=utf-8',
           $.content-type,
-          NULL
+          NULL,
+          %error (
+            'Body type error - ',
+            %apply ()
+          )
         ),
         %tee (
           %json:parse (
@@ -316,7 +343,11 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
         %match:equality (
           'application/json;charset=utf-8' => 'application/json;charset=utf-8',
           $.content-type => 'application/json;charset=utf-8',
-          NULL => NULL
+          NULL => NULL,
+          %error (
+            'Body type error - ',
+            %apply ()
+          )
         ) => BOOL(true),
         %tee (
           %json:parse (
@@ -359,6 +390,40 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
       $.a: - ERROR Expected null (Null) to be equal to 100 (Integer)
       $.b: - ERROR Expected '22' (String) to be equal to 200.1 (Decimal)
 "#, executed_plan.generate_summary(false));
+
+  let mismatches: RequestMatchResult = executed_plan.into();
+  assert_eq!(RequestMatchResult {
+    method: None,
+    path: None,
+    headers: hashmap!{},
+    query: hashmap!{},
+    body: BodyMatchResult::BodyMismatches(hashmap!{
+      "$.a".to_string() => vec![
+        BodyMismatch {
+          path: "$.a".to_string(),
+          expected: None,
+          actual: None,
+          mismatch: "Expected null (Null) to be equal to 100 (Integer)".to_string()
+        }
+      ],
+      "$.b".to_string() => vec![
+        BodyMismatch {
+          path: "$.b".to_string(),
+          expected: None,
+          actual: None,
+          mismatch: "Expected '22' (String) to be equal to 200.1 (Decimal)".to_string()
+        }
+      ],
+      "$".to_string() => vec![
+        BodyMismatch {
+          path: "$".to_string(),
+          expected: None,
+          actual: None,
+          mismatch: "The following expected entries were missing from the actual Object: a".to_string()
+        }
+      ]
+    })
+  }, mismatches);
 
   Ok(())
 }

@@ -386,12 +386,15 @@ use pact_models::v4::http_parts::{HttpRequest, HttpResponse};
 use pact_models::v4::message_parts::MessageContents;
 use pact_models::v4::sync_message::SynchronousMessage;
 
+use crate::engine::{build_request_plan, execute_request_plan, ExecutionPlan, PlanNodeType, Terminator};
+use crate::engine::context::PlanMatchingContext;
 use crate::generators::bodies::generators_process_body;
 use crate::generators::DefaultVariantMatcher;
 use crate::headers::{match_header_value, match_headers};
 #[cfg(feature = "plugins")] use crate::json::match_json;
 use crate::matchers::*;
 use crate::matchingrules::DisplayForMismatch;
+use crate::Mismatch::{BodyMismatch, HeaderMismatch, QueryMismatch};
 #[cfg(feature = "plugins")] use crate::plugin_support::{InteractionPart, setup_plugin_config};
 use crate::query::match_query_maps;
 
@@ -824,11 +827,11 @@ impl PartialEq for CommonMismatch {
 impl From<Mismatch> for CommonMismatch {
   fn from(value: Mismatch) -> Self {
     match value {
-      Mismatch::MethodMismatch { expected, actual } => CommonMismatch {
+      Mismatch::MethodMismatch { expected, actual , mismatch} => CommonMismatch {
         path: "".to_string(),
         expected: expected.clone(),
         actual: actual.clone(),
-        description: "Method mismatch".to_string()
+        description: mismatch.clone()
       },
       Mismatch::PathMismatch { expected, actual, mismatch } => CommonMismatch {
         path: "".to_string(),
@@ -881,10 +884,12 @@ impl From<Mismatch> for CommonMismatch {
 pub enum Mismatch {
     /// Request Method mismatch
     MethodMismatch {
-        /// Expected request method
-        expected: String,
-        /// Actual request method
-        actual: String
+      /// Expected request method
+      expected: String,
+      /// Actual request method
+      actual: String,
+      /// description of the mismatch
+      mismatch: String
     },
     /// Request Path mismatch
     PathMismatch {
@@ -967,11 +972,12 @@ impl Mismatch {
   /// Converts the mismatch to a `Value` struct.
   pub fn to_json(&self) -> serde_json::Value {
     match self {
-      Mismatch::MethodMismatch { expected: e, actual: a } => {
+      Mismatch::MethodMismatch { expected: e, actual: a, mismatch: m } => {
         json!({
           "type" : "MethodMismatch",
           "expected" : e,
-          "actual" : a
+          "actual" : a,
+          "mismatch" : m
         })
       },
       Mismatch::PathMismatch { expected: e, actual: a, mismatch: m } => {
@@ -1090,7 +1096,11 @@ impl Mismatch {
     /// Returns a formatted string for this mismatch
     pub fn description(&self) -> String {
       match self {
-        Mismatch::MethodMismatch { expected: e, actual: a } => format!("expected {} but was {}", e, a),
+        Mismatch::MethodMismatch { expected: e, actual: a, mismatch: m } => if m.is_empty() {
+          format!("expected {} but was {}", e, a)
+        } else {
+          m.clone()
+        },
         Mismatch::PathMismatch { mismatch, .. } => mismatch.clone(),
         Mismatch::StatusMismatch { mismatch, .. } => mismatch.clone(),
         Mismatch::QueryMismatch { mismatch, .. } => mismatch.clone(),
@@ -1105,7 +1115,7 @@ impl Mismatch {
     /// Returns a formatted string with ansi escape codes for this mismatch
     pub fn ansi_description(&self) -> String {
       match self {
-        Mismatch::MethodMismatch { expected: e, actual: a } => format!("expected {} but was {}", Red.paint(e.clone()), Green.paint(a.clone())),
+        Mismatch::MethodMismatch { expected: e, actual: a, .. } => format!("expected {} but was {}", Red.paint(e.clone()), Green.paint(a.clone())),
         Mismatch::PathMismatch { expected: e, actual: a, .. } => format!("expected '{}' but was '{}'", Red.paint(e.clone()), Green.paint(a.clone())),
         Mismatch::StatusMismatch { expected: e, actual: a, .. } => format!("expected {} but was {}", Red.paint(e.to_string()), Green.paint(a.to_string())),
         Mismatch::QueryMismatch { expected: e, actual: a, parameter: p, .. } => format!("Expected '{}' but received '{}' for query parameter '{}'",
@@ -1124,8 +1134,8 @@ impl Mismatch {
 impl PartialEq for Mismatch {
   fn eq(&self, other: &Mismatch) -> bool {
     match (self, other) {
-      (Mismatch::MethodMismatch { expected: e1, actual: a1 },
-        Mismatch::MethodMismatch { expected: e2, actual: a2 }) => {
+      (Mismatch::MethodMismatch { expected: e1, actual: a1, .. },
+        Mismatch::MethodMismatch { expected: e2, actual: a2, .. }) => {
         e1 == e2 && a1 == a2
       },
       (Mismatch::PathMismatch { expected: e1, actual: a1, .. },
@@ -1328,6 +1338,121 @@ impl RequestMatchResult {
   }
 }
 
+impl From<ExecutionPlan> for RequestMatchResult {
+  fn from(plan: ExecutionPlan) -> Self {
+    let method_node = plan.fetch_node(&[":request", ":method"]).unwrap_or_default();
+    let method = method_node.error()
+      .map(|err| Mismatch::MethodMismatch {
+        expected: "".to_string(),
+        actual: "".to_string(),
+        mismatch: err
+      });
+    let path_node = plan.fetch_node(&[":request", ":path"]).unwrap_or_default();
+    let path_errors = path_node.errors().iter()
+      .map(|err| Mismatch::PathMismatch {
+        expected: "".to_string(),
+        actual: "".to_string(),
+        mismatch: err.clone()
+      }).collect_vec();
+    let path = if path_errors.is_empty() {
+      None
+    } else {
+      Some(path_errors)
+    };
+    let query_node = plan.fetch_node(&[":request", ":query parameters"]).unwrap_or_default();
+    let query = query_node.children.iter()
+      .fold(hashmap!{}, |mut acc, child| {
+        if let PlanNodeType::CONTAINER(label) = &child.node_type {
+          let mismatches = child.errors().iter().map(|err| QueryMismatch {
+            parameter: label.clone(),
+            expected: "".to_string(),
+            actual: "".to_string(),
+            mismatch: err.clone(),
+          }).collect_vec();
+          acc.insert(label.clone(), mismatches);
+        } else {
+          let mismatches = child.errors().iter().map(|err| QueryMismatch {
+            parameter: "".to_string(),
+            expected: "".to_string(),
+            actual: "".to_string(),
+            mismatch: err.clone(),
+          }).collect_vec();
+          if !mismatches.is_empty() {
+            acc.entry("".to_string())
+              .and_modify(|entry| entry.extend_from_slice(&mismatches))
+              .or_insert(vec![]);
+          }
+        };
+        acc
+      });
+    let headers_node = plan.fetch_node(&[":request", ":headers"]).unwrap_or_default();
+    let headers = headers_node.children.iter()
+      .fold(hashmap!{}, |mut acc, child| {
+        if let PlanNodeType::CONTAINER(label) = &child.node_type {
+          let mismatches = child.errors().iter().map(|err| HeaderMismatch {
+            key: label.clone(),
+            expected: "".to_string(),
+            actual: "".to_string(),
+            mismatch: err.clone(),
+          }).collect_vec();
+          acc.insert(label.clone(), mismatches);
+        } else {
+          let mismatches = child.errors().iter().map(|err| HeaderMismatch {
+            key: "".to_string(),
+            expected: "".to_string(),
+            actual: "".to_string(),
+            mismatch: err.clone(),
+          }).collect_vec();
+          if !mismatches.is_empty() {
+            acc.entry("".to_string())
+              .and_modify(|entry| entry.extend_from_slice(&mismatches))
+              .or_insert(vec![]);
+          }
+        };
+        acc
+      });
+    let body_node = plan.fetch_node(&[":request", ":body"]).unwrap_or_default();
+    let body = if body_node.clone().result.unwrap_or_default().is_truthy() {
+      BodyMatchResult::Ok
+    } else {
+      let first_error = body_node.error().unwrap_or_default();
+      if first_error.to_lowercase().starts_with("body type error") {
+        BodyMatchResult::BodyTypeMismatch {
+          expected_type: "".to_string(),
+          actual_type: "".to_string(),
+          message: first_error.clone(),
+          expected: None,
+          actual: None,
+        }
+      } else {
+        let body_mismatches = body_node.traverse_containers(hashmap!{}, |mut acc, label, node| {
+          let errors = node.child_errors(Terminator::CONTAINERS);
+          if !errors.is_empty() {
+            let mismatches = errors.iter()
+              .map(|err| BodyMismatch {
+                path: label.clone(),
+                expected: None,
+                actual: None,
+                mismatch: err.clone(),
+              })
+              .collect_vec();
+            acc.insert(label.clone(), mismatches);
+          }
+          acc
+        });
+        BodyMatchResult::BodyMismatches(body_mismatches)
+      }
+    };
+    RequestMatchResult {
+      method,
+      path,
+      body,
+      query,
+      headers
+    }
+  }
+}
+
 /// Enum that defines the configuration options for performing a match.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DiffConfig {
@@ -1404,7 +1529,7 @@ pub fn match_text(expected: &Option<Bytes>, actual: &Option<Bytes>, context: &dy
 /// Matches the actual request method to the expected one.
 pub fn match_method(expected: &str, actual: &str) -> Result<(), Mismatch> {
   if expected.to_lowercase() != actual.to_lowercase() {
-    Err(Mismatch::MethodMismatch { expected: expected.to_string(), actual: actual.to_string() })
+    Err(Mismatch::MethodMismatch { expected: expected.to_string(), actual: actual.to_string(), mismatch: "".to_string() })
   } else {
     Ok(())
   }
@@ -1668,7 +1793,7 @@ pub async fn match_request<'a>(
   actual: HttpRequest,
   pact: &Box<dyn Pact + Send + Sync + RefUnwindSafe + 'a>,
   interaction: &Box<dyn Interaction + Send + Sync + RefUnwindSafe>
-) -> RequestMatchResult {
+) -> anyhow::Result<RequestMatchResult> {
   debug!("comparing to expected {}", expected);
   debug!("     body: '{}'", expected.body.display_string());
   debug!("     matching_rules: {:?}", expected.matching_rules);
@@ -1681,31 +1806,48 @@ pub async fn match_request<'a>(
   };
   trace!("plugin_data = {:?}", plugin_data);
 
-  let path_context = CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,
-    &expected.matching_rules.rules_for_category("path").unwrap_or_default(),
-    &plugin_data);
-  let body_context = CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,
-    &expected.matching_rules.rules_for_category("body").unwrap_or_default(),
-    &plugin_data);
-  let query_context = CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,
-    &expected.matching_rules.rules_for_category("query").unwrap_or_default(),
-    &plugin_data);
-  let header_context = HeaderMatchingContext::new(
-    &CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,
-     &expected.matching_rules.rules_for_category("header").unwrap_or_default(),
-     &plugin_data
-    )
-  );
-  let result = RequestMatchResult {
-    method: match_method(&expected.method, &actual.method).err(),
-    path: match_path(&expected.path, &actual.path, &path_context).err(),
-    body: match_body(&expected, &actual, &body_context, &header_context).await,
-    query: match_query(expected.query, actual.query, &query_context),
-    headers: match_headers(expected.headers, actual.headers, &header_context)
-  };
+  let use_v2_engine = std::env::var("MATCHING_ENGINE")
+    .map(|val| val.to_lowercase() == "v2")
+    .unwrap_or(false);
+  if use_v2_engine {
+    let mut context = PlanMatchingContext {
+      pact: pact.as_v4_pact().unwrap_or_default(),
+      interaction: interaction.as_v4().unwrap(),
+      value_stack: vec![],
+      matching_rules: Default::default(),
+      allow_unexpected_entries: false
+    };
+    let plan = build_request_plan(&expected, &mut context)?;
+    let executed_plan = execute_request_plan(&plan, &actual, &mut context)?;
+    info!("\n{}", executed_plan.generate_summary(true));
+    Ok(executed_plan.into())
+  } else {
+    let path_context = CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,
+      &expected.matching_rules.rules_for_category("path").unwrap_or_default(),
+      &plugin_data);
+    let body_context = CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,
+      &expected.matching_rules.rules_for_category("body").unwrap_or_default(),
+      &plugin_data);
+    let query_context = CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,
+      &expected.matching_rules.rules_for_category("query").unwrap_or_default(),
+      &plugin_data);
+    let header_context = HeaderMatchingContext::new(
+      &CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,
+        &expected.matching_rules.rules_for_category("header").unwrap_or_default(),
+        &plugin_data
+      )
+    );
+    let result = RequestMatchResult {
+      method: match_method(&expected.method, &actual.method).err(),
+      path: match_path(&expected.path, &actual.path, &path_context).err(),
+      body: match_body(&expected, &actual, &body_context, &header_context).await,
+      query: match_query(expected.query, actual.query, &query_context),
+      headers: match_headers(expected.headers, actual.headers, &header_context)
+    };
 
-  debug!("--> Mismatches: {:?}", result.mismatches());
-  result
+    debug!("--> Mismatches: {:?}", result.mismatches());
+    Ok(result)
+  }
 }
 
 /// Matches the actual response status to the expected one.
@@ -2189,7 +2331,7 @@ pub async fn match_interaction_request(
   if let Some(http_interaction) = expected.as_v4_http() {
     let request = actual.as_v4_http()
       .ok_or_else(|| anyhow!("Could not unpack actual request as a V4 Http Request"))?.request;
-    Ok(match_request(http_interaction.request, request, &pact, &expected).await)
+    match_request(http_interaction.request, request, &pact, &expected).await
   } else {
     Err(anyhow!("match_interaction_request must be called with HTTP request/response interactions, got {}", expected.type_of()))
   }
@@ -2226,7 +2368,7 @@ pub async fn match_interaction(
     let expected = expected.boxed();
     let request = actual.as_v4_http()
       .ok_or_else(|| anyhow!("Could not unpack actual request as a V4 Http Request"))?.request;
-    let request_result = match_request(expected_request, request, &pact, &expected).await;
+    let request_result = match_request(expected_request, request, &pact, &expected).await?;
     let response = actual.as_v4_http()
       .ok_or_else(|| anyhow!("Could not unpack actual response as a V4 Http Response"))?.response;
     let response_result = match_response(expected_response, response, &pact, &expected).await;

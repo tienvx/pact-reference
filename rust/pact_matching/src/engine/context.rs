@@ -7,7 +7,7 @@ use std::panic::RefUnwindSafe;
 use anyhow::anyhow;
 use itertools::Itertools;
 use serde_json::{json, Value};
-use tracing::{instrument, trace, Level, debug};
+use tracing::{instrument, trace, Level, debug, error};
 
 use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory, RuleList};
 use pact_models::path_exp::DocPath;
@@ -531,6 +531,7 @@ impl PlanMatchingContext {
                 }
               }
               Err(err) => {
+                error!("Failed to evaluate the second child - {}", err);
                 ExecutionPlanNode {
                   node_type: node.node_type.clone(),
                   result: Some(NodeResult::VALUE(NodeValue::BOOL(false))),
@@ -798,8 +799,12 @@ impl PlanMatchingContext {
     node: &ExecutionPlanNode,
     action_path: &Vec<String>
   ) -> Result<ExecutionPlanNode, ExecutionPlanNode> {
-    match self.validate_three_args(node, action, value_resolver, &action_path) {
-      Ok((first_node, second_node, third_node)) => {
+    match self.validate_args(3, 1, node, action, value_resolver, &action_path) {
+      Ok((args, optional)) => {
+        let first_node = &args[0];
+        let second_node = &args[1];
+        let third_node = &args[2];
+
         let exepected_value = first_node.value()
           .unwrap_or_default()
           .value_or_error()
@@ -807,9 +812,14 @@ impl PlanMatchingContext {
             ExecutionPlanNode {
               node_type: node.node_type.clone(),
               result: Some(NodeResult::ERROR(err.to_string())),
-              children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
+              children: [first_node.clone(), second_node.clone(), third_node.clone()]
+                .iter()
+                .chain(optional.iter())
+                .cloned()
+                .collect()
             }
           })?;
+
         let actual_value = second_node.value()
           .unwrap_or_default()
           .value_or_error()
@@ -817,9 +827,14 @@ impl PlanMatchingContext {
             ExecutionPlanNode {
               node_type: node.node_type.clone(),
               result: Some(NodeResult::ERROR(err.to_string())),
-              children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
+              children: [first_node.clone(), second_node.clone(), third_node.clone()]
+                .iter()
+                .chain(optional.iter())
+                .cloned()
+                .collect()
             }
           })?;
+
         let matcher_params = third_node.value()
           .unwrap_or_default()
           .value_or_error()
@@ -827,11 +842,16 @@ impl PlanMatchingContext {
             ExecutionPlanNode {
               node_type: node.node_type.clone(),
               result: Some(NodeResult::ERROR(err.to_string())),
-              children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
+              children: [first_node.clone(), second_node.clone(), third_node.clone()]
+                .iter()
+                .chain(optional.iter())
+                .cloned()
+                .collect()
             }
           })?
           .as_json()
           .unwrap_or_default();
+
         match MatchingRule::create(matcher, &matcher_params) {
           Ok(rule) => {
             match exepected_value.matches_with(actual_value, &rule, false) {
@@ -839,15 +859,51 @@ impl PlanMatchingContext {
                 Ok(ExecutionPlanNode {
                   node_type: node.node_type.clone(),
                   result: Some(NodeResult::VALUE(NodeValue::BOOL(true))),
-                  children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
+                  children: [first_node.clone(), second_node.clone(), third_node.clone()]
+                    .iter()
+                    .chain(optional.iter())
+                    .cloned()
+                    .collect()
                 })
               }
               Err(err) => {
-                Err(ExecutionPlanNode {
-                  node_type: node.node_type.clone(),
-                  result: Some(NodeResult::ERROR(err.to_string())),
-                  children: vec![first_node.clone(), second_node.clone(), third_node.clone()]
-                })
+                if let Some(error_node) = optional.first() {
+                  self.push_result(Some(NodeResult::ERROR(err.to_string())));
+                  match walk_tree(action_path.as_slice(), error_node, value_resolver, self) {
+                    Ok(error_node) => {
+                      let message = error_node.value().unwrap_or_default().as_string().unwrap_or_default();
+                      Err(ExecutionPlanNode {
+                        node_type: node.node_type.clone(),
+                        result: Some(NodeResult::ERROR(message)),
+                        children: vec![first_node.clone(), second_node.clone(), third_node.clone(), error_node.clone()]
+                      })
+                    }
+                    Err(_) => {
+                      error!("Failed to generate error node - {}", err);
+                      // There was an error generating the optional error node, so just return the
+                      // original error
+                      Err(ExecutionPlanNode {
+                        node_type: node.node_type.clone(),
+                        result: Some(NodeResult::ERROR(err.to_string())),
+                        children: [first_node.clone(), second_node.clone(), third_node.clone()]
+                          .iter()
+                          .chain(optional.iter())
+                          .cloned()
+                          .collect()
+                      })
+                    }
+                  }
+                } else {
+                  Err(ExecutionPlanNode {
+                    node_type: node.node_type.clone(),
+                    result: Some(NodeResult::ERROR(err.to_string())),
+                    children: [first_node.clone(), second_node.clone(), third_node.clone()]
+                      .iter()
+                      .chain(optional.iter())
+                      .cloned()
+                      .collect()
+                  })
+                }
               }
             }
           }

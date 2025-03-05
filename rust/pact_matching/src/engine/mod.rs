@@ -1,6 +1,7 @@
 //! Structs and traits to support a general matching engine
 
 use std::borrow::Cow;
+use std::cell::Cell;
 use std::cmp::PartialEq;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
@@ -250,7 +251,7 @@ impl NodeValue {
       NodeValue::BARRAY(b) => !b.is_empty(),
       NodeValue::NAMESPACED(_, _) => false,
       NodeValue::UINT(u) => *u != 0,
-      NodeValue::JSON(json) => false,
+      NodeValue::JSON(_) => false,
       NodeValue::ENTRY(_, _) => false,
       NodeValue::LIST(l) => !l.is_empty()
     }
@@ -455,6 +456,7 @@ impl NodeResult {
     }
   }
 
+  /// Converts this node result into a truthy value
   pub fn truthy(&self) -> NodeResult {
     match self {
       NodeResult::OK => NodeResult::VALUE(NodeValue::BOOL(true)),
@@ -962,15 +964,18 @@ impl ExecutionPlanNode {
     })
   }
 
-  fn is_leaf_node(&self) -> bool {
+  /// If this node has no children
+  pub fn is_leaf_node(&self) -> bool {
     self.children.is_empty()
   }
 
-  fn is_terminal_container(&self) -> bool {
+  /// If this node is a container and there are no more containers in the subtree
+  pub fn is_terminal_container(&self) -> bool {
     self.is_container() && !self.has_child_containers()
   }
 
-  fn is_container(&self) -> bool {
+  /// If this node is a container
+  pub fn is_container(&self) -> bool {
     if let PlanNodeType::CONTAINER(_) = &self.node_type {
       true
     } else {
@@ -978,7 +983,8 @@ impl ExecutionPlanNode {
     }
   }
 
-  fn has_child_containers(&self) -> bool {
+  /// If this node has any containers in the subtree
+  pub fn has_child_containers(&self) -> bool {
     self.children.iter().any(|child| {
       if let PlanNodeType::CONTAINER(_) = &child.node_type {
         true
@@ -988,7 +994,9 @@ impl ExecutionPlanNode {
     })
   }
 
-  fn child_errors(&self, terminator: Terminator) -> Vec<String> {
+  /// Returns all the errors from the child nodes, either terminating at any child containers
+  /// ot just returning all errors.
+  pub fn child_errors(&self, terminator: Terminator) -> Vec<String> {
     let mut errors = vec![];
     for child in &self.children {
       if child.is_container() && terminator == Terminator::ALL || !child.is_container() {
@@ -999,6 +1007,74 @@ impl ExecutionPlanNode {
       }
     }
     errors
+  }
+
+  /// Returns the first error found from this node
+  pub fn error(&self) -> Option<String> {
+    if let Some(NodeResult::ERROR(err)) = &self.result {
+      Some(err.clone())
+    } else {
+      self.child_errors(Terminator::ALL).first().cloned()
+    }
+  }
+
+  /// Returns all the errors found from this node
+  pub fn errors(&self) -> Vec<String> {
+    let mut errors = vec![];
+    if let Some(NodeResult::ERROR(err)) = &self.result {
+      errors.push(err.clone());
+    }
+    errors.extend_from_slice(&self.child_errors(Terminator::ALL));
+    errors
+  }
+
+  /// Walks the tree to return any node that matches the given path
+  pub fn fetch_node(&self, path: &[&str]) -> Option<ExecutionPlanNode> {
+    if path.is_empty() {
+      None
+    } else if self.matches(path[0]) {
+      if path.len() > 1 {
+        self.children.iter().find_map(|child| child.fetch_node(&path[1..]))
+      } else {
+        Some(self.clone())
+      }
+    } else {
+      None
+    }
+  }
+
+  fn matches(&self, identifier: &str) -> bool {
+    match &self.node_type {
+      PlanNodeType::EMPTY => false,
+      PlanNodeType::CONTAINER(label) => format!(":{}", label) == identifier,
+      PlanNodeType::ACTION(action) => format!("%{}", action) == identifier,
+      PlanNodeType::VALUE(_) => false,
+      PlanNodeType::RESOLVE(exp) => exp.to_string() == identifier,
+      PlanNodeType::PIPELINE => "->" == identifier,
+      PlanNodeType::RESOLVE_CURRENT(exp) => format!("~>{}", exp) == identifier,
+      PlanNodeType::SPLAT => "**" == identifier,
+      PlanNodeType::ANNOTATION(_) => false
+    }
+  }
+
+  /// This a fold operation over the depth-first transversal of the containers in the tree
+  /// from this node.
+  pub fn traverse_containers<ACC, F>(&self, acc: ACC, mut callback: F) -> ACC
+    where F: FnMut(ACC, String, &ExecutionPlanNode) -> ACC + Clone,
+          ACC: Default
+  {
+    let acc_cell = Cell::new(acc);
+    for child in &self.children {
+      if let PlanNodeType::CONTAINER(label) = &child.node_type {
+        let acc = acc_cell.take();
+        let result = callback(acc, label.clone(), child);
+        acc_cell.set(result);
+      }
+      let acc = acc_cell.take();
+      let result = child.traverse_containers(acc, callback.clone());
+      acc_cell.set(result);
+    }
+    acc_cell.into_inner()
   }
 }
 
@@ -1062,6 +1138,11 @@ impl ExecutionPlan {
     let mut buffer = String::new();
     self.plan_root.generate_summary(ansi_color, &mut buffer, 0);
     buffer
+  }
+
+  /// Walks the tree to return any node that matches the given path
+  pub fn fetch_node(&self, path: &[&str]) -> Option<ExecutionPlanNode> {
+    self.plan_root.fetch_node(path)
   }
 }
 
@@ -1400,6 +1481,11 @@ fn setup_body_plan(
             .add(ExecutionPlanNode::value_node(content_type.to_string()))
             .add(ExecutionPlanNode::resolve_value(DocPath::new("$.content-type")?))
             .add(ExecutionPlanNode::value_node(NodeValue::NULL))
+            .add(
+              ExecutionPlanNode::action("error")
+                .add(ExecutionPlanNode::value_node(NodeValue::STRING("Body type error - ".to_string())))
+                .add(ExecutionPlanNode::action("apply"))
+            )
         );
       if let Some(plan_builder) = get_body_plan_builder(&content_type) {
         content_type_check_node.add(plan_builder.build_plan(content, context)?);
