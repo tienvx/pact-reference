@@ -5,7 +5,8 @@ use std::cell::Cell;
 use std::cmp::PartialEq;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
-
+use ansi_term::Colour;
+use ansi_term::Colour::{Green, Red};
 use anyhow::anyhow;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -893,48 +894,88 @@ impl ExecutionPlanNode {
         if let Some(result) = &self.result {
           if self.is_leaf_node() || self.is_terminal_container() {
             if result.is_truthy() {
-              buffer.push_str(" - OK");
+              if ansi_color {
+                buffer.push_str(format!(" - {}", Green.paint("OK")).as_str());
+              } else {
+                buffer.push_str(" - OK");
+              }
             } else {
               let errors = self.child_errors(Terminator::ALL);
               if let NodeResult::ERROR(err) = result {
-                buffer.push_str(format!(" - ERROR {}", err).as_str());
+                if ansi_color {
+                  buffer.push_str(format!(" - {} {}", Red.paint("ERROR"), Red.paint(err)).as_str());
+                } else {
+                  buffer.push_str(format!(" - ERROR {}", err).as_str());
+                }
                 let error_pad = " ".repeat(indent + label.len() + 2);
                 for error in errors {
                   buffer.push('\n');
                   buffer.push_str(error_pad.as_str());
-                  buffer.push_str(format!(" - ERROR {}", error).as_str());
+                  if ansi_color {
+                    buffer.push_str(format!(" - {} {}", Red.paint("ERROR"), Red.paint(error)).as_str());
+                  } else {
+                    buffer.push_str(format!(" - ERROR {}", error).as_str());
+                  }
                 }
               } else if errors.len() == 1 {
-                buffer.push_str(format!(" - ERROR {}", errors[0]).as_str())
+                if ansi_color {
+                  buffer.push_str(format!(" - {} {}", Red.paint("ERROR"), Red.paint(errors[0].as_str())).as_str());
+                } else {
+                  buffer.push_str(format!(" - ERROR {}", errors[0]).as_str())
+                }
               } else if errors.is_empty() {
-                buffer.push_str(" - FAILED")
+                if ansi_color {
+                  buffer.push_str(format!(" - {}", Red.paint("FAILED")).as_str());
+                } else {
+                  buffer.push_str(" - FAILED")
+                }
               } else {
                 let error_pad = " ".repeat(indent + label.len() + 2);
                 for error in errors {
                   buffer.push('\n');
                   buffer.push_str(error_pad.as_str());
-                  buffer.push_str(format!(" - ERROR {}", error).as_str());
+                  if ansi_color {
+                    buffer.push_str(format!(" - {} {}", Red.paint("ERROR"), Red.paint(error)).as_str());
+                  } else {
+                    buffer.push_str(format!(" - ERROR {}", error).as_str());
+                  }
                 }
               }
             }
           } else {
             let errors = self.child_errors(Terminator::CONTAINERS);
             if let NodeResult::ERROR(err) = result {
-              buffer.push_str(format!(" - ERROR {}", err).as_str());
+              if ansi_color {
+                buffer.push_str(format!(" - {} {}", Red.paint("ERROR"), Red.paint(err)).as_str());
+              } else {
+                buffer.push_str(format!(" - ERROR {}", err).as_str());
+              }
               let error_pad = " ".repeat(indent + label.len() + 2);
               for error in errors {
                 buffer.push('\n');
                 buffer.push_str(error_pad.as_str());
-                buffer.push_str(format!(" - ERROR {}", error).as_str());
+                if ansi_color {
+                  buffer.push_str(format!(" - {} {}", Red.paint("ERROR"), Red.paint(error)).as_str());
+                } else {
+                  buffer.push_str(format!(" - ERROR {}", error).as_str());
+                }
               }
             } else if errors.len() == 1 {
-              buffer.push_str(format!(" - ERROR {}", errors[0]).as_str())
+              if ansi_color {
+                buffer.push_str(format!(" - {} {}", Red.paint("ERROR"), Red.paint(errors[0].as_str())).as_str());
+              } else {
+                buffer.push_str(format!(" - ERROR {}", errors[0]).as_str())
+              }
             } else if !errors.is_empty() {
               let error_pad = " ".repeat(indent + label.len() + 2);
               for error in errors {
                 buffer.push('\n');
                 buffer.push_str(error_pad.as_str());
-                buffer.push_str(format!(" - ERROR {}", error).as_str());
+                if ansi_color {
+                  buffer.push_str(format!(" - {} {}", Red.paint("ERROR"), Red.paint(error)).as_str());
+                } else {
+                  buffer.push_str(format!(" - ERROR {}", error).as_str());
+                }
               }
             }
           }

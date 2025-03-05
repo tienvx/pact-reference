@@ -63,7 +63,7 @@ impl Default for MatchingConfiguration {
       allow_unexpected_entries: false,
       log_executed_plan: false,
       log_plan_summary: true,
-      coloured_output: false
+      coloured_output: true
     }
   }
 }
