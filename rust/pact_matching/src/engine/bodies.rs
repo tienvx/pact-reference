@@ -157,7 +157,7 @@ impl PlanBodyBuilder for JsonPlanBuilder {
               .add(ExecutionPlanNode::action("apply"))
           );
         } else {
-          if !context.allow_unexpected_entries {
+          if !context.config.allow_unexpected_entries {
             root_node.add(
               ExecutionPlanNode::action("json:expect:entries")
                 .add(ExecutionPlanNode::value_node("OBJECT"))

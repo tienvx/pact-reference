@@ -387,7 +387,7 @@ use pact_models::v4::message_parts::MessageContents;
 use pact_models::v4::sync_message::SynchronousMessage;
 
 use crate::engine::{build_request_plan, execute_request_plan, ExecutionPlan, PlanNodeType, Terminator};
-use crate::engine::context::PlanMatchingContext;
+use crate::engine::context::{MatchingConfiguration, PlanMatchingContext};
 use crate::generators::bodies::generators_process_body;
 use crate::generators::DefaultVariantMatcher;
 use crate::headers::{match_header_value, match_headers};
@@ -1810,16 +1810,24 @@ pub async fn match_request<'a>(
     .map(|val| val.to_lowercase() == "v2")
     .unwrap_or(false);
   if use_v2_engine {
+    let config = MatchingConfiguration::init_from_env();
     let mut context = PlanMatchingContext {
       pact: pact.as_v4_pact().unwrap_or_default(),
       interaction: interaction.as_v4().unwrap(),
       value_stack: vec![],
       matching_rules: Default::default(),
-      allow_unexpected_entries: false
+      config
     };
+
     let plan = build_request_plan(&expected, &mut context)?;
     let executed_plan = execute_request_plan(&plan, &actual, &mut context)?;
-    info!("\n{}", executed_plan.generate_summary(true));
+
+    if config.log_executed_plan {
+      info!("\n{}", executed_plan.pretty_form());
+    }
+    if config.log_plan_summary {
+      info!("\n{}", executed_plan.generate_summary(config.coloured_output));
+    }
     Ok(executed_plan.into())
   } else {
     let path_context = CoreMatchingContext::new(DiffConfig::NoUnexpectedKeys,

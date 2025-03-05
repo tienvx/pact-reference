@@ -20,6 +20,54 @@ use crate::headers::{parse_charset_parameters, strip_whitespace};
 use crate::json::type_of;
 use crate::matchers::Matches;
 
+/// Configuration for driving behaviour of the execution
+#[derive(Copy, Clone, Debug)]
+pub struct MatchingConfiguration {
+  /// If extra keys/values are allowed (and ignored)
+  pub allow_unexpected_entries: bool,
+  /// If the executed plan should be logged
+  pub log_executed_plan: bool,
+  /// If the executed plan summary should be logged
+  pub log_plan_summary: bool,
+  /// If output should be coloured
+  pub coloured_output: bool
+}
+
+impl MatchingConfiguration {
+  pub fn init_from_env() -> Self {
+    let mut config = MatchingConfiguration::default();
+
+    if let Some(val) = env_var_set("V2_MATCHING_LOG_EXECUTED_PLAN") {
+      config.log_executed_plan = val;
+    }
+    if let Some(val) = env_var_set("V2_MATCHING_LOG_PLAN_SUMMARY") {
+      config.log_plan_summary = val;
+    }
+    if let Some(val) = env_var_set("V2_MATCHING_COLOURED_OUTPUT") {
+      config.coloured_output = val;
+    }
+
+    config
+  }
+}
+
+fn env_var_set(name: &str) -> Option<bool> {
+  std::env::var(name)
+    .ok()
+    .map(|v| ["true", "1"].contains(&v.to_lowercase().as_str()))
+}
+
+impl Default for MatchingConfiguration {
+  fn default() -> Self {
+    MatchingConfiguration {
+      allow_unexpected_entries: false,
+      log_executed_plan: false,
+      log_plan_summary: true,
+      coloured_output: false
+    }
+  }
+}
+
 /// Context to store data for use in executing an execution plan.
 #[derive(Clone, Debug)]
 pub struct PlanMatchingContext {
@@ -31,8 +79,8 @@ pub struct PlanMatchingContext {
   pub value_stack: Vec<Option<NodeResult>>,
   /// Matching rules to use
   pub matching_rules: MatchingRuleCategory,
-  /// If extra keys/values are allowed (and ignored)
-  pub allow_unexpected_entries: bool
+  /// Configuration
+  pub config: MatchingConfiguration
 }
 
 impl PlanMatchingContext {
@@ -1089,7 +1137,7 @@ impl PlanMatchingContext {
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
       matching_rules,
-      allow_unexpected_entries: false
+      config: self.config
     }
   }
 
@@ -1106,7 +1154,7 @@ impl PlanMatchingContext {
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
       matching_rules,
-      allow_unexpected_entries: false
+      config: self.config
     }
   }
 
@@ -1123,7 +1171,7 @@ impl PlanMatchingContext {
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
       matching_rules,
-      allow_unexpected_entries: false
+      config: self.config
     }
   }
 
@@ -1140,7 +1188,7 @@ impl PlanMatchingContext {
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
       matching_rules,
-      allow_unexpected_entries: false
+      config: self.config
     }
   }
 
@@ -1157,7 +1205,7 @@ impl PlanMatchingContext {
       interaction: self.interaction.boxed_v4(),
       value_stack: vec![],
       matching_rules,
-      allow_unexpected_entries: self.allow_unexpected_entries
+      config: self.config
     }
   }
 
@@ -1638,7 +1686,7 @@ impl Default for PlanMatchingContext {
       interaction: Box::new(SynchronousHttp::default()),
       value_stack: vec![],
       matching_rules: Default::default(),
-      allow_unexpected_entries: false
+      config: Default::default()
     }
   }
 }
