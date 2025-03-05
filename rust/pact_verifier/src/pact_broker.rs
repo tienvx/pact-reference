@@ -883,7 +883,7 @@ fn build_payload(
                 MismatchResult::Mismatches { mismatches, .. } => {
                   for mismatch in mismatches {
                     match mismatch {
-                      Mismatch::MethodMismatch { expected, actual } => acc.0.push(json!({
+                      Mismatch::MethodMismatch { expected, actual, .. } => acc.0.push(json!({
                         "attribute": "method",
                         "description": format!("Expected method of {} but received {}", expected, actual)
                       })),
@@ -2195,7 +2195,11 @@ mod tests {
     let result = TestResult::Failed(vec![
       (Some("1234abc".to_string()), None, Some(MismatchResult::Mismatches {
         mismatches: vec![
-          MethodMismatch { expected: "PUT".to_string(), actual: "POST".to_string() }
+          MethodMismatch {
+            expected: "PUT".to_string(),
+            actual: "POST".to_string(),
+            mismatch: "".to_string()
+          }
         ],
         expected: Box::new(RequestResponseInteraction::default()),
         actual: Box::new(RequestResponseInteraction::default()),
@@ -2256,7 +2260,11 @@ mod tests {
     let result = TestResult::Failed(vec![
       (Some("1234abc".to_string()), None, Some(MismatchResult::Mismatches {
         mismatches: vec![
-          MethodMismatch { expected: "PUT".to_string(), actual: "POST".to_string() }
+          MethodMismatch {
+            expected: "PUT".to_string(),
+            actual: "POST".to_string(),
+            mismatch: "".to_string()
+          }
         ],
         expected: Box::new(RequestResponseInteraction::default()),
         actual: Box::new(RequestResponseInteraction::default()),
@@ -2331,7 +2339,11 @@ mod tests {
     let result = TestResult::Failed(vec![
       (Some("1234abc".to_string()), Some("int_desc".to_string()), Some(MismatchResult::Mismatches {
         mismatches: vec![
-          MethodMismatch { expected: "PUT".to_string(), actual: "POST".to_string() }
+          MethodMismatch {
+            expected: "PUT".to_string(),
+            actual: "POST".to_string(),
+            mismatch: "".to_string()
+          }
         ],
         expected: Box::new(RequestResponseInteraction::default()),
         actual: Box::new(RequestResponseInteraction::default()),

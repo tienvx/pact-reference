@@ -40,7 +40,7 @@ pub(crate) fn check_requests_match(
         let generated_request = runtime.block_on(generate_request(&actual_request, &GeneratorTestMode::Provider, context));
         debug!("generated_request = {:?}", generated_request);
         let mismatches = runtime.block_on(match_request(e.as_v4_http().unwrap().request.clone(),
-                generated_request, expected, e));
+                generated_request, expected, e))?;
         if !mismatches.all_matched() {
           let mut reasons = String::new();
           for mismatch in mismatches.mismatches() {
