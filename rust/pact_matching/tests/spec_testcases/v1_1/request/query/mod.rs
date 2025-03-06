@@ -15,7 +15,7 @@ use pact_matching::{match_interaction_request, match_interaction_response};
 #[allow(unused_imports)]
 use pact_models::prelude::{Pact, RequestResponsePact};
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn same_parameter_different_values() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/same parameter different values.json");
     #[allow(unused_mut)]
@@ -62,7 +62,7 @@ async fn same_parameter_different_values() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn unexpected_param() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/unexpected param.json");
     #[allow(unused_mut)]
@@ -109,7 +109,7 @@ async fn unexpected_param() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn same_parameter_multiple_times() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/same parameter multiple times.json");
     #[allow(unused_mut)]
@@ -155,7 +155,7 @@ async fn same_parameter_multiple_times() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn same_parameter_multiple_times_in_different_order() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/same parameter multiple times in different order.json");
     #[allow(unused_mut)]
@@ -201,7 +201,7 @@ async fn same_parameter_multiple_times_in_different_order() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/matches.json");
     #[allow(unused_mut)]
@@ -248,7 +248,7 @@ async fn matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_with_equals_in_the_query_value() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/matches with equals in the query value.json");
     #[allow(unused_mut)]
@@ -295,7 +295,7 @@ async fn matches_with_equals_in_the_query_value() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn different_params() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/different params.json");
     #[allow(unused_mut)]
@@ -342,7 +342,7 @@ async fn different_params() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn missing_params() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/missing params.json");
     #[allow(unused_mut)]
@@ -389,7 +389,7 @@ async fn missing_params() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn different_order() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/different order.json");
     #[allow(unused_mut)]
@@ -436,7 +436,7 @@ async fn different_order() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn trailing_ampersand() {
     println!("FILE: tests/spec_testcases/v1_1/request/query/trailing ampersand.json");
     #[allow(unused_mut)]

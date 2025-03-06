@@ -15,7 +15,7 @@ use pact_matching::{match_interaction_request, match_interaction_response};
 #[allow(unused_imports)]
 use pact_models::prelude::{Pact, RequestResponsePact};
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn order_of_comma_separated_header_values_different() {
     println!("FILE: tests/spec_testcases/v3/request/headers/order of comma separated header values different.json");
     #[allow(unused_mut)]
@@ -64,7 +64,7 @@ async fn order_of_comma_separated_header_values_different() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn header_name_is_different_case() {
     println!("FILE: tests/spec_testcases/v3/request/headers/header name is different case.json");
     #[allow(unused_mut)]
@@ -113,7 +113,7 @@ async fn header_name_is_different_case() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn unexpected_header_found() {
     println!("FILE: tests/spec_testcases/v3/request/headers/unexpected header found.json");
     #[allow(unused_mut)]
@@ -160,7 +160,7 @@ async fn unexpected_header_found() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn header_value_is_different_case() {
     println!("FILE: tests/spec_testcases/v3/request/headers/header value is different case.json");
     #[allow(unused_mut)]
@@ -209,7 +209,7 @@ async fn header_value_is_different_case() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn content_type_parameters_do_not_match() {
     println!("FILE: tests/spec_testcases/v3/request/headers/content type parameters do not match.json");
     #[allow(unused_mut)]
@@ -258,7 +258,7 @@ async fn content_type_parameters_do_not_match() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn whitespace_after_comma_different() {
     println!("FILE: tests/spec_testcases/v3/request/headers/whitespace after comma different.json");
     #[allow(unused_mut)]
@@ -307,7 +307,7 @@ async fn whitespace_after_comma_different() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_content_type_with_charset() {
     println!("FILE: tests/spec_testcases/v3/request/headers/matches content type with charset.json");
     #[allow(unused_mut)]
@@ -356,7 +356,7 @@ async fn matches_content_type_with_charset() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_with_regex() {
     println!("FILE: tests/spec_testcases/v3/request/headers/matches with regex.json");
     #[allow(unused_mut)]
@@ -417,7 +417,7 @@ async fn matches_with_regex() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches() {
     println!("FILE: tests/spec_testcases/v3/request/headers/matches.json");
     #[allow(unused_mut)]
@@ -468,7 +468,7 @@ async fn matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_content_type_with_charset_with_different_case() {
     println!("FILE: tests/spec_testcases/v3/request/headers/matches content type with charset with different case.json");
     #[allow(unused_mut)]
@@ -513,7 +513,7 @@ async fn matches_content_type_with_charset_with_different_case() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn empty_headers() {
     println!("FILE: tests/spec_testcases/v3/request/headers/empty headers.json");
     #[allow(unused_mut)]
@@ -559,7 +559,7 @@ async fn empty_headers() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_content_type_with_parameters_in_different_order() {
     println!("FILE: tests/spec_testcases/v3/request/headers/matches content type with parameters in different order.json");
     #[allow(unused_mut)]

@@ -15,7 +15,7 @@ use pact_matching::{match_interaction_request, match_interaction_response};
 #[allow(unused_imports)]
 use pact_models::prelude::{Pact, RequestResponsePact};
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn method_is_different_case() {
     println!("FILE: tests/spec_testcases/v2/request/method/method is different case.json");
     #[allow(unused_mut)]
@@ -61,7 +61,7 @@ async fn method_is_different_case() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches() {
     println!("FILE: tests/spec_testcases/v2/request/method/matches.json");
     #[allow(unused_mut)]
@@ -107,7 +107,7 @@ async fn matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn different_method() {
     println!("FILE: tests/spec_testcases/v2/request/method/different method.json");
     #[allow(unused_mut)]

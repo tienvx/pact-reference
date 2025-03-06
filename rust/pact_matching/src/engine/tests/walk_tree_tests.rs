@@ -35,17 +35,18 @@ fn json_with_null() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  %tee (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(4, bnVsbA==)
     ) => json:null,
-    %match:equality (
-      json:null => json:null,
-      %apply () => json:null,
-      NULL => NULL
+    :$ (
+      %match:equality (
+        json:null => json:null,
+        %apply () => json:null,
+        NULL => NULL
+      ) => BOOL(true)
     ) => BOOL(true)
-  ) => BOOL(true)");
+  ) => BOOL(true)", buffer);
 
   let content = Bytes::copy_from_slice(Value::Bool(true).to_string().as_bytes());
   let resolver = TestValueResolver {
@@ -58,11 +59,13 @@ fn json_with_null() {
     %json:parse (
       $.body => BYTES(4, dHJ1ZQ==)
     ) => json:true,
-    %match:equality (
-      json:null => json:null,
-      %apply () => json:true,
-      NULL => NULL
-    ) => ERROR(Expected true (Boolean) to be equal to null (Null))
+    :$ (
+      %match:equality (
+        json:null => json:null,
+        %apply () => json:true,
+        NULL => NULL
+      ) => ERROR(Expected true (Boolean) to be equal to null (Null))
+    ) => BOOL(false)
   ) => BOOL(false)", buffer);
 
   let content = Bytes::copy_from_slice("{".as_bytes());
@@ -72,17 +75,18 @@ fn json_with_null() {
   let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
-  assert_eq!(buffer,
-  "  %tee (
+  assert_eq!("  %tee (
     %json:parse (
       $.body => BYTES(1, ew==)
     ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
-    %match:equality (
-      json:null => json:null,
-      %apply () => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
-      NULL => NULL
-    ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1)
-  ) => BOOL(false)");
+    :$ (
+      %match:equality (
+        json:null => json:null,
+        %apply () => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
+        NULL => NULL
+      ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1)
+    ) => BOOL(false)
+  ) => BOOL(false)", buffer);
 }
 
 #[test_log::test]
@@ -103,10 +107,12 @@ fn json_with_boolean() {
     %json:parse (
       $.body => BYTES(4, dHJ1ZQ==)
     ) => json:true,
-    %match:equality (
-      json:true => json:true,
-      %apply () => json:true,
-      NULL => NULL
+    :$ (
+      %match:equality (
+        json:true => json:true,
+        %apply () => json:true,
+        NULL => NULL
+      ) => BOOL(true)
     ) => BOOL(true)
   ) => BOOL(true)", buffer);
 
@@ -121,11 +127,13 @@ fn json_with_boolean() {
     %json:parse (
       $.body => BYTES(5, ZmFsc2U=)
     ) => json:false,
-    %match:equality (
-      json:true => json:true,
-      %apply () => json:false,
-      NULL => NULL
-    ) => ERROR(Expected false (Boolean) to be equal to true (Boolean))
+    :$ (
+      %match:equality (
+        json:true => json:true,
+        %apply () => json:false,
+        NULL => NULL
+      ) => ERROR(Expected false (Boolean) to be equal to true (Boolean))
+    ) => BOOL(false)
   ) => BOOL(false)", buffer);
 }
 

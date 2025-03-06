@@ -1196,7 +1196,7 @@ fn match_content_type_header() {
             ),
             %match:equality (
               'application/hal+json',
-              %to-string (
+              %lower-case (
                 ~>value
               ),
               NULL
@@ -1246,7 +1246,7 @@ fn match_content_type_header() {
             ) => json:{"parameters":{"charset":"UTF-8"},"value":"application/hal+json"},
             %match:equality (
               'application/hal+json' => 'application/hal+json',
-              %to-string (
+              %lower-case (
                 ~>value => json:"application/hal+json"
               ) => 'application/hal+json',
               NULL => NULL
@@ -1299,7 +1299,7 @@ fn match_content_type_header() {
             ),
             %match:equality (
               'application/json',
-              %to-string (
+              %lower-case (
                 ~>value
               ),
               NULL
@@ -1310,8 +1310,8 @@ fn match_content_type_header() {
                   ~>parameters.charset
                 ),
                 %match:equality (
-                  'UTF-8',
-                  %to-string (
+                  'utf-8',
+                  %lower-case (
                     ~>parameters.charset
                   ),
                   NULL
@@ -1366,7 +1366,7 @@ fn match_content_type_header() {
             ) => json:{"parameters":{"charset":"UTF-8"},"value":"application/json"},
             %match:equality (
               'application/json' => 'application/json',
-              %to-string (
+              %lower-case (
                 ~>value => json:"application/json"
               ) => 'application/json',
               NULL => NULL
@@ -1377,10 +1377,10 @@ fn match_content_type_header() {
                   ~>parameters.charset => json:"UTF-8"
                 ) => BOOL(true),
                 %match:equality (
-                  'UTF-8' => 'UTF-8',
-                  %to-string (
+                  'utf-8' => 'utf-8',
+                  %lower-case (
                     ~>parameters.charset => json:"UTF-8"
-                  ) => 'UTF-8',
+                  ) => 'utf-8',
                   NULL => NULL
                 ) => BOOL(true),
                 %error (
@@ -1433,7 +1433,7 @@ fn match_content_type_header() {
             ) => json:{"parameters":{},"value":"application/json"},
             %match:equality (
               'application/json' => 'application/json',
-              %to-string (
+              %lower-case (
                 ~>value => json:"application/json"
               ) => 'application/json',
               NULL => NULL
@@ -1444,8 +1444,8 @@ fn match_content_type_header() {
                   ~>parameters.charset => NULL
                 ) => BOOL(false),
                 %match:equality (
-                  'UTF-8',
-                  %to-string (
+                  'utf-8',
+                  %lower-case (
                     ~>parameters.charset
                   ),
                   NULL
@@ -1500,7 +1500,7 @@ fn match_content_type_header() {
             ) => json:{"parameters":{"charset":"UTF-16","other":"stuff"},"value":"application/json"},
             %match:equality (
               'application/json' => 'application/json',
-              %to-string (
+              %lower-case (
                 ~>value => json:"application/json"
               ) => 'application/json',
               NULL => NULL
@@ -1511,12 +1511,12 @@ fn match_content_type_header() {
                   ~>parameters.charset => json:"UTF-16"
                 ) => BOOL(true),
                 %match:equality (
-                  'UTF-8' => 'UTF-8',
-                  %to-string (
+                  'utf-8' => 'utf-8',
+                  %lower-case (
                     ~>parameters.charset => json:"UTF-16"
-                  ) => 'UTF-16',
+                  ) => 'utf-16',
                   NULL => NULL
-                ) => ERROR(Expected 'UTF-16' to be equal to 'UTF-8'),
+                ) => ERROR(Expected 'utf-16' to be equal to 'utf-8'),
                 %error (
                   "Expected a charset value of 'UTF-8' but it was missing"
                 )

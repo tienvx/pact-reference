@@ -49,7 +49,7 @@ specs.eachFileRecurse(FileType.DIRECTORIES) { dir ->
         require = '\n|#[cfg(feature = "xml")]'
       }
       def testBody = """
-        |#[tokio::test]$require
+        |#[test_log::test(tokio::test)]$require
         |async fn ${it.name.replaceAll(' ', '_').replaceAll('-', '_').replaceAll('\\.json', '')}() {
         |    println!("FILE: ${it}");
         |    #[allow(unused_mut)]

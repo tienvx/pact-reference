@@ -386,7 +386,14 @@ use pact_models::v4::http_parts::{HttpRequest, HttpResponse};
 use pact_models::v4::message_parts::MessageContents;
 use pact_models::v4::sync_message::SynchronousMessage;
 
-use crate::engine::{build_request_plan, execute_request_plan, ExecutionPlan, PlanNodeType, Terminator};
+use crate::engine::{
+  build_request_plan,
+  execute_request_plan,
+  ExecutionPlan,
+  NodeResult,
+  PlanNodeType,
+  Terminator
+};
 use crate::engine::context::{MatchingConfiguration, PlanMatchingContext};
 use crate::generators::bodies::generators_process_body;
 use crate::generators::DefaultVariantMatcher;
@@ -1336,10 +1343,8 @@ impl RequestMatchResult {
   pub fn method_or_path_mismatch(&self) -> bool {
     self.method.is_some() || self.path.is_some()
   }
-}
 
-impl From<ExecutionPlan> for RequestMatchResult {
-  fn from(plan: ExecutionPlan) -> Self {
+  fn method_mismatch(plan: &ExecutionPlan) -> Option<Mismatch> {
     let method_node = plan.fetch_node(&[":request", ":method"]).unwrap_or_default();
     let method = method_node.error()
       .map(|err| Mismatch::MethodMismatch {
@@ -1347,6 +1352,10 @@ impl From<ExecutionPlan> for RequestMatchResult {
         actual: "".to_string(),
         mismatch: err
       });
+    method
+  }
+
+  fn path_mismatch(plan: &ExecutionPlan) -> Option<Vec<Mismatch>> {
     let path_node = plan.fetch_node(&[":request", ":path"]).unwrap_or_default();
     let path_errors = path_node.errors().iter()
       .map(|err| Mismatch::PathMismatch {
@@ -1359,9 +1368,13 @@ impl From<ExecutionPlan> for RequestMatchResult {
     } else {
       Some(path_errors)
     };
+    path
+  }
+
+  fn query_mismatches(plan: &ExecutionPlan) -> HashMap<String, Vec<Mismatch>> {
     let query_node = plan.fetch_node(&[":request", ":query parameters"]).unwrap_or_default();
-    let query = query_node.children.iter()
-      .fold(hashmap!{}, |mut acc, child| {
+    let mut query = query_node.children.iter()
+      .fold(hashmap! {}, |mut acc, child| {
         if let PlanNodeType::CONTAINER(label) = &child.node_type {
           let mismatches = child.errors().iter().map(|err| QueryMismatch {
             parameter: label.clone(),
@@ -1385,9 +1398,25 @@ impl From<ExecutionPlan> for RequestMatchResult {
         };
         acc
       });
+    let errors = query_node.child_errors(Terminator::CONTAINERS);
+    if !errors.is_empty() {
+      let mismatches = errors.iter()
+        .map(|err| BodyMismatch {
+          path: "".to_string(),
+          expected: None,
+          actual: None,
+          mismatch: err.clone(),
+        })
+        .collect_vec();
+      query.insert("".to_string(), mismatches);
+    }
+    query
+  }
+
+  fn header_mismatches(plan: &ExecutionPlan) -> HashMap<String, Vec<Mismatch>> {
     let headers_node = plan.fetch_node(&[":request", ":headers"]).unwrap_or_default();
-    let headers = headers_node.children.iter()
-      .fold(hashmap!{}, |mut acc, child| {
+    let mut headers = headers_node.children.iter()
+      .fold(hashmap! {}, |mut acc, child| {
         if let PlanNodeType::CONTAINER(label) = &child.node_type {
           let mismatches = child.errors().iter().map(|err| HeaderMismatch {
             key: label.clone(),
@@ -1411,9 +1440,38 @@ impl From<ExecutionPlan> for RequestMatchResult {
         };
         acc
       });
+    let errors = headers_node.child_errors(Terminator::CONTAINERS);
+    if !errors.is_empty() {
+      let mismatches = errors.iter()
+        .map(|err| BodyMismatch {
+          path: "".to_string(),
+          expected: None,
+          actual: None,
+          mismatch: err.clone(),
+        })
+        .collect_vec();
+      headers.insert("".to_string(), mismatches);
+    }
+    headers
+  }
+
+  fn body_mismatches(plan: ExecutionPlan) -> BodyMatchResult {
     let body_node = plan.fetch_node(&[":request", ":body"]).unwrap_or_default();
     let body = if body_node.clone().result.unwrap_or_default().is_truthy() {
       BodyMatchResult::Ok
+    } else if body_node.is_empty() {
+      match &body_node.clone().result {
+        Some(NodeResult::ERROR(err)) => {
+          let mismatch = BodyMismatch {
+            path: "".to_string(),
+            expected: None,
+            actual: None,
+            mismatch: err.clone()
+          };
+          BodyMatchResult::BodyMismatches(hashmap!{"".to_string() => vec![mismatch]})
+        }
+        _ => BodyMatchResult::Ok
+      }
     } else {
       let first_error = body_node.error().unwrap_or_default();
       if first_error.to_lowercase().starts_with("body type error") {
@@ -1425,7 +1483,7 @@ impl From<ExecutionPlan> for RequestMatchResult {
           actual: None,
         }
       } else {
-        let body_mismatches = body_node.traverse_containers(hashmap!{}, |mut acc, label, node| {
+        let mut body_mismatches = body_node.traverse_containers(hashmap! {}, |mut acc, label, node| {
           let errors = node.child_errors(Terminator::CONTAINERS);
           if !errors.is_empty() {
             let mismatches = errors.iter()
@@ -1440,9 +1498,30 @@ impl From<ExecutionPlan> for RequestMatchResult {
           }
           acc
         });
+        if !first_error.is_empty() {
+          let mismatches = body_mismatches.entry("".to_string())
+            .or_insert_with(|| vec![]);
+          mismatches.push(BodyMismatch {
+            path: "".to_string(),
+            expected: None,
+            actual: None,
+            mismatch: first_error.clone()
+          });
+        }
         BodyMatchResult::BodyMismatches(body_mismatches)
       }
     };
+    body
+  }
+}
+
+impl From<ExecutionPlan> for RequestMatchResult {
+  fn from(plan: ExecutionPlan) -> Self {
+    let method = Self::method_mismatch(&plan);
+    let path = Self::path_mismatch(&plan);
+    let query = Self::query_mismatches(&plan);
+    let headers = Self::header_mismatches(&plan);
+    let body = Self::body_mismatches(plan);
     RequestMatchResult {
       method,
       path,
@@ -1823,7 +1902,7 @@ pub async fn match_request<'a>(
     let executed_plan = execute_request_plan(&plan, &actual, &mut context)?;
 
     if config.log_executed_plan {
-      info!("\n{}", executed_plan.pretty_form());
+      debug!("\n{}", executed_plan.pretty_form());
     }
     if config.log_plan_summary {
       info!("\n{}", executed_plan.generate_summary(config.coloured_output));

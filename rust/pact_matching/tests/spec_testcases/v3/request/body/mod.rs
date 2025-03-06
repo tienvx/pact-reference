@@ -15,7 +15,7 @@ use pact_matching::{match_interaction_request, match_interaction_response};
 #[allow(unused_imports)]
 use pact_models::prelude::{Pact, RequestResponsePact};
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn null_found_at_key_where_not_null_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/null found at key where not null expected.json");
     #[allow(unused_mut)]
@@ -70,7 +70,7 @@ async fn null_found_at_key_where_not_null_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn no_body_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/no body xml.json");
@@ -117,7 +117,7 @@ async fn no_body_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_with_at_least_one_element_matching_by_example() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with at least one element matching by example.json");
     #[allow(unused_mut)]
@@ -197,7 +197,7 @@ async fn array_with_at_least_one_element_matching_by_example() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn missing_body_found_when_empty_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/missing body found when empty expected.json");
     #[allow(unused_mut)]
@@ -241,7 +241,7 @@ async fn missing_body_found_when_empty_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn matches_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches xml.json");
@@ -289,7 +289,7 @@ async fn matches_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn no_body_no_content_type() {
     println!("FILE: tests/spec_testcases/v3/request/body/no body no content type.json");
     #[allow(unused_mut)]
@@ -338,7 +338,7 @@ async fn no_body_no_content_type() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_at_top_level() {
     println!("FILE: tests/spec_testcases/v3/request/body/array at top level.json");
     #[allow(unused_mut)]
@@ -411,7 +411,7 @@ async fn array_at_top_level() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_with_nested_array_that_does_not_match() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with nested array that does not match.json");
     #[allow(unused_mut)]
@@ -509,7 +509,7 @@ async fn array_with_nested_array_that_does_not_match() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_with_at_least_one_element_not_matching_example_type() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with at least one element not matching example type.json");
     #[allow(unused_mut)]
@@ -589,7 +589,7 @@ async fn array_with_at_least_one_element_not_matching_example_type() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn missing_key() {
     println!("FILE: tests/spec_testcases/v3/request/body/missing key.json");
     #[allow(unused_mut)]
@@ -645,7 +645,7 @@ async fn missing_key() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_with_nested_array_that_matches() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with nested array that matches.json");
     #[allow(unused_mut)]
@@ -753,7 +753,7 @@ async fn array_with_nested_array_that_matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn unexpected_index_with_null_value() {
     println!("FILE: tests/spec_testcases/v3/request/body/unexpected index with null value.json");
     #[allow(unused_mut)]
@@ -808,7 +808,7 @@ async fn unexpected_index_with_null_value() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn non_empty_body_found_when_empty_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/non empty body found when empty expected.json");
     #[allow(unused_mut)]
@@ -859,7 +859,7 @@ async fn non_empty_body_found_when_empty_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn null_found_in_array_when_not_null_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/null found in array when not null expected.json");
     #[allow(unused_mut)]
@@ -914,7 +914,7 @@ async fn null_found_in_array_when_not_null_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn empty_body_no_content_type() {
     println!("FILE: tests/spec_testcases/v3/request/body/empty body no content type.json");
     #[allow(unused_mut)]
@@ -960,7 +960,7 @@ async fn empty_body_no_content_type() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn value_found_in_array_when_empty_expected_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/value found in array when empty expected xml.json");
@@ -1008,7 +1008,7 @@ async fn value_found_in_array_when_empty_expected_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn array_with_regular_expression_that_does_not_match_in_element_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with regular expression that does not match in element xml.json");
@@ -1090,7 +1090,7 @@ async fn array_with_regular_expression_that_does_not_match_in_element_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn array_in_different_order_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/array in different order xml.json");
@@ -1138,7 +1138,7 @@ async fn array_in_different_order_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_size_less_than_required() {
     println!("FILE: tests/spec_testcases/v3/request/body/array size less than required.json");
     #[allow(unused_mut)]
@@ -1208,7 +1208,7 @@ async fn array_size_less_than_required() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn array_with_at_least_one_element_matching_by_example_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with at least one element matching by example xml.json");
@@ -1275,7 +1275,7 @@ async fn array_with_at_least_one_element_matching_by_example_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn missing_body() {
     println!("FILE: tests/spec_testcases/v3/request/body/missing body.json");
     #[allow(unused_mut)]
@@ -1325,7 +1325,7 @@ async fn missing_body() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_with_regex_with_bracket_notation() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches with regex with bracket notation.json");
     #[allow(unused_mut)]
@@ -1392,7 +1392,7 @@ async fn matches_with_regex_with_bracket_notation() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn null_body_no_content_type() {
     println!("FILE: tests/spec_testcases/v3/request/body/null body no content type.json");
     #[allow(unused_mut)]
@@ -1438,7 +1438,7 @@ async fn null_body_no_content_type() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn not_null_found_in_array_when_null_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/not null found in array when null expected.json");
     #[allow(unused_mut)]
@@ -1493,7 +1493,7 @@ async fn not_null_found_in_array_when_null_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn unexpected_index_with_non_empty_value_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/unexpected index with non-empty value xml.json");
@@ -1541,7 +1541,7 @@ async fn unexpected_index_with_non_empty_value_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn different_value_found_at_index_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/different value found at index xml.json");
@@ -1589,7 +1589,7 @@ async fn different_value_found_at_index_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_with_floats() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches with floats.json");
     #[allow(unused_mut)]
@@ -1658,7 +1658,7 @@ async fn matches_with_floats() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn matches_with_regex_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches with regex xml.json");
@@ -1726,7 +1726,7 @@ async fn matches_with_regex_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn plain_text_that_does_not_match() {
     println!("FILE: tests/spec_testcases/v3/request/body/plain text that does not match.json");
     #[allow(unused_mut)]
@@ -1773,7 +1773,7 @@ async fn plain_text_that_does_not_match() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_in_different_order() {
     println!("FILE: tests/spec_testcases/v3/request/body/array in different order.json");
     #[allow(unused_mut)]
@@ -1828,7 +1828,7 @@ async fn array_in_different_order() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_with_regex() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches with regex.json");
     #[allow(unused_mut)]
@@ -1915,7 +1915,7 @@ async fn matches_with_regex() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn unexpected_index_with_missing_value_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/unexpected index with missing value xml.json");
@@ -1963,7 +1963,7 @@ async fn unexpected_index_with_missing_value_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn array_at_top_level_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/array at top level xml.json");
@@ -2011,7 +2011,7 @@ async fn array_at_top_level_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn no_body_no_content_type_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/no body no content type xml.json");
@@ -2057,7 +2057,7 @@ async fn no_body_no_content_type_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn plain_text_that_matches() {
     println!("FILE: tests/spec_testcases/v3/request/body/plain text that matches.json");
     #[allow(unused_mut)]
@@ -2104,7 +2104,7 @@ async fn plain_text_that_matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn array_with_regular_expression_in_element_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with regular expression in element xml.json");
@@ -2179,7 +2179,7 @@ async fn array_with_regular_expression_in_element_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn unexpected_key_with_empty_value_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/unexpected key with empty value xml.json");
@@ -2227,7 +2227,7 @@ async fn unexpected_key_with_empty_value_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn missing_index() {
     println!("FILE: tests/spec_testcases/v3/request/body/missing index.json");
     #[allow(unused_mut)]
@@ -2282,7 +2282,7 @@ async fn missing_index() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn different_value_found_at_index() {
     println!("FILE: tests/spec_testcases/v3/request/body/different value found at index.json");
     #[allow(unused_mut)]
@@ -2337,7 +2337,7 @@ async fn different_value_found_at_index() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn no_body() {
     println!("FILE: tests/spec_testcases/v3/request/body/no body.json");
     #[allow(unused_mut)]
@@ -2387,7 +2387,7 @@ async fn no_body() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn not_empty_found_at_key_when_empty_expected_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/not empty found at key when empty expected xml.json");
@@ -2435,7 +2435,7 @@ async fn not_empty_found_at_key_when_empty_expected_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn missing_body_no_content_type() {
     println!("FILE: tests/spec_testcases/v3/request/body/missing body no content type.json");
     #[allow(unused_mut)]
@@ -2484,7 +2484,7 @@ async fn missing_body_no_content_type() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches.json");
     #[allow(unused_mut)]
@@ -2543,7 +2543,7 @@ async fn matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn number_found_in_array_when_string_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/number found in array when string expected.json");
     #[allow(unused_mut)]
@@ -2598,7 +2598,7 @@ async fn number_found_in_array_when_string_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn empty_body() {
     println!("FILE: tests/spec_testcases/v3/request/body/empty body.json");
     #[allow(unused_mut)]
@@ -2645,7 +2645,7 @@ async fn empty_body() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn unexpected_key_with_non_empty_value_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/unexpected key with non-empty value xml.json");
@@ -2693,7 +2693,7 @@ async fn unexpected_key_with_non_empty_value_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn missing_key_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/missing key xml.json");
@@ -2741,7 +2741,7 @@ async fn missing_key_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn string_found_in_array_when_number_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/string found in array when number expected.json");
     #[allow(unused_mut)]
@@ -2796,7 +2796,7 @@ async fn string_found_in_array_when_number_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn unexpected_index_with_not_null_value() {
     println!("FILE: tests/spec_testcases/v3/request/body/unexpected index with not null value.json");
     #[allow(unused_mut)]
@@ -2851,7 +2851,7 @@ async fn unexpected_index_with_not_null_value() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn number_found_at_key_when_string_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/number found at key when string expected.json");
     #[allow(unused_mut)]
@@ -2906,7 +2906,7 @@ async fn number_found_at_key_when_string_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_with_integers() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches with integers.json");
     #[allow(unused_mut)]
@@ -2977,7 +2977,7 @@ async fn matches_with_integers() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn not_null_found_at_key_when_null_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/not null found at key when null expected.json");
     #[allow(unused_mut)]
@@ -3032,7 +3032,7 @@ async fn not_null_found_at_key_when_null_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn null_body() {
     println!("FILE: tests/spec_testcases/v3/request/body/null body.json");
     #[allow(unused_mut)]
@@ -3079,7 +3079,7 @@ async fn null_body() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn different_value_found_at_key_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/different value found at key xml.json");
@@ -3127,7 +3127,7 @@ async fn different_value_found_at_key_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn empty_found_at_key_where_not_empty_expected_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/empty found at key where not empty expected xml.json");
@@ -3175,7 +3175,7 @@ async fn empty_found_at_key_where_not_empty_expected_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn matches_with_regex_with_bracket_notation_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches with regex with bracket notation xml.json");
@@ -3235,7 +3235,7 @@ async fn matches_with_regex_with_bracket_notation_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn different_value_found_at_key() {
     println!("FILE: tests/spec_testcases/v3/request/body/different value found at key.json");
     #[allow(unused_mut)]
@@ -3290,7 +3290,7 @@ async fn different_value_found_at_key() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_with_regular_expression_in_element() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with regular expression in element.json");
     #[allow(unused_mut)]
@@ -3378,7 +3378,7 @@ async fn array_with_regular_expression_in_element() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn array_with_regular_expression_that_does_not_match_in_element() {
     println!("FILE: tests/spec_testcases/v3/request/body/array with regular expression that does not match in element.json");
     #[allow(unused_mut)]
@@ -3466,7 +3466,7 @@ async fn array_with_regular_expression_that_does_not_match_in_element() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn unexpected_key_with_null_value() {
     println!("FILE: tests/spec_testcases/v3/request/body/unexpected key with null value.json");
     #[allow(unused_mut)]
@@ -3522,7 +3522,7 @@ async fn unexpected_key_with_null_value() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn string_found_at_key_when_number_expected() {
     println!("FILE: tests/spec_testcases/v3/request/body/string found at key when number expected.json");
     #[allow(unused_mut)]
@@ -3577,7 +3577,7 @@ async fn string_found_at_key_when_number_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn array_size_less_than_required_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/array size less than required xml.json");
@@ -3636,7 +3636,7 @@ async fn array_size_less_than_required_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn missing_index_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/missing index xml.json");
@@ -3684,7 +3684,7 @@ async fn missing_index_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[cfg(feature = "xml")]
 async fn not_empty_found_in_array_when_empty_expected_xml() {
     println!("FILE: tests/spec_testcases/v3/request/body/not empty found in array when empty expected xml.json");
@@ -3732,7 +3732,7 @@ async fn not_empty_found_in_array_when_empty_expected_xml() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn unexpected_key_with_not_null_value() {
     println!("FILE: tests/spec_testcases/v3/request/body/unexpected key with not null value.json");
     #[allow(unused_mut)]
@@ -3788,7 +3788,7 @@ async fn unexpected_key_with_not_null_value() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_with_type() {
     println!("FILE: tests/spec_testcases/v3/request/body/matches with type.json");
     #[allow(unused_mut)]

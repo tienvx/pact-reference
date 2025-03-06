@@ -15,7 +15,7 @@ use pact_matching::{match_interaction_request, match_interaction_response};
 #[allow(unused_imports)]
 use pact_models::prelude::{Pact, RequestResponsePact};
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn missing_trailing_slash_in_path() {
     println!("FILE: tests/spec_testcases/v3/request/path/missing trailing slash in path.json");
     #[allow(unused_mut)]
@@ -60,7 +60,7 @@ async fn missing_trailing_slash_in_path() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn incorrect_path() {
     println!("FILE: tests/spec_testcases/v3/request/path/incorrect path.json");
     #[allow(unused_mut)]
@@ -105,7 +105,7 @@ async fn incorrect_path() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches_with_regex() {
     println!("FILE: tests/spec_testcases/v3/request/path/matches with regex.json");
     #[allow(unused_mut)]
@@ -160,7 +160,7 @@ async fn matches_with_regex() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches() {
     println!("FILE: tests/spec_testcases/v3/request/path/matches.json");
     #[allow(unused_mut)]
@@ -205,7 +205,7 @@ async fn matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn empty_path_found_when_forward_slash_expected() {
     println!("FILE: tests/spec_testcases/v3/request/path/empty path found when forward slash expected.json");
     #[allow(unused_mut)]
@@ -250,7 +250,7 @@ async fn empty_path_found_when_forward_slash_expected() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn unexpected_trailing_slash_in_path() {
     println!("FILE: tests/spec_testcases/v3/request/path/unexpected trailing slash in path.json");
     #[allow(unused_mut)]
@@ -295,7 +295,7 @@ async fn unexpected_trailing_slash_in_path() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn forward_slash_found_when_empty_path_expected() {
     println!("FILE: tests/spec_testcases/v3/request/path/forward slash found when empty path expected.json");
     #[allow(unused_mut)]

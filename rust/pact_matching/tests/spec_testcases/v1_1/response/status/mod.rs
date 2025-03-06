@@ -15,7 +15,7 @@ use pact_matching::{match_interaction_request, match_interaction_response};
 #[allow(unused_imports)]
 use pact_models::prelude::{Pact, RequestResponsePact};
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches() {
     println!("FILE: tests/spec_testcases/v1_1/response/status/matches.json");
     #[allow(unused_mut)]
@@ -54,7 +54,7 @@ async fn matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn different_status() {
     println!("FILE: tests/spec_testcases/v1_1/response/status/different status.json");
     #[allow(unused_mut)]

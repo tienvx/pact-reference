@@ -15,7 +15,7 @@ use pact_matching::{match_interaction_request, match_interaction_response};
 #[allow(unused_imports)]
 use pact_models::prelude::{Pact, RequestResponsePact};
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn order_of_comma_separated_header_values_different() {
     println!("FILE: tests/spec_testcases/v1_1/request/headers/order of comma separated header values different.json");
     #[allow(unused_mut)]
@@ -64,7 +64,7 @@ async fn order_of_comma_separated_header_values_different() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn header_name_is_different_case() {
     println!("FILE: tests/spec_testcases/v1_1/request/headers/header name is different case.json");
     #[allow(unused_mut)]
@@ -113,7 +113,7 @@ async fn header_name_is_different_case() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn unexpected_header_found() {
     println!("FILE: tests/spec_testcases/v1_1/request/headers/unexpected header found.json");
     #[allow(unused_mut)]
@@ -160,7 +160,7 @@ async fn unexpected_header_found() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn header_value_is_different_case() {
     println!("FILE: tests/spec_testcases/v1_1/request/headers/header value is different case.json");
     #[allow(unused_mut)]
@@ -209,7 +209,7 @@ async fn header_value_is_different_case() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn whitespace_after_comma_different() {
     println!("FILE: tests/spec_testcases/v1_1/request/headers/whitespace after comma different.json");
     #[allow(unused_mut)]
@@ -258,7 +258,7 @@ async fn whitespace_after_comma_different() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn matches() {
     println!("FILE: tests/spec_testcases/v1_1/request/headers/matches.json");
     #[allow(unused_mut)]
@@ -309,7 +309,7 @@ async fn matches() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn empty_headers() {
     println!("FILE: tests/spec_testcases/v1_1/request/headers/empty headers.json");
     #[allow(unused_mut)]

@@ -1050,12 +1050,12 @@ impl ExecutionPlanNode {
     errors
   }
 
-  /// Returns the first error found from this node
+  /// Returns the first error found from this node stopping at child containers
   pub fn error(&self) -> Option<String> {
     if let Some(NodeResult::ERROR(err)) = &self.result {
       Some(err.clone())
     } else {
-      self.child_errors(Terminator::ALL).first().cloned()
+      self.child_errors(Terminator::CONTAINERS).first().cloned()
     }
   }
 
@@ -1233,7 +1233,7 @@ fn setup_path_plan(
   if context.matcher_is_defined(&doc_path) {
     let matchers = context.select_best_matcher(&doc_path);
     plan_node.add(ExecutionPlanNode::annotation(format!("path {}", matchers.generate_description())));
-    plan_node.add(build_matching_rule_node(&expected_node, &doc_path, &matchers));
+    plan_node.add(build_matching_rule_node(&expected_node, &doc_path, &matchers, false));
   } else {
     plan_node.add(ExecutionPlanNode::annotation(format!("path == '{}'", expected.path)));
     plan_node
@@ -1250,14 +1250,21 @@ fn setup_path_plan(
 fn build_matching_rule_node(
   expected_node: &ExecutionPlanNode,
   doc_path: &DocPath,
-  matchers: &RuleList
+  matchers: &RuleList,
+  local_ref: bool
 ) -> ExecutionPlanNode {
+  let value_node = if local_ref {
+    ExecutionPlanNode::resolve_current_value(doc_path.clone())
+  } else {
+    ExecutionPlanNode::resolve_value(doc_path.clone())
+  };
+
   if matchers.rules.len() == 1 {
     let matcher = &matchers.rules[0];
     let mut plan_node = ExecutionPlanNode::action(format!("match:{}", matcher.name()).as_str());
     plan_node
       .add(expected_node.clone())
-      .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+      .add(value_node)
       .add(ExecutionPlanNode::value_node(matcher.values()));
     plan_node
   } else {
@@ -1270,7 +1277,7 @@ fn build_matching_rule_node(
         .add(
           ExecutionPlanNode::action(format!("match:{}", rule.name()).as_str())
             .add(expected_node.clone())
-            .add(ExecutionPlanNode::resolve_value(doc_path.clone()))
+            .add(value_node.clone())
             .add(ExecutionPlanNode::value_node(rule.values()))
         );
     }
@@ -1321,7 +1328,7 @@ fn setup_query_plan(
           let matchers = context.select_best_matcher(&item_path);
           item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
           presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
-            &doc_path.join(key), &matchers));
+            &doc_path.join(key), &matchers, false));
         } else {
           item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           let mut item_check = ExecutionPlanNode::action("match:equality");
@@ -1416,7 +1423,7 @@ fn setup_header_plan(
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
           item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
-          presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value), &doc_path.join(key), &matchers));
+          presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value), &doc_path.join(key), &matchers, false));
         } else if PARAMETERISED_HEADERS.contains(&key.to_lowercase().as_str()) {
           item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           if value.len() == 1 {
@@ -1432,8 +1439,8 @@ fn setup_header_plan(
                 .add(ExecutionPlanNode::resolve_value(doc_path.join(key))));
             apply_node.add(
               ExecutionPlanNode::action("match:equality")
-                .add(ExecutionPlanNode::value_node(*header_value))
-                .add(ExecutionPlanNode::action("to-string")
+                .add(ExecutionPlanNode::value_node(header_value.to_lowercase()))
+                .add(ExecutionPlanNode::action("lower-case")
                   .add(ExecutionPlanNode::resolve_current_value(DocPath::new_unwrap("value"))))
                 .add(ExecutionPlanNode::value_node(NodeValue::NULL))
             );
@@ -1447,8 +1454,8 @@ fn setup_header_plan(
                     .add(ExecutionPlanNode::action("check:exists")
                       .add(ExecutionPlanNode::resolve_current_value(parameter_path.join(k.as_str()))))
                     .add(ExecutionPlanNode::action("match:equality")
-                      .add(ExecutionPlanNode::value_node(v.as_str()))
-                      .add(ExecutionPlanNode::action("to-string")
+                      .add(ExecutionPlanNode::value_node(v.to_lowercase()))
+                      .add(ExecutionPlanNode::action("lower-case")
                         .add(ExecutionPlanNode::resolve_current_value(parameter_path.join(k.as_str()))))
                       .add(ExecutionPlanNode::value_node(NodeValue::NULL)))
                     .add(ExecutionPlanNode::action("error")

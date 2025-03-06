@@ -10,7 +10,7 @@ use serde_json::Value;
 use pact_models::content_types::ContentType;
 use pact_models::path_exp::DocPath;
 
-use crate::engine::{ExecutionPlanNode, NodeValue, PlanMatchingContext};
+use crate::engine::{build_matching_rule_node, ExecutionPlanNode, NodeValue, PlanMatchingContext};
 
 /// Trait for implementations of builders for different types of bodies
 pub trait PlanBodyBuilder: Debug {
@@ -79,30 +79,17 @@ impl JsonPlanBuilder {
   pub fn new() -> Self {
     JsonPlanBuilder{}
   }
-}
 
-impl PlanBodyBuilder for JsonPlanBuilder {
-  fn namespace(&self) -> Option<String> {
-    Some("json".to_string())
-  }
+  fn process_body_node(
+    context: &PlanMatchingContext,
+    json: &Value,
+    path: &DocPath
+  ) -> ExecutionPlanNode {
+    let mut root_node = ExecutionPlanNode::container(path);
 
-  fn supports_type(&self, content_type: &ContentType) -> bool {
-    content_type.is_json()
-  }
-
-  fn build_plan(&self, content: &Bytes, context: &PlanMatchingContext) -> anyhow::Result<ExecutionPlanNode> {
-    let expected_json: Value = serde_json::from_slice(content.as_bytes())?;
-    let path = DocPath::root();
-    let mut apply_node = ExecutionPlanNode::action("tee");
-    apply_node
-      .add(ExecutionPlanNode::action("json:parse")
-        .add(ExecutionPlanNode::resolve_value(DocPath::new_unwrap("$.body"))));
-
-    match &expected_json {
+    match &json {
       Value::Array(items) => {
-        let mut root_node = ExecutionPlanNode::container("$");
-        // TODO: Deal with matching rules here
-        if context.matcher_is_defined(&path) {
+        if context.matcher_is_defined(path) {
           todo!("Deal with matching rules here")
         } else if items.is_empty() {
           root_node.add(
@@ -122,8 +109,12 @@ impl PlanBodyBuilder for JsonPlanBuilder {
             let item_path = path.join_index(index);
             let mut item_node = ExecutionPlanNode::container(item_path.clone());
             match item {
-              Value::Array(_) => { todo!() }
-              Value::Object(_) => { todo!() }
+              Value::Array(_) => {
+                item_node.add(Self::process_body_node(context, item, &item_path));
+              }
+              Value::Object(_) => {
+                item_node.add(Self::process_body_node(context, item, &item_path));
+              }
               _ => {
                 let mut presence_check = ExecutionPlanNode::action("if");
                 presence_check
@@ -143,12 +134,9 @@ impl PlanBodyBuilder for JsonPlanBuilder {
             root_node.add(item_node);
           }
         }
-        apply_node.add(root_node);
       }
       Value::Object(entries) => {
-        let mut root_node = ExecutionPlanNode::container("$");
-        // TODO: Deal with matching rules here
-        if context.matcher_is_defined(&path) {
+        if context.matcher_is_defined(path) {
           todo!("Deal with matching rules here")
         } else if entries.is_empty() {
           root_node.add(
@@ -178,33 +166,72 @@ impl PlanBodyBuilder for JsonPlanBuilder {
             let item_path = path.join(key);
             let mut item_node = ExecutionPlanNode::container(item_path.clone());
             match value {
-              Value::Array(_) => { todo!() }
-              Value::Object(_) => { todo!() }
+              Value::Array(_) => {
+                item_node.add(Self::process_body_node(context, value, &item_path));
+              }
+              Value::Object(_) => {
+                item_node.add(Self::process_body_node(context, value, &item_path));
+              }
               _ => {
-                item_node.add(
-                  ExecutionPlanNode::action("match:equality")
-                    .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), value.to_string())))
-                    .add(ExecutionPlanNode::resolve_current_value(item_path))
-                    .add(ExecutionPlanNode::value_node(NodeValue::NULL))
-                );
+                if context.matcher_is_defined(&item_path) {
+                  let matchers = context.select_best_matcher(&item_path);
+                  item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
+                  item_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(value), &item_path, &matchers, true));
+                } else {
+                  item_node.add(
+                    ExecutionPlanNode::action("match:equality")
+                      .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), value.to_string())))
+                      .add(ExecutionPlanNode::resolve_current_value(item_path))
+                      .add(ExecutionPlanNode::value_node(NodeValue::NULL))
+                  );
+                }
               }
             }
             root_node.add(item_node);
           }
         }
-        apply_node.add(root_node);
       }
       _ => {
-        apply_node.add(
-          ExecutionPlanNode::action("match:equality")
-            .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), expected_json.to_string())))
+        if context.matcher_is_defined(path) {
+          let matchers = context.select_best_matcher(path);
+          root_node.add(ExecutionPlanNode::annotation(format!("{} {}", path.last_field().unwrap_or_default(), matchers.generate_description())));
+          root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json), path, &matchers, true));
+        } else {
+          let mut match_node = ExecutionPlanNode::action("match:equality");
+          match_node
+            .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), json.to_string())))
             .add(ExecutionPlanNode::action("apply"))
-            .add(ExecutionPlanNode::value_node(NodeValue::NULL))
-        );
+            .add(ExecutionPlanNode::value_node(NodeValue::NULL));
+          root_node.add(match_node);
+        }
       }
     }
 
-    Ok(apply_node)
+    root_node
+  }
+}
+
+impl PlanBodyBuilder for JsonPlanBuilder {
+  fn namespace(&self) -> Option<String> {
+    Some("json".to_string())
+  }
+
+  fn supports_type(&self, content_type: &ContentType) -> bool {
+    content_type.is_json()
+  }
+
+  fn build_plan(&self, content: &Bytes, context: &PlanMatchingContext) -> anyhow::Result<ExecutionPlanNode> {
+    let expected_json: Value = serde_json::from_slice(content.as_bytes())?;
+    let path = DocPath::root();
+    let mut body_node = ExecutionPlanNode::action("tee");
+    body_node
+      .add(ExecutionPlanNode::action("json:parse")
+        .add(ExecutionPlanNode::resolve_value(DocPath::new_unwrap("$.body"))));
+
+    let node = Self::process_body_node(context, &expected_json, &path);
+    body_node.add(node);
+
+    Ok(body_node)
   }
 }
 
@@ -213,7 +240,8 @@ mod tests {
   use bytes::Bytes;
   use pretty_assertions::assert_eq;
   use serde_json::{json, Value};
-
+  use pact_models::matchingrules;
+  use pact_models::matchingrules::MatchingRule;
   use crate::engine::bodies::{JsonPlanBuilder, PlanBodyBuilder};
   use crate::engine::context::PlanMatchingContext;
 
@@ -229,10 +257,12 @@ mod tests {
   %json:parse (
     $.body
   ),
-  %match:equality (
-    json:null,
-    %apply (),
-    NULL
+  :$ (
+    %match:equality (
+      json:null,
+      %apply (),
+      NULL
+    )
   )
 )"#, buffer);
   }
@@ -249,10 +279,12 @@ mod tests {
   %json:parse (
     $.body
   ),
-  %match:equality (
-    json:true,
-    %apply (),
-    NULL
+  :$ (
+    %match:equality (
+      json:true,
+      %apply (),
+      NULL
+    )
   )
 )"#, buffer);
   }
@@ -269,10 +301,12 @@ mod tests {
   %json:parse (
     $.body
   ),
-  %match:equality (
-    json:"I am a string!",
-    %apply (),
-    NULL
+  :$ (
+    %match:equality (
+      json:"I am a string!",
+      %apply (),
+      NULL
+    )
   )
 )"#, buffer);
   }
@@ -289,10 +323,12 @@ mod tests {
   %json:parse (
     $.body
   ),
-  %match:equality (
-    json:1000,
-    %apply (),
-    NULL
+  :$ (
+    %match:equality (
+      json:1000,
+      %apply (),
+      NULL
+    )
   )
 )"#, buffer);
   }
@@ -309,10 +345,12 @@ mod tests {
   %json:parse (
     $.body
   ),
-  %match:equality (
-    json:1000.3,
-    %apply (),
-    NULL
+  :$ (
+    %match:equality (
+      json:1000.3,
+      %apply (),
+      NULL
+    )
   )
 )"#, buffer);
   }
@@ -441,6 +479,57 @@ mod tests {
         json:100,
         ~>$.a,
         NULL
+      )
+    ),
+    :$.b (
+      %match:equality (
+        json:200,
+        ~>$.b,
+        NULL
+      )
+    ),
+    :$.c (
+      %match:equality (
+        json:300,
+        ~>$.c,
+        NULL
+      )
+    )
+  )
+)"#, buffer);
+  }
+
+  #[test]
+  fn json_plan_builder_with_object_with_matching_rule() {
+    let builder = JsonPlanBuilder::new();
+    let matching_rules = matchingrules! {
+    "body" => { "$.a" => [ MatchingRule::Regex("^[0-9]+$".to_string()) ] }
+  };
+    let context = PlanMatchingContext {
+      matching_rules: matching_rules.rules_for_category("body").unwrap_or_default(),
+      .. PlanMatchingContext::default()
+    };
+    let content = Bytes::copy_from_slice(json!({"a": 100, "b": 200, "c": 300})
+      .to_string().as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(r#"%tee (
+  %json:parse (
+    $.body
+  ),
+  :$ (
+    %json:expect:entries (
+      'OBJECT',
+      ['a', 'b', 'c'],
+      %apply ()
+    ),
+    :$.a (
+      #{'a must match the regular expression /^[0-9]+$/'},
+      %match:regex (
+        json:100,
+        ~>$.a,
+        json:{"regex":"^[0-9]+$"}
       )
     ),
     :$.b (

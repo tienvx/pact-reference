@@ -993,12 +993,20 @@ impl PlanMatchingContext {
           match v {
             NodeValue::STRING(s) => NodeValue::STRING(s.to_uppercase()),
             NodeValue::SLIST(list) => NodeValue::SLIST(list.iter().map(|s| s.to_uppercase()).collect()),
+            NodeValue::JSON(json) => match json {
+              Value::String(s) => NodeValue::STRING(s.to_uppercase()),
+              _ => NodeValue::STRING(json.to_string())
+            }
             _ => v.clone()
           }
         } else {
           match v {
             NodeValue::STRING(s) => NodeValue::STRING(s.to_lowercase()),
             NodeValue::SLIST(list) => NodeValue::SLIST(list.iter().map(|s| s.to_lowercase()).collect()),
+            NodeValue::JSON(json) => match json {
+              Value::String(s) => NodeValue::STRING(s.to_lowercase()),
+              _ => NodeValue::STRING(json.to_string())
+            }
             _ => v.clone()
           }
         }
