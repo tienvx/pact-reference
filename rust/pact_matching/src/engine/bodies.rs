@@ -6,7 +6,7 @@ use std::sync::{Arc, LazyLock, RwLock};
 use bytes::Bytes;
 use nom::AsBytes;
 use serde_json::Value;
-
+use tracing::trace;
 use pact_models::content_types::ContentType;
 use pact_models::path_exp::DocPath;
 
@@ -85,6 +85,7 @@ impl JsonPlanBuilder {
     json: &Value,
     path: &DocPath
   ) -> ExecutionPlanNode {
+    trace!(%json, %path, ">>> process_body_node");
     let mut root_node = ExecutionPlanNode::container(path);
 
     match &json {
@@ -107,31 +108,37 @@ impl JsonPlanBuilder {
 
           for (index, item) in items.iter().enumerate() {
             let item_path = path.join_index(index);
-            let mut item_node = ExecutionPlanNode::container(item_path.clone());
             match item {
               Value::Array(_) => {
-                item_node.add(Self::process_body_node(context, item, &item_path));
+                root_node.add(Self::process_body_node(context, item, &item_path));
               }
               Value::Object(_) => {
-                item_node.add(Self::process_body_node(context, item, &item_path));
+                root_node.add(Self::process_body_node(context, item, &item_path));
               }
               _ => {
+                let mut item_node = ExecutionPlanNode::container(&item_path);
                 let mut presence_check = ExecutionPlanNode::action("if");
                 presence_check
                   .add(
                     ExecutionPlanNode::action("check:exists")
                       .add(ExecutionPlanNode::resolve_current_value(&item_path))
-                  )
-                  .add(
+                  );
+                if context.matcher_is_defined(&item_path) {
+                  let matchers = context.select_best_matcher(&item_path);
+                  item_node.add(ExecutionPlanNode::annotation(format!("[{}] {}", index, matchers.generate_description())));
+                  item_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item), &item_path, &matchers, true));
+                } else {
+                  presence_check.add(
                     ExecutionPlanNode::action("match:equality")
                       .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), item.to_string())))
                       .add(ExecutionPlanNode::resolve_current_value(&item_path))
                       .add(ExecutionPlanNode::value_node(NodeValue::NULL))
                   );
+                }
                 item_node.add(presence_check);
+                root_node.add(item_node);
               }
             }
-            root_node.add(item_node);
           }
         }
       }
@@ -168,15 +175,15 @@ impl JsonPlanBuilder {
 
           for (key, value) in entries {
             let item_path = path.join(key);
-            let mut item_node = ExecutionPlanNode::container(item_path.clone());
             match value {
               Value::Array(_) => {
-                item_node.add(Self::process_body_node(context, value, &item_path));
+                root_node.add(Self::process_body_node(context, value, &item_path));
               }
               Value::Object(_) => {
-                item_node.add(Self::process_body_node(context, value, &item_path));
+                root_node.add(Self::process_body_node(context, value, &item_path));
               }
               _ => {
+                let mut item_node = ExecutionPlanNode::container(&item_path);
                 if context.matcher_is_defined(&item_path) {
                   let matchers = context.select_best_matcher(&item_path);
                   item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
@@ -189,9 +196,9 @@ impl JsonPlanBuilder {
                       .add(ExecutionPlanNode::value_node(NodeValue::NULL))
                   );
                 }
+                root_node.add(item_node);
               }
             }
-            root_node.add(item_node);
           }
         }
       }
@@ -232,8 +239,7 @@ impl PlanBodyBuilder for JsonPlanBuilder {
       .add(ExecutionPlanNode::action("json:parse")
         .add(ExecutionPlanNode::resolve_value(DocPath::new_unwrap("$.body"))));
 
-    let node = Self::process_body_node(context, &expected_json, &path);
-    body_node.add(node);
+    body_node.add(Self::process_body_node(context, &expected_json, &path));
 
     Ok(body_node)
   }

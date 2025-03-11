@@ -238,6 +238,27 @@ impl DocPath {
     path
   }
 
+  /// Creates a new path by cloning this one and joining the field onto the end. Paths that end
+  /// with `*` will have the `*` replaced with the field.
+  pub fn join_field<S: Into<String>>(&self, name: S) -> Self {
+    let mut path = self.clone();
+    match self.path_tokens.last() {
+      Some(PathToken::Root) => { path.push_field(name.into()); }
+      Some(PathToken::Field(_)) => { path.push_field(name.into()); }
+      Some(PathToken::Index(_)) => { path.push_field(name.into()); }
+      Some(PathToken::Star) | Some(PathToken::StarIndex) => {
+        if let Some(part) = path.path_tokens.last_mut() {
+          *part = PathToken::Field(name.into());
+          path.expr = path.build_expr();
+        } else {
+          path.push_field(name.into());
+        }
+      }
+      None => { path.push_field(name.into()); }
+    }
+    path
+  }
+
   /// Mutates this path by pushing a field value onto the end.
   pub fn push_field(&mut self, field: impl Into<String>) -> &mut Self {
     let field = field.into();
