@@ -83,11 +83,10 @@ impl JsonPlanBuilder {
   fn process_body_node(
     context: &PlanMatchingContext,
     json: &Value,
-    path: &DocPath
-  ) -> ExecutionPlanNode {
+    path: &DocPath,
+    root_node: &mut ExecutionPlanNode
+  ) {
     trace!(%json, %path, ">>> process_body_node");
-    let mut root_node = ExecutionPlanNode::container(path);
-
     match &json {
       Value::Array(items) => {
         if context.matcher_is_defined(path) {
@@ -108,15 +107,15 @@ impl JsonPlanBuilder {
 
           for (index, item) in items.iter().enumerate() {
             let item_path = path.join_index(index);
+            let mut item_node = ExecutionPlanNode::container(&item_path);
             match item {
               Value::Array(_) => {
-                root_node.add(Self::process_body_node(context, item, &item_path));
+                Self::process_body_node(context, item, &item_path, &mut item_node);
               }
               Value::Object(_) => {
-                root_node.add(Self::process_body_node(context, item, &item_path));
+                Self::process_body_node(context, item, &item_path, &mut item_node);
               }
               _ => {
-                let mut item_node = ExecutionPlanNode::container(&item_path);
                 let mut presence_check = ExecutionPlanNode::action("if");
                 presence_check
                   .add(
@@ -174,16 +173,12 @@ impl JsonPlanBuilder {
           }
 
           for (key, value) in entries {
-            let item_path = path.join(key);
+            let item_path = path.join_field(key);
+            let mut item_node = ExecutionPlanNode::container(&item_path);
             match value {
-              Value::Array(_) => {
-                root_node.add(Self::process_body_node(context, value, &item_path));
-              }
-              Value::Object(_) => {
-                root_node.add(Self::process_body_node(context, value, &item_path));
-              }
+              Value::Array(_) => Self::process_body_node(context, value, &item_path, &mut item_node),
+              Value::Object(_) => Self::process_body_node(context, value, &item_path, &mut item_node),
               _ => {
-                let mut item_node = ExecutionPlanNode::container(&item_path);
                 if context.matcher_is_defined(&item_path) {
                   let matchers = context.select_best_matcher(&item_path);
                   item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
@@ -196,9 +191,9 @@ impl JsonPlanBuilder {
                       .add(ExecutionPlanNode::value_node(NodeValue::NULL))
                   );
                 }
-                root_node.add(item_node);
               }
             }
+            root_node.add(item_node);
           }
         }
       }
@@ -217,8 +212,6 @@ impl JsonPlanBuilder {
         }
       }
     }
-
-    root_node
   }
 }
 
@@ -233,13 +226,15 @@ impl PlanBodyBuilder for JsonPlanBuilder {
 
   fn build_plan(&self, content: &Bytes, context: &PlanMatchingContext) -> anyhow::Result<ExecutionPlanNode> {
     let expected_json: Value = serde_json::from_slice(content.as_bytes())?;
-    let path = DocPath::root();
     let mut body_node = ExecutionPlanNode::action("tee");
     body_node
       .add(ExecutionPlanNode::action("json:parse")
         .add(ExecutionPlanNode::resolve_value(DocPath::new_unwrap("$.body"))));
 
-    body_node.add(Self::process_body_node(context, &expected_json, &path));
+    let path = DocPath::root();
+    let mut root_node = ExecutionPlanNode::container(&path);
+    Self::process_body_node(context, &expected_json, &path, &mut root_node);
+    body_node.add(root_node);
 
     Ok(body_node)
   }

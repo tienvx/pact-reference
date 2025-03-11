@@ -1,6 +1,5 @@
 //! Structs and traits to resolve values required while executing a plan
 
-use std::collections::HashMap;
 use anyhow::anyhow;
 use itertools::Itertools;
 use serde_json::Value;

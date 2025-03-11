@@ -5,7 +5,6 @@ use std::cell::Cell;
 use std::cmp::PartialEq;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
-use ansi_term::Colour;
 use ansi_term::Colour::{Green, Red};
 use anyhow::anyhow;
 use base64::Engine;
