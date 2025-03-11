@@ -1231,8 +1231,8 @@ fn setup_path_plan(
   let doc_path = DocPath::new("$.path")?;
   if context.matcher_is_defined(&doc_path) {
     let matchers = context.select_best_matcher(&doc_path);
-    plan_node.add(ExecutionPlanNode::annotation(format!("path {}", matchers.generate_description())));
-    plan_node.add(build_matching_rule_node(&expected_node, &doc_path, &matchers, false));
+    plan_node.add(ExecutionPlanNode::annotation(format!("path {}", matchers.generate_description(false))));
+    plan_node.add(build_matching_rule_node(&expected_node, &doc_path, &matchers, false, false));
   } else {
     plan_node.add(ExecutionPlanNode::annotation(format!("path == '{}'", expected.path)));
     plan_node
@@ -1250,7 +1250,8 @@ fn build_matching_rule_node(
   expected_node: &ExecutionPlanNode,
   doc_path: &DocPath,
   matchers: &RuleList,
-  local_ref: bool
+  local_ref: bool,
+  for_collection: bool
 ) -> ExecutionPlanNode {
   let value_node = if local_ref {
     ExecutionPlanNode::resolve_current_value(doc_path)
@@ -1259,7 +1260,11 @@ fn build_matching_rule_node(
   };
 
   if matchers.rules.len() == 1 {
-    let matcher = &matchers.rules[0];
+    let matcher = if for_collection {
+      matchers.rules[0].clone()
+    } else {
+      matchers.rules[0].for_single_item()
+    };
     let mut plan_node = ExecutionPlanNode::action(format!("match:{}", matcher.name()).as_str());
     plan_node
       .add(expected_node.clone())
@@ -1272,12 +1277,17 @@ fn build_matching_rule_node(
       RuleLogic::Or => ExecutionPlanNode::action("or")
     };
     for rule in &matchers.rules {
+      let matcher = if for_collection {
+        rule.clone()
+      } else {
+        rule.for_single_item()
+      };
       logic_node
         .add(
-          ExecutionPlanNode::action(format!("match:{}", rule.name()).as_str())
+          ExecutionPlanNode::action(format!("match:{}", matcher.name()).as_str())
             .add(expected_node.clone())
             .add(value_node.clone())
-            .add(ExecutionPlanNode::value_node(rule.values()))
+            .add(ExecutionPlanNode::value_node(matcher.values()))
         );
     }
     logic_node
@@ -1325,9 +1335,9 @@ fn setup_query_plan(
         let item_path = DocPath::root().join(key);
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
-          item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
+          item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description(true))));
           presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
-            &doc_path.join(key), &matchers, false));
+            &doc_path.join(key), &matchers, false, true));
         } else {
           item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           let mut item_check = ExecutionPlanNode::action("match:equality");
@@ -1421,9 +1431,9 @@ fn setup_header_plan(
         let item_path = DocPath::root().join(key);
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
-          item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
+          item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description(true))));
           presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
-            &doc_path.join(key), &matchers, false));
+            &doc_path.join(key), &matchers, false, true));
         } else if PARAMETERISED_HEADERS.contains(&key.to_lowercase().as_str()) {
           item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           if value.len() == 1 {

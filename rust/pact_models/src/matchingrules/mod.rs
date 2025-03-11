@@ -494,15 +494,29 @@ impl MatchingRule {
     }
   }
 
-  /// Generates a description of the matching rule that can be used in a test report
-  pub fn generate_description(&self) -> String {
+  /// Generates a description of the matching rule that can be used in a test report.
+  /// `for_collection` will be true if the description is for a collection, otherwise it is for
+  /// a single item.
+  pub fn generate_description(&self, for_collection: bool) -> String {
     match self {
       MatchingRule::Equality => "must be equal to the expected value".to_string(),
       MatchingRule::Regex(r) => format!("must match the regular expression /{}/", r),
       MatchingRule::Type => "must match by type".to_string(),
-      MatchingRule::MinType(min) => format!("must match by type and have at least {} items", min),
-      MatchingRule::MaxType(max) => format!("must match by type and have at most {} items", max),
-      MatchingRule::MinMaxType(min, max) => format!("must match by type and have at {}..{} items", min, max),
+      MatchingRule::MinType(min) => if for_collection {
+        format!("must match by type and have at least {} item{}", min, if *min == 1 { "" } else { "s" })
+      } else {
+        "must match by type".to_string()
+      },
+      MatchingRule::MaxType(max) => if for_collection {
+        format!("must match by type and have at most {} item{}", max, if *max == 1 { "" } else { "s" })
+      } else {
+        "must match by type".to_string()
+      },
+      MatchingRule::MinMaxType(min, max) => if for_collection {
+        format!("must match by type and have at {}..{} items", min, max)
+      } else {
+        "must match by type".to_string()
+      },
       MatchingRule::Timestamp(f) => format!("must match the date-time format '{}'", f),
       MatchingRule::Time(f) => format!("must match the time format '{}'", f),
       MatchingRule::Date(f) => format!("must match the date format '{}'", f),
@@ -529,6 +543,18 @@ impl MatchingRule {
       MatchingRule::Semver => "must match a semver version".to_string(),
       MatchingRule::EachKey(m) => format!("each key must match '{}'", m.expression()),
       MatchingRule::EachValue(m) => format!("each value must match '{}'", m.expression())
+    }
+  }
+
+  /// Clones this matching rule, downgrading it if it doesn't correspond to a matching rule that
+  /// can be applied to single values. Examples are the Min/Max type matchers, which just apply
+  /// basic type matchers to single values.
+  pub fn for_single_item(&self) -> MatchingRule {
+    match self {
+      MatchingRule::MinType(_) => MatchingRule::Type,
+      MatchingRule::MaxType(_) => MatchingRule::Type,
+      MatchingRule::MinMaxType(_, _) => MatchingRule::Type,
+      _ => self.clone()
     }
   }
 }
@@ -697,15 +723,16 @@ impl RuleList {
     }
   }
 
-  /// Generates a description of the matching rules that can be displayed in a test report
-  pub fn generate_description(&self) -> String {
+  /// Generates a description of the matching rules that can be displayed in a test report.
+  /// `for_collection` changes the description for collections or single items.
+  pub fn generate_description(&self, for_collection: bool) -> String {
     if self.rules.len() == 0 {
       "no-op".to_string()
     } else if self.rules.len() == 1 {
-      self.rules[0].generate_description()
+      self.rules[0].generate_description(for_collection)
     } else {
       self.rules.iter()
-        .map(|rule| rule.generate_description())
+        .map(|rule| rule.generate_description(for_collection))
         .join(", ")
     }
   }

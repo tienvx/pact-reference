@@ -34,6 +34,10 @@ pub struct MatchingConfiguration {
 }
 
 impl MatchingConfiguration {
+  /// Configures the matching engine configuration from environment variables:
+  /// * `V2_MATCHING_LOG_EXECUTED_PLAN` - Enable to log the executed plan.
+  /// * `V2_MATCHING_LOG_PLAN_SUMMARY` - Enable to log a summary of the executed plan.
+  /// * `V2_MATCHING_COLOURED_OUTPUT` - Enables coloured output.
   pub fn init_from_env() -> Self {
     let mut config = MatchingConfiguration::default();
 
