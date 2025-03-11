@@ -31,6 +31,8 @@ jobs:
         env:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
+          MATCHING_ENGINE: v2
+          V2_MATCHING_LOG_EXECUTED_PLAN: 1
       - name: Build Components
         run: cargo build
         working-directory: rust
