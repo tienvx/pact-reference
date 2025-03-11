@@ -606,6 +606,8 @@ mod tests {
   fn resolve_path_with_root() {
     expect!(resolve_path(&Value::Null, &DocPath::root())).to(be_equal_to::<Vec<String>>(vec![]));
     expect!(resolve_path(&Value::Bool(true), &DocPath::root())).to(be_equal_to::<Vec<String>>(vec![]));
+    expect!(resolve_path(&json!([1, 2, 3]), &DocPath::root())).to(be_equal_to::<Vec<String>>(vec![]));
+    expect!(resolve_path(&json!({"a": 1}), &DocPath::root())).to(be_equal_to::<Vec<String>>(vec![]));
   }
 
   #[test]
