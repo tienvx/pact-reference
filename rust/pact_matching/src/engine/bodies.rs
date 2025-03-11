@@ -95,14 +95,14 @@ impl JsonPlanBuilder {
           root_node.add(
             ExecutionPlanNode::action("json:expect:empty")
               .add(ExecutionPlanNode::value_node("ARRAY"))
-              .add(ExecutionPlanNode::action("apply"))
+              .add(ExecutionPlanNode::resolve_current_value(path))
           );
         } else {
           root_node.add(
             ExecutionPlanNode::action("json:match:length")
               .add(ExecutionPlanNode::value_node("ARRAY"))
               .add(ExecutionPlanNode::value_node(items.len()))
-              .add(ExecutionPlanNode::action("apply"))
+              .add(ExecutionPlanNode::resolve_current_value(path))
           );
 
           for (index, item) in items.iter().enumerate() {
@@ -120,12 +120,12 @@ impl JsonPlanBuilder {
                 presence_check
                   .add(
                     ExecutionPlanNode::action("check:exists")
-                      .add(ExecutionPlanNode::resolve_current_value(item_path.clone()))
+                      .add(ExecutionPlanNode::resolve_current_value(&item_path))
                   )
                   .add(
                     ExecutionPlanNode::action("match:equality")
                       .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), item.to_string())))
-                      .add(ExecutionPlanNode::resolve_current_value(item_path))
+                      .add(ExecutionPlanNode::resolve_current_value(&item_path))
                       .add(ExecutionPlanNode::value_node(NodeValue::NULL))
                   );
                 item_node.add(presence_check);
@@ -142,23 +142,27 @@ impl JsonPlanBuilder {
           root_node.add(
             ExecutionPlanNode::action("json:expect:empty")
               .add(ExecutionPlanNode::value_node("OBJECT"))
-              .add(ExecutionPlanNode::action("apply"))
+              .add(ExecutionPlanNode::resolve_current_value(path))
           );
         } else {
+          let keys = NodeValue::SLIST(entries.keys().map(|key| key.clone()).collect());
+          root_node.add(
+            ExecutionPlanNode::action("json:expect:entries")
+              .add(ExecutionPlanNode::value_node("OBJECT"))
+              .add(ExecutionPlanNode::value_node(keys.clone()))
+              .add(ExecutionPlanNode::resolve_current_value(path))
+          );
           if !context.config.allow_unexpected_entries {
             root_node.add(
-              ExecutionPlanNode::action("json:expect:entries")
-                .add(ExecutionPlanNode::value_node("OBJECT"))
-                .add(ExecutionPlanNode::value_node(NodeValue::SLIST(
-                  entries.keys().map(|key| key.clone()).collect())
-                ))
-                .add(ExecutionPlanNode::action("apply"))
+              ExecutionPlanNode::action("expect:only-entries")
+                .add(ExecutionPlanNode::value_node(keys.clone()))
+                .add(ExecutionPlanNode::resolve_current_value(path))
             );
           } else {
             root_node.add(
               ExecutionPlanNode::action("json:expect:not-empty")
                 .add(ExecutionPlanNode::value_node("OBJECT"))
-                .add(ExecutionPlanNode::action("apply"))
+                .add(ExecutionPlanNode::resolve_current_value(path))
             );
           }
 
@@ -181,7 +185,7 @@ impl JsonPlanBuilder {
                   item_node.add(
                     ExecutionPlanNode::action("match:equality")
                       .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), value.to_string())))
-                      .add(ExecutionPlanNode::resolve_current_value(item_path))
+                      .add(ExecutionPlanNode::resolve_current_value(&item_path))
                       .add(ExecutionPlanNode::value_node(NodeValue::NULL))
                   );
                 }
@@ -370,7 +374,7 @@ mod tests {
   :$ (
     %json:expect:empty (
       'ARRAY',
-      %apply ()
+      ~>$
     )
   )
 )"#, buffer);
@@ -392,7 +396,7 @@ mod tests {
     %json:match:length (
       'ARRAY',
       UINT(3),
-      %apply ()
+      ~>$
     ),
     :$[0] (
       %if (
@@ -449,7 +453,7 @@ mod tests {
   :$ (
     %json:expect:empty (
       'OBJECT',
-      %apply ()
+      ~>$
     )
   )
 )"#, buffer);
@@ -472,7 +476,11 @@ mod tests {
     %json:expect:entries (
       'OBJECT',
       ['a', 'b', 'c'],
-      %apply ()
+      ~>$
+    ),
+    %expect:only-entries (
+      ['a', 'b', 'c'],
+      ~>$
     ),
     :$.a (
       %match:equality (
@@ -522,7 +530,11 @@ mod tests {
     %json:expect:entries (
       'OBJECT',
       ['a', 'b', 'c'],
-      %apply ()
+      ~>$
+    ),
+    %expect:only-entries (
+      ['a', 'b', 'c'],
+      ~>$
     ),
     :$.a (
       #{'a must match the regular expression /^[0-9]+$/'},

@@ -321,7 +321,7 @@ mod tests {
     assert_requests_do_not_match!(bad, pattern);
   }
 
-  #[test]
+  #[test_log::test]
   fn json_body_pattern() {
     let pattern = PactBuilder::new("C", "P")
       .interaction("I", "", |mut i| {

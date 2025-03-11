@@ -1889,7 +1889,10 @@ pub async fn match_request<'a>(
     .map(|val| val.to_lowercase() == "v2")
     .unwrap_or(false);
   if use_v2_engine {
-    let config = MatchingConfiguration::init_from_env();
+    let config = MatchingConfiguration {
+      allow_unexpected_entries: false,
+      .. MatchingConfiguration::init_from_env()
+    };
     let mut context = PlanMatchingContext {
       pact: pact.as_v4_pact().unwrap_or_default(),
       interaction: interaction.as_v4().unwrap(),
@@ -1902,6 +1905,7 @@ pub async fn match_request<'a>(
     let executed_plan = execute_request_plan(&plan, &actual, &mut context)?;
 
     if config.log_executed_plan {
+      debug!("config = {:?}", config);
       debug!("\n{}", executed_plan.pretty_form());
     }
     if config.log_plan_summary {

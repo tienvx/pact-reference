@@ -158,7 +158,7 @@ fn json_with_empty_array() {
     :$ (
       %json:expect:empty (
         'ARRAY' => 'ARRAY',
-        %apply () => json:[]
+        ~>$ => json:[]
       ) => BOOL(true)
     ) => BOOL(true)
   ) => BOOL(true)", buffer);
@@ -177,7 +177,7 @@ fn json_with_empty_array() {
     :$ (
       %json:expect:empty (
         'ARRAY' => 'ARRAY',
-        %apply () => json:false
+        ~>$ => json:false
       ) => ERROR(Was expecting a JSON Array but got a Boolean)
     ) => BOOL(false)
   ) => BOOL(false)", buffer);
@@ -196,7 +196,7 @@ fn json_with_empty_array() {
     :$ (
       %json:expect:empty (
         'ARRAY' => 'ARRAY',
-        %apply () => json:[true]
+        ~>$ => json:[true]
       ) => ERROR(Expected JSON Array ([true]) to be empty)
     ) => BOOL(false)
   ) => BOOL(false)", buffer);
@@ -224,7 +224,7 @@ fn json_with_array() {
       %json:match:length (
         'ARRAY' => 'ARRAY',
         UINT(3) => UINT(3),
-        %apply () => json:[1,2,3]
+        ~>$ => json:[1,2,3]
       ) => BOOL(true),
       :$[0] (
         %if (
@@ -280,7 +280,7 @@ fn json_with_array() {
       %json:match:length (
         'ARRAY' => 'ARRAY',
         UINT(3) => UINT(3),
-        %apply () => json:false
+        ~>$ => json:false
       ) => ERROR(Was expecting a JSON Array but got a Boolean),
       :$[0] (
         %if (
@@ -336,7 +336,7 @@ fn json_with_array() {
       %json:match:length (
         'ARRAY' => 'ARRAY',
         UINT(3) => UINT(3),
-        %apply () => json:[true]
+        ~>$ => json:[true]
       ) => ERROR(Was expecting a length of 3, but actual length is 1),
       :$[0] (
         %if (
@@ -392,7 +392,7 @@ fn json_with_array() {
       %json:match:length (
         'ARRAY' => 'ARRAY',
         UINT(3) => UINT(3),
-        %apply () => json:[1,3,3]
+        ~>$ => json:[1,3,3]
       ) => BOOL(true),
       :$[0] (
         %if (

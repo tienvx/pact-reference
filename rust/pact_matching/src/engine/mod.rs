@@ -1254,7 +1254,7 @@ fn build_matching_rule_node(
   local_ref: bool
 ) -> ExecutionPlanNode {
   let value_node = if local_ref {
-    ExecutionPlanNode::resolve_current_value(doc_path.clone())
+    ExecutionPlanNode::resolve_current_value(doc_path)
   } else {
     ExecutionPlanNode::resolve_value(doc_path.clone())
   };
@@ -1441,7 +1441,7 @@ fn setup_header_plan(
               ExecutionPlanNode::action("match:equality")
                 .add(ExecutionPlanNode::value_node(header_value.to_lowercase()))
                 .add(ExecutionPlanNode::action("lower-case")
-                  .add(ExecutionPlanNode::resolve_current_value(DocPath::new_unwrap("value"))))
+                  .add(ExecutionPlanNode::resolve_current_value(&DocPath::new_unwrap("value"))))
                 .add(ExecutionPlanNode::value_node(NodeValue::NULL))
             );
 
@@ -1452,11 +1452,11 @@ fn setup_header_plan(
                 parameter_node.add(
                   ExecutionPlanNode::action("if")
                     .add(ExecutionPlanNode::action("check:exists")
-                      .add(ExecutionPlanNode::resolve_current_value(parameter_path.join(k.as_str()))))
+                      .add(ExecutionPlanNode::resolve_current_value(&parameter_path.join(k.as_str()))))
                     .add(ExecutionPlanNode::action("match:equality")
                       .add(ExecutionPlanNode::value_node(v.to_lowercase()))
                       .add(ExecutionPlanNode::action("lower-case")
-                        .add(ExecutionPlanNode::resolve_current_value(parameter_path.join(k.as_str()))))
+                        .add(ExecutionPlanNode::resolve_current_value(&parameter_path.join(k.as_str()))))
                       .add(ExecutionPlanNode::value_node(NodeValue::NULL)))
                     .add(ExecutionPlanNode::action("error")
                       .add(ExecutionPlanNode::value_node(

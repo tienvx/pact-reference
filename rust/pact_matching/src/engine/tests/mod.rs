@@ -284,7 +284,11 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
             %json:expect:entries (
               'OBJECT',
               ['a', 'b'],
-              %apply ()
+              ~>$
+            ),
+            %expect:only-entries (
+              ['a', 'b'],
+              ~>$
             ),
             :$.a (
               %match:equality (
@@ -357,8 +361,12 @@ fn simple_json_match_request_test() -> anyhow::Result<()> {
             %json:expect:entries (
               'OBJECT' => 'OBJECT',
               ['a', 'b'] => ['a', 'b'],
-              %apply () => json:{"b":"22"}
+              ~>$ => json:{"b":"22"}
             ) => ERROR(The following expected entries were missing from the actual Object: a),
+            %expect:only-entries (
+              ['a', 'b'] => ['a', 'b'],
+              ~>$ => json:{"b":"22"}
+            ) => OK,
             :$.a (
               %match:equality (
                 json:100 => json:100,

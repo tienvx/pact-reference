@@ -118,20 +118,24 @@ impl ValueResolver for CurrentStackValueResolver {
             Err(anyhow!("Can not resolve '{}', current stack value does not contain a value (is NULL)", path))
           }
           NodeValue::JSON(json) => {
-            let json_paths = resolve_path(&json, path);
-            if json_paths.is_empty() {
-              Ok(NodeValue::NULL)
-            } else if json_paths.len() == 1 {
-              if let Some(value) = json.pointer(json_paths[0].as_str()) {
-                Ok(NodeValue::JSON(value.clone()))
-              } else {
-                Ok(NodeValue::NULL)
-              }
+            if path.is_root() {
+              Ok(NodeValue::JSON(json))
             } else {
-              let values = json_paths.iter()
-                .map(|path| json.pointer(path.as_str()).cloned().unwrap_or_default())
-                .collect();
-              Ok(NodeValue::JSON(Value::Array(values)))
+              let json_paths = resolve_path(&json, path);
+              if json_paths.is_empty() {
+                Ok(NodeValue::NULL)
+              } else if json_paths.len() == 1 {
+                if let Some(value) = json.pointer(json_paths[0].as_str()) {
+                  Ok(NodeValue::JSON(value.clone()))
+                } else {
+                  Ok(NodeValue::NULL)
+                }
+              } else {
+                let values = json_paths.iter()
+                  .map(|path| json.pointer(path.as_str()).cloned().unwrap_or_default())
+                  .collect();
+                Ok(NodeValue::JSON(Value::Array(values)))
+              }
             }
           }
           _ => {
