@@ -1196,7 +1196,7 @@ fn match_content_type_header() {
             ),
             %match:equality (
               'application/hal+json',
-              %lower-case (
+              %to-string (
                 ~>value
               ),
               NULL
@@ -1246,7 +1246,7 @@ fn match_content_type_header() {
             ) => json:{"parameters":{"charset":"UTF-8"},"value":"application/hal+json"},
             %match:equality (
               'application/hal+json' => 'application/hal+json',
-              %lower-case (
+              %to-string (
                 ~>value => json:"application/hal+json"
               ) => 'application/hal+json',
               NULL => NULL
@@ -1299,7 +1299,7 @@ fn match_content_type_header() {
             ),
             %match:equality (
               'application/json',
-              %lower-case (
+              %to-string (
                 ~>value
               ),
               NULL
@@ -1366,7 +1366,7 @@ fn match_content_type_header() {
             ) => json:{"parameters":{"charset":"UTF-8"},"value":"application/json"},
             %match:equality (
               'application/json' => 'application/json',
-              %lower-case (
+              %to-string (
                 ~>value => json:"application/json"
               ) => 'application/json',
               NULL => NULL
@@ -1433,7 +1433,7 @@ fn match_content_type_header() {
             ) => json:{"parameters":{},"value":"application/json"},
             %match:equality (
               'application/json' => 'application/json',
-              %lower-case (
+              %to-string (
                 ~>value => json:"application/json"
               ) => 'application/json',
               NULL => NULL
@@ -1500,7 +1500,7 @@ fn match_content_type_header() {
             ) => json:{"parameters":{"charset":"UTF-16","other":"stuff"},"value":"application/json"},
             %match:equality (
               'application/json' => 'application/json',
-              %lower-case (
+              %to-string (
                 ~>value => json:"application/json"
               ) => 'application/json',
               NULL => NULL

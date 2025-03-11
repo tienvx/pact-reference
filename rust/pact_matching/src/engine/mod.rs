@@ -1423,52 +1423,22 @@ fn setup_header_plan(
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
           item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description())));
-          presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value), &doc_path.join(key), &matchers, false));
+          presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
+            &doc_path.join(key), &matchers, false));
         } else if PARAMETERISED_HEADERS.contains(&key.to_lowercase().as_str()) {
           item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           if value.len() == 1 {
-            let values: Vec<&str> = strip_whitespace(value[0].as_str(), ";");
-            let (header_value, header_params) = values.as_slice()
-              .split_first()
-              .unwrap_or((&"", &[]));
-            let parameter_map = parse_charset_parameters(header_params);
-
-            let mut apply_node = ExecutionPlanNode::action("tee");
-            apply_node
-              .add(ExecutionPlanNode::action("header:parse")
-                .add(ExecutionPlanNode::resolve_value(doc_path.join(key))));
-            apply_node.add(
-              ExecutionPlanNode::action("match:equality")
-                .add(ExecutionPlanNode::value_node(header_value.to_lowercase()))
-                .add(ExecutionPlanNode::action("lower-case")
-                  .add(ExecutionPlanNode::resolve_current_value(&DocPath::new_unwrap("value"))))
-                .add(ExecutionPlanNode::value_node(NodeValue::NULL))
-            );
-
-            if !parameter_map.is_empty() {
-              let parameter_path = DocPath::new_unwrap("parameters");
-              for (k, v) in &parameter_map {
-                let mut parameter_node = ExecutionPlanNode::container(k.as_str());
-                parameter_node.add(
-                  ExecutionPlanNode::action("if")
-                    .add(ExecutionPlanNode::action("check:exists")
-                      .add(ExecutionPlanNode::resolve_current_value(&parameter_path.join(k.as_str()))))
-                    .add(ExecutionPlanNode::action("match:equality")
-                      .add(ExecutionPlanNode::value_node(v.to_lowercase()))
-                      .add(ExecutionPlanNode::action("lower-case")
-                        .add(ExecutionPlanNode::resolve_current_value(&parameter_path.join(k.as_str()))))
-                      .add(ExecutionPlanNode::value_node(NodeValue::NULL)))
-                    .add(ExecutionPlanNode::action("error")
-                      .add(ExecutionPlanNode::value_node(
-                        format!("Expected a {} value of '{}' but it was missing", k, v)))
-                    )
-                );
-                apply_node.add(parameter_node);
-              }
-            }
+            let apply_node = build_parameterised_header_plan(&doc_path.join(key), value[0].as_str());
             presence_check.add(apply_node);
           } else {
-            todo!("Need to deal with parameterized header with multiple values (i.e. accept)");
+            for (index, item_value) in value.iter().enumerate() {
+              let item_path = doc_path.join(key).join_index(index);
+              let mut item_node = ExecutionPlanNode::container(index.to_string());
+              let apply_node = build_parameterised_header_plan(
+                &item_path, item_value.as_str());
+              item_node.add(apply_node);
+              presence_check.add(item_node);
+            }
           }
         } else {
           item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
@@ -1505,6 +1475,49 @@ fn setup_header_plan(
   }
 
   Ok(plan_node)
+}
+
+fn build_parameterised_header_plan(doc_path: &DocPath, val: &str) -> ExecutionPlanNode {
+  let values: Vec<&str> = strip_whitespace(val, ";");
+  let (header_value, header_params) = values.as_slice()
+    .split_first()
+    .unwrap_or((&"", &[]));
+  let parameter_map = parse_charset_parameters(header_params);
+
+  let mut apply_node = ExecutionPlanNode::action("tee");
+  apply_node
+    .add(ExecutionPlanNode::action("header:parse")
+      .add(ExecutionPlanNode::resolve_value(doc_path)));
+  apply_node.add(
+    ExecutionPlanNode::action("match:equality")
+      .add(ExecutionPlanNode::value_node(*header_value))
+      .add(ExecutionPlanNode::action("to-string")
+        .add(ExecutionPlanNode::resolve_current_value(&DocPath::new_unwrap("value"))))
+      .add(ExecutionPlanNode::value_node(NodeValue::NULL))
+  );
+
+  if !parameter_map.is_empty() {
+    let parameter_path = DocPath::new_unwrap("parameters");
+    for (k, v) in &parameter_map {
+      let mut parameter_node = ExecutionPlanNode::container(k.as_str());
+      parameter_node.add(
+        ExecutionPlanNode::action("if")
+          .add(ExecutionPlanNode::action("check:exists")
+            .add(ExecutionPlanNode::resolve_current_value(&parameter_path.join(k.as_str()))))
+          .add(ExecutionPlanNode::action("match:equality")
+            .add(ExecutionPlanNode::value_node(v.to_lowercase()))
+            .add(ExecutionPlanNode::action("lower-case")
+              .add(ExecutionPlanNode::resolve_current_value(&parameter_path.join(k.as_str()))))
+            .add(ExecutionPlanNode::value_node(NodeValue::NULL)))
+          .add(ExecutionPlanNode::action("error")
+            .add(ExecutionPlanNode::value_node(
+              format!("Expected a {} value of '{}' but it was missing", k, v)))
+          )
+      );
+      apply_node.add(parameter_node);
+    }
+  }
+  apply_node
 }
 
 fn setup_body_plan(

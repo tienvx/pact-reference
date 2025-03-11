@@ -22,9 +22,10 @@ lazy_static! {
 }
 
 /// Struct to store path token
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum PathToken {
   /// Root token $
+  #[default]
   Root,
   /// named field token
   Field(String),
@@ -34,6 +35,16 @@ pub enum PathToken {
   Star,
   /// * index token
   StarIndex
+}
+
+impl PathToken {
+  /// If this path token is an index
+  pub fn is_index(&self) -> bool {
+    match self {
+      PathToken::Index(_) => true,
+      _ => false
+    }
+  }
 }
 
 impl Display for PathToken {
@@ -121,6 +132,11 @@ impl DocPath {
   /// Return the length, in parsed tokens.
   pub fn len(&self) -> usize {
     self.path_tokens.len()
+  }
+
+  /// Returns the last item in the path. Will panic if the path is empty.
+  pub fn last(&self) -> Option<PathToken> {
+    self.path_tokens.last().cloned()
   }
 
   /// Extract the string contents of the first Field token.

@@ -6,7 +6,7 @@ use itertools::Itertools;
 use serde_json::Value;
 use pact_models::bodies::OptionalBody;
 use pact_models::json_utils::resolve_path;
-use pact_models::path_exp::DocPath;
+use pact_models::path_exp::{DocPath, PathToken};
 use pact_models::v4::http_parts::HttpRequest;
 
 use crate::engine::{NodeResult, NodeValue, PlanMatchingContext};
@@ -60,33 +60,40 @@ impl ValueResolver for HttpRequestValueResolver {
         } else {
           Err(anyhow!("{} is not valid for a HTTP request query parameters", path))
         },
-        "headers" => if path.len() == 2 || (path.len() == 3 && path.is_wildcard()) {
+        "headers" => {
           let headers = self.request.headers
             .clone()
             .unwrap_or_default()
             .iter()
             .map(|(k, v)| (k.to_lowercase(), v.clone()))
             .collect();
-          Ok(NodeValue::MMAP(headers))
-        } else if path.len() == 3 {
-          let param_name = path.last_field().unwrap_or_default().to_lowercase();
-          let headers = self.request.headers
-            .clone()
-            .unwrap_or_default()
-            .iter()
-            .map(|(k, v)| (k.to_lowercase(), v.clone()))
-            .collect::<HashMap<_, _>>();
-          if let Some(val) = headers.get(&param_name) {
-            if val.len() == 1 {
-              Ok(NodeValue::STRING(val[0].clone()))
+          if path.len() == 2 || (path.len() == 3 && path.is_wildcard()) {
+            Ok(NodeValue::MMAP(headers))
+          } else if path.len() == 3 {
+            let param_name = path.last_field().unwrap_or_default().to_lowercase();
+            if let Some(val) = headers.get(&param_name) {
+              if val.len() == 1 {
+                Ok(NodeValue::STRING(val[0].clone()))
+              } else {
+                Ok(NodeValue::SLIST(val.clone()))
+              }
             } else {
-              Ok(NodeValue::SLIST(val.clone()))
+              Ok(NodeValue::NULL)
+            }
+          } else if path.len() == 4 && path.last().unwrap_or_default().is_index() {
+            let param_name = path.last_field().unwrap_or_default().to_lowercase();
+            if let Some(val) = headers.get(&param_name) {
+              if let Some(PathToken::Index(index)) = path.last() {
+                Ok(NodeValue::STRING(val[index].clone()))
+              } else {
+                Ok(NodeValue::NULL)
+              }
+            } else {
+              Ok(NodeValue::NULL)
             }
           } else {
-            Ok(NodeValue::NULL)
+            Err(anyhow!("{} is not valid for HTTP request headers", path))
           }
-        } else {
-          Err(anyhow!("{} is not valid for HTTP request headers", path))
         },
         "content-type" => {
           Ok(self.request.content_type()
