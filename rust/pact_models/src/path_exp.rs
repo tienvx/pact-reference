@@ -410,6 +410,28 @@ impl TryFrom<String> for DocPath {
   }
 }
 
+impl TryFrom<&String> for DocPath {
+  type Error = anyhow::Error;
+
+  fn try_from(path: &String) -> Result<Self, Self::Error> {
+    DocPath::new(path)
+  }
+}
+
+impl TryFrom<&str> for DocPath {
+  type Error = anyhow::Error;
+
+  fn try_from(path: &str) -> Result<Self, Self::Error> {
+    DocPath::new(path)
+  }
+}
+
+impl From<&DocPath>  for DocPath {
+  fn from(value: &DocPath) -> Self {
+    value.clone()
+  }
+}
+
 impl PartialEq for DocPath {
   fn eq(&self, other: &Self) -> bool {
     self.expr == other.expr
