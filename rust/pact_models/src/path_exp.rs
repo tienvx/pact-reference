@@ -54,7 +54,7 @@ impl Display for PathToken {
       PathToken::Field(n) => write!(f, "{}", n),
       PathToken::Index(n) => write!(f, "{}", n),
       PathToken::Star => write!(f, "*"),
-      PathToken::StarIndex => write!(f, "*")
+      PathToken::StarIndex => write!(f, "[*]")
     }
   }
 }
@@ -67,9 +67,13 @@ fn matches_token(path_fragment: &str, path_token: &PathToken) -> usize {
       Ok(i) if *index == i => 2,
       _ => 0
     },
-    PathToken::StarIndex => match path_fragment.parse::<usize>() {
-      Ok(_) => 1,
-      _ => 0
+    PathToken::StarIndex => if path_fragment == "[*]" {
+      1
+    } else {
+      match path_fragment.parse::<usize>() {
+        Ok(_) => 1,
+        _ => 0
+      }
     },
     PathToken::Star => 1,
     _ => 0
