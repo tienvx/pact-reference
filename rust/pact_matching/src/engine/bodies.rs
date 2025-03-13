@@ -214,24 +214,7 @@ impl JsonPlanBuilder {
           let mut item_path = path.clone();
           item_path.push_field(key);
           let mut item_node = ExecutionPlanNode::container(&item_path);
-          match value {
-            Value::Array(_) => Self::process_body_node(context, value, &item_path, &mut item_node),
-            Value::Object(_) => Self::process_body_node(context, value, &item_path, &mut item_node),
-            _ => {
-              if context.matcher_is_defined(&item_path) {
-                let matchers = context.select_best_matcher(&item_path);
-                item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description(false))));
-                item_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(value), &item_path, &matchers, true, false));
-              } else {
-                item_node.add(
-                  ExecutionPlanNode::action("match:equality")
-                    .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), value.to_string())))
-                    .add(ExecutionPlanNode::resolve_current_value(&item_path))
-                    .add(ExecutionPlanNode::value_node(NodeValue::NULL))
-                );
-              }
-            }
-          }
+          Self::process_body_node(context, value, &item_path, &mut item_node);
           root_node.add(item_node);
         }
       }
@@ -244,7 +227,7 @@ impl JsonPlanBuilder {
           let mut match_node = ExecutionPlanNode::action("match:equality");
           match_node
             .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("json".to_string(), json.to_string())))
-            .add(ExecutionPlanNode::action("apply"))
+            .add(ExecutionPlanNode::resolve_current_value(path))
             .add(ExecutionPlanNode::value_node(NodeValue::NULL));
           root_node.add(match_node);
         }
@@ -314,7 +297,7 @@ mod tests {
   :$ (
     %match:equality (
       json:null,
-      %apply (),
+      ~>$,
       NULL
     )
   )
@@ -336,7 +319,7 @@ mod tests {
   :$ (
     %match:equality (
       json:true,
-      %apply (),
+      ~>$,
       NULL
     )
   )
@@ -358,7 +341,7 @@ mod tests {
   :$ (
     %match:equality (
       json:"I am a string!",
-      %apply (),
+      ~>$,
       NULL
     )
   )
@@ -380,7 +363,7 @@ mod tests {
   :$ (
     %match:equality (
       json:1000,
-      %apply (),
+      ~>$,
       NULL
     )
   )
@@ -402,7 +385,7 @@ mod tests {
   :$ (
     %match:equality (
       json:1000.3,
-      %apply (),
+      ~>$,
       NULL
     )
   )

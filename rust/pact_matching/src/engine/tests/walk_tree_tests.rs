@@ -42,7 +42,7 @@ fn json_with_null() {
     :$ (
       %match:equality (
         json:null => json:null,
-        %apply () => json:null,
+        ~>$ => json:null,
         NULL => NULL
       ) => BOOL(true)
     ) => BOOL(true)
@@ -62,7 +62,7 @@ fn json_with_null() {
     :$ (
       %match:equality (
         json:null => json:null,
-        %apply () => json:true,
+        ~>$ => json:true,
         NULL => NULL
       ) => ERROR(Expected true (Boolean) to be equal to null (Null))
     ) => BOOL(false)
@@ -82,7 +82,7 @@ fn json_with_null() {
     :$ (
       %match:equality (
         json:null,
-        %apply (),
+        ~>$,
         NULL
       )
     )
@@ -110,7 +110,7 @@ fn json_with_boolean() {
     :$ (
       %match:equality (
         json:true => json:true,
-        %apply () => json:true,
+        ~>$ => json:true,
         NULL => NULL
       ) => BOOL(true)
     ) => BOOL(true)
@@ -130,7 +130,7 @@ fn json_with_boolean() {
     :$ (
       %match:equality (
         json:true => json:true,
-        %apply () => json:false,
+        ~>$ => json:false,
         NULL => NULL
       ) => ERROR(Expected false (Boolean) to be equal to true (Boolean))
     ) => BOOL(false)
