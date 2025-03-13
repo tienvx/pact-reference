@@ -124,6 +124,17 @@ impl DocPath {
     }
   }
 
+  /// Construct a new DocPath from a list of tokens
+  pub fn from_tokens<I>(tokens: I) -> Self
+    where I: IntoIterator<Item = PathToken> {
+    let mut path = Self {
+      path_tokens: tokens.into_iter().collect(),
+      expr: "".into(),
+    };
+    path.expr = path.build_expr();
+    path
+  }
+
   /// Return the list of tokens that comprise this path.
   pub fn tokens(&self) -> &Vec<PathToken> {
     &self.path_tokens
@@ -209,6 +220,8 @@ impl DocPath {
     let mut path = self.clone();
     if part == "*" {
       path.push_star();
+    } else if part == "[*]" {
+      path.push_star_index();
     } else if let Ok(index) = part.parse() {
       path.push_index(index);
     } else {

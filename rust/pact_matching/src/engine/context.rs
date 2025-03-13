@@ -10,11 +10,11 @@ use serde_json::{json, Value};
 use tracing::{instrument, trace, Level, debug, error};
 
 use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory, RuleList};
-use pact_models::path_exp::DocPath;
+use pact_models::path_exp::{DocPath, PathToken};
 use pact_models::prelude::v4::{SynchronousHttp, V4Pact};
 use pact_models::v4::interaction::V4Interaction;
 
-use crate::engine::{ExecutionPlanNode, NodeResult, NodeValue, walk_tree};
+use crate::engine::{ExecutionPlanNode, NodeResult, NodeValue, PlanNodeType, walk_tree};
 use crate::engine::value_resolvers::ValueResolver;
 use crate::headers::{parse_charset_parameters, strip_whitespace};
 use crate::json::type_of;
@@ -137,6 +137,7 @@ impl PlanMatchingContext {
         "join-with" => self.execute_join(action, value_resolver, node, &action_path),
         "error" => self.execute_error(action, value_resolver, node, &action_path),
         "header:parse" => self.execute_header_parse(action, value_resolver, node, &action_path),
+        "for-each" => self.execute_for_each(value_resolver, node, &action_path),
         _ => {
           ExecutionPlanNode {
             node_type: node.node_type.clone(),
@@ -1650,6 +1651,99 @@ impl PlanMatchingContext {
       }
     }
   }
+
+  fn execute_for_each(
+    &mut self,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    if let Some(first_node) = node.children.first() {
+      match walk_tree(action_path.as_slice(), first_node, value_resolver, self) {
+        Ok(first) => {
+          let mut result = NodeResult::OK;
+          let mut child_results = vec![first.clone()];
+
+          let loop_items = first.value()
+            .unwrap_or_default()
+            .as_value()
+            .unwrap_or_default()
+            .to_list();
+          for (index, value) in loop_items.iter().enumerate() {
+            for child in node.children.iter().dropping(1) {
+              let updated_child = inject_index(child, index);
+              match walk_tree(&action_path, &updated_child, value_resolver, self) {
+                Ok(value) => {
+                  result = result.and(&value.result);
+                  child_results.push(value.clone());
+                }
+                Err(err) => {
+                  let node_result = NodeResult::ERROR(err.to_string());
+                  result = result.and(&Some(node_result.clone()));
+                  child_results.push(updated_child.clone_with_result(node_result));
+                }
+              }
+            }
+          }
+
+          ExecutionPlanNode {
+            node_type: node.node_type.clone(),
+            result: Some(result.truthy()),
+            children: child_results
+          }
+        }
+        Err(err) => {
+          node.clone_with_result(NodeResult::ERROR(err.to_string()))
+        }
+      }
+    } else {
+      node.clone_with_result(NodeResult::OK)
+    }
+  }
+}
+
+fn inject_index(node: &ExecutionPlanNode, index: usize) -> ExecutionPlanNode {
+  match &node.node_type {
+    PlanNodeType::CONTAINER(label) => {
+      if let Ok(path) = DocPath::new(label) {
+        ExecutionPlanNode {
+          node_type: PlanNodeType::CONTAINER(inject_index_in_path(&path, index).to_string()),
+          result: node.result.clone(),
+          children: node.children.iter()
+            .map(|child| inject_index(child, index))
+            .collect()
+        }
+      } else {
+        node.clone_with_children(node.children.iter()
+          .map(|child| inject_index(child, index)))
+      }
+    }
+    PlanNodeType::ACTION(_) => node.clone_with_children(node.children.iter()
+      .map(|child| inject_index(child, index))),
+    PlanNodeType::PIPELINE => node.clone_with_children(node.children.iter()
+      .map(|child| inject_index(child, index))),
+    PlanNodeType::RESOLVE_CURRENT(exp) => {
+      ExecutionPlanNode {
+        node_type: PlanNodeType::RESOLVE_CURRENT(inject_index_in_path(exp, index)),
+        result: node.result.clone(),
+        children: vec![]
+      }
+    }
+    PlanNodeType::SPLAT => node.clone_with_children(node.children.iter()
+      .map(|child| inject_index(child, index))),
+    _ => node.clone()
+  }
+}
+
+fn inject_index_in_path(path: &DocPath, index: usize) -> DocPath {
+  let mut tokens = path.tokens().clone();
+  for token in &mut tokens {
+    if *token == PathToken::StarIndex {
+      *token = PathToken::Index(index);
+      break;
+    }
+  }
+  DocPath::from_tokens(tokens)
 }
 
 fn json_check_length(length: usize, json: &Value) -> anyhow::Result<()> {

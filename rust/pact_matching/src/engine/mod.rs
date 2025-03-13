@@ -5,6 +5,8 @@ use std::cell::Cell;
 use std::cmp::PartialEq;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
+use std::iter::Map;
+use std::slice::Iter;
 use ansi_term::Colour::{Green, Red};
 use anyhow::anyhow;
 use base64::Engine;
@@ -254,6 +256,26 @@ impl NodeValue {
       NodeValue::JSON(_) => false,
       NodeValue::ENTRY(_, _) => false,
       NodeValue::LIST(l) => !l.is_empty()
+    }
+  }
+
+  /// Converts any associated value into a list value
+  pub fn to_list(&self) -> Vec<NodeValue> {
+    match self {
+      NodeValue::MMAP(entries) => entries.iter()
+        .map(|(k, v)| NodeValue::ENTRY(k.clone(), Box::new(NodeValue::SLIST(v.clone()))))
+        .collect(),
+      NodeValue::SLIST(list) => list.iter()
+        .map(|v| NodeValue::STRING(v.clone()))
+        .collect(),
+      NodeValue::JSON(json) => match json {
+        Value::Array(a) => a.iter()
+          .map(|v| NodeValue::JSON(v.clone()))
+          .collect(),
+        _ => vec![ NodeValue::JSON(json.clone()) ]
+      }
+      NodeValue::LIST(list) => list.clone(),
+      _ => vec![ self.clone() ]
     }
   }
 }
@@ -527,12 +549,22 @@ impl ExecutionPlanNode {
     }
   }
 
-  /// Clones this node, replacng the result with the given one
+  /// Clones this node, replacing the result with the given one
   pub fn clone_with_result(&self, result: NodeResult) -> ExecutionPlanNode {
     ExecutionPlanNode {
       node_type: self.node_type.clone(),
       result: Some(result),
       children: self.children.clone()
+    }
+  }
+
+  /// Clones this node, replacing the result with the given one
+  pub fn clone_with_children<I>(&self, children: I) -> ExecutionPlanNode
+    where I: IntoIterator<Item = ExecutionPlanNode> {
+    ExecutionPlanNode {
+      node_type: self.node_type.clone(),
+      result: self.result.clone(),
+      children: children.into_iter().collect()
     }
   }
 
