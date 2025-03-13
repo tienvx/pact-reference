@@ -81,12 +81,12 @@ fn json_with_null() {
     ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
     :$ (
       %match:equality (
-        json:null => json:null,
-        %apply () => ERROR(json parse error - EOF while parsing an object at line 1 column 1),
-        NULL => NULL
-      ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1)
-    ) => BOOL(false)
-  ) => BOOL(false)", buffer);
+        json:null,
+        %apply (),
+        NULL
+      )
+    )
+  ) => ERROR(json parse error - EOF while parsing an object at line 1 column 1)", buffer);
 }
 
 #[test_log::test]

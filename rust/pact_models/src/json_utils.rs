@@ -258,8 +258,8 @@ fn query_object_graph(path_exp: &Vec<PathToken>, tree: &mut Arena<String>, root:
     match it.next() {
       Some(token) => {
         match token {
-          &PathToken::Field(ref name) => {
-            match body_cursor.clone().as_object() {
+          PathToken::Field(name) => {
+            match body_cursor.as_object() {
               Some(map) => match map.get(name) {
                 Some(val) => {
                   node_cursor = node_cursor.append_value(name.clone(), tree);
@@ -270,16 +270,16 @@ fn query_object_graph(path_exp: &Vec<PathToken>, tree: &mut Arena<String>, root:
               None => return
             }
           },
-          &PathToken::Index(index) => {
+          PathToken::Index(index) => {
             match body_cursor.clone().as_array() {
-              Some(list) => if list.len() > index {
+              Some(list) => if list.len() > *index {
                 node_cursor = node_cursor.append_value(format!("{}", index), tree);
-                body_cursor = list[index].clone();
+                body_cursor = list[*index].clone();
               },
               None => return
             }
           }
-          &PathToken::Star => {
+          PathToken::Star => {
             match body_cursor.clone().as_object() {
               Some(map) => {
                 let remaining = it.by_ref().cloned().collect();
@@ -292,7 +292,7 @@ fn query_object_graph(path_exp: &Vec<PathToken>, tree: &mut Arena<String>, root:
               None => return
             }
           },
-          &PathToken::StarIndex => {
+          PathToken::StarIndex => {
             match body_cursor.clone().as_array() {
               Some(list) => {
                 let remaining = it.by_ref().cloned().collect();

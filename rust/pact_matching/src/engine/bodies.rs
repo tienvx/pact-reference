@@ -561,8 +561,8 @@ mod tests {
   fn json_plan_builder_with_object_with_matching_rule() {
     let builder = JsonPlanBuilder::new();
     let matching_rules = matchingrules! {
-    "body" => { "$.a" => [ MatchingRule::Regex("^[0-9]+$".to_string()) ] }
-  };
+      "body" => { "$.a" => [ MatchingRule::Regex("^[0-9]+$".to_string()) ] }
+    };
     let context = PlanMatchingContext {
       matching_rules: matching_rules.rules_for_category("body").unwrap_or_default(),
       .. PlanMatchingContext::default()
@@ -606,6 +606,76 @@ mod tests {
         json:300,
         ~>$.c,
         NULL
+      )
+    )
+  )
+)"#, buffer);
+  }
+
+  #[test]
+  fn json_plan_builder_with_array_and_type_matcher() {
+    let builder = JsonPlanBuilder::new();
+    let matching_rules = matchingrules! {
+      "body" => { "$.item" => [ MatchingRule::MinType(2) ] }
+    };
+    let context = PlanMatchingContext {
+      matching_rules: matching_rules.rules_for_category("body").unwrap_or_default(),
+      .. PlanMatchingContext::default()
+    };
+    let content = Bytes::copy_from_slice(
+      json!({
+        "item": [
+          { "a": 100 },
+          { "a": 200 },
+          { "a": 300 }
+        ]
+      }).to_string().as_bytes()
+    );
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(r#"%tee (
+  %json:parse (
+    $.body
+  ),
+  :$ (
+    %json:expect:entries (
+      'OBJECT',
+      ['item'],
+      ~>$
+    ),
+    %expect:only-entries (
+      ['item'],
+      ~>$
+    ),
+    :$.item (
+      #{'item must match by type and have at least 2 items'},
+      %match:min-type (
+        json:[{"a":100},{"a":200},{"a":300}],
+        ~>$.item,
+        json:{"min":2}
+      ),
+      %for-each (
+        ~>$.item,
+        :$.item[*] (
+          %json:expect:entries (
+            'OBJECT',
+            ['a'],
+            ~>$.item[*]
+          ),
+          %expect:only-entries (
+            ['a'],
+            ~>$.item[*]
+          ),
+          :$.item[*].a (
+            #{'a must match by type'},
+            %match:type (
+              json:100,
+              ~>$.item[*].a,
+              json:{}
+            )
+          )
+        )
       )
     )
   )

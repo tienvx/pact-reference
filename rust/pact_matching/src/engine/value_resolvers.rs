@@ -3,6 +3,7 @@
 use anyhow::anyhow;
 use itertools::Itertools;
 use serde_json::Value;
+use tracing::{instrument, trace};
 use pact_models::bodies::OptionalBody;
 use pact_models::json_utils::resolve_path;
 use pact_models::path_exp::{DocPath, PathToken};
@@ -116,6 +117,7 @@ impl ValueResolver for HttpRequestValueResolver {
 pub struct CurrentStackValueResolver {}
 
 impl ValueResolver for CurrentStackValueResolver {
+  #[instrument(ret, skip_all, fields(%path))]
   fn resolve(&self, path: &DocPath, context: &PlanMatchingContext) -> anyhow::Result<NodeValue> {
     if let Some(result) = context.stack_value() {
       if let NodeResult::VALUE(value) = result {
@@ -128,6 +130,7 @@ impl ValueResolver for CurrentStackValueResolver {
               Ok(NodeValue::JSON(json))
             } else {
               let json_paths = resolve_path(&json, path);
+              trace!("resolved path {} -> {:?}", path, json_paths);
               if json_paths.is_empty() {
                 Ok(NodeValue::NULL)
               } else if json_paths.len() == 1 {

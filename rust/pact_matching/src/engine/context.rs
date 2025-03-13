@@ -631,44 +631,43 @@ impl PlanMatchingContext {
     if let Some(first_node) = node.children.first() {
       match walk_tree(action_path.as_slice(), first_node, value_resolver, self) {
         Ok(first) => {
-          let mut result = NodeResult::OK;
-          self.push_result(first.result.clone());
-          let mut child_results = vec![first.clone()];
-          for child in node.children.iter().dropping(1) {
-            match walk_tree(&action_path, &child, value_resolver, self) {
-              Ok(value) => {
-                result = result.and(&value.result);
-                child_results.push(value.clone());
-              }
-              Err(err) => {
-                let node_result = NodeResult::ERROR(err.to_string());
-                result = result.and(&Some(node_result.clone()));
-                child_results.push(child.clone_with_result(node_result));
+          let first_result = first.value().unwrap_or_default();
+          if first_result.is_err() {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(first_result.clone()),
+              children: once(first).chain(node.children.iter().dropping(1).cloned()).collect()
+            }
+          } else {
+            let mut result = NodeResult::OK;
+            self.push_result(first.result.clone());
+            let mut child_results = vec![first.clone()];
+            for child in node.children.iter().dropping(1) {
+              match walk_tree(&action_path, &child, value_resolver, self) {
+                Ok(value) => {
+                  result = result.and(&value.result);
+                  child_results.push(value.clone());
+                }
+                Err(err) => {
+                  let node_result = NodeResult::ERROR(err.to_string());
+                  result = result.and(&Some(node_result.clone()));
+                  child_results.push(child.clone_with_result(node_result));
+                }
               }
             }
-          }
 
-          self.pop_result();
-          ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(result.truthy()),
-            children: child_results
+            self.pop_result();
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result.truthy()),
+              children: child_results
+            }
           }
         }
-        Err(err) => {
-          ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::ERROR(err.to_string())),
-            children: node.children.clone()
-          }
-        }
+        Err(err) => node.clone_with_result(NodeResult::ERROR(err.to_string()))
       }
     } else {
-      ExecutionPlanNode {
-        node_type: node.node_type.clone(),
-        result: Some(NodeResult::OK),
-        children: node.children.clone()
-      }
+      node.clone_with_result(NodeResult::OK)
     }
   }
 
@@ -960,22 +959,10 @@ impl PlanMatchingContext {
               }
             }
           }
-          Err(err) => {
-            Err(ExecutionPlanNode {
-              node_type: node.node_type.clone(),
-              result: Some(NodeResult::ERROR(err.to_string())),
-              children: node.children.clone()
-            })
-          }
+          Err(err) => Err(node.clone_with_result(NodeResult::ERROR(err.to_string())))
         }
       }
-      Err(err) => {
-        Err(ExecutionPlanNode {
-          node_type: node.node_type.clone(),
-          result: Some(NodeResult::ERROR(err.to_string())),
-          children: node.children.clone()
-        })
-      }
+      Err(err) => Err(node.clone_with_result(NodeResult::ERROR(err.to_string())))
     }
   }
 
@@ -1661,35 +1648,43 @@ impl PlanMatchingContext {
     if let Some(first_node) = node.children.first() {
       match walk_tree(action_path.as_slice(), first_node, value_resolver, self) {
         Ok(first) => {
-          let mut result = NodeResult::OK;
-          let mut child_results = vec![first.clone()];
+          let first_result = first.value().unwrap_or_default();
+          if first_result.is_err() {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(first_result),
+              children: once(first.clone()).chain(node.children.iter().dropping(1).cloned()).collect()
+            }
+          } else {
+            let mut result = NodeResult::OK;
+            let mut child_results = vec![first.clone()];
 
-          let loop_items = first.value()
-            .unwrap_or_default()
-            .as_value()
-            .unwrap_or_default()
-            .to_list();
-          for (index, value) in loop_items.iter().enumerate() {
-            for child in node.children.iter().dropping(1) {
-              let updated_child = inject_index(child, index);
-              match walk_tree(&action_path, &updated_child, value_resolver, self) {
-                Ok(value) => {
-                  result = result.and(&value.result);
-                  child_results.push(value.clone());
-                }
-                Err(err) => {
-                  let node_result = NodeResult::ERROR(err.to_string());
-                  result = result.and(&Some(node_result.clone()));
-                  child_results.push(updated_child.clone_with_result(node_result));
+            let loop_items = first_result
+              .as_value()
+              .unwrap_or_default()
+              .to_list();
+            for (index, value) in loop_items.iter().enumerate() {
+              for child in node.children.iter().dropping(1) {
+                let updated_child = inject_index(child, index);
+                match walk_tree(&action_path, &updated_child, value_resolver, self) {
+                  Ok(value) => {
+                    result = result.and(&value.result);
+                    child_results.push(value.clone());
+                  }
+                  Err(err) => {
+                    let node_result = NodeResult::ERROR(err.to_string());
+                    result = result.and(&Some(node_result.clone()));
+                    child_results.push(updated_child.clone_with_result(node_result));
+                  }
                 }
               }
             }
-          }
 
-          ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(result.truthy()),
-            children: child_results
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result.truthy()),
+              children: child_results
+            }
           }
         }
         Err(err) => {

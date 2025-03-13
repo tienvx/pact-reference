@@ -237,13 +237,13 @@ impl NodeValue {
   pub fn and(&self, other: &Self) -> Self {
     match self {
       NodeValue::NULL => other.clone(),
-      NodeValue::BOOL(b) => NodeValue::BOOL(*b && other.thruthy()),
-      _ => NodeValue::BOOL(self.thruthy() && other.thruthy())
+      NodeValue::BOOL(b) => NodeValue::BOOL(*b && other.truthy()),
+      _ => NodeValue::BOOL(self.truthy() && other.truthy())
     }
   }
 
-  /// Convert this value into a boolean using a "thruthy" test
-  pub fn thruthy(&self) -> bool {
+  /// Convert this value into a boolean using a "truthy" test
+  pub fn truthy(&self) -> bool {
     match self {
       NodeValue::NULL => false,
       NodeValue::STRING(s) => !s.is_empty(),
@@ -259,20 +259,26 @@ impl NodeValue {
     }
   }
 
-  /// Converts any associated value into a list value
+  /// Converts this value into a list of values
   pub fn to_list(&self) -> Vec<NodeValue> {
     match self {
-      NodeValue::MMAP(entries) => entries.iter()
-        .map(|(k, v)| NodeValue::ENTRY(k.clone(), Box::new(NodeValue::SLIST(v.clone()))))
-        .collect(),
-      NodeValue::SLIST(list) => list.iter()
-        .map(|v| NodeValue::STRING(v.clone()))
-        .collect(),
+      NodeValue::MMAP(entries) => {
+        entries.iter()
+          .map(|(k, v)| NodeValue::ENTRY(k.clone(), Box::new(NodeValue::SLIST(v.clone()))))
+          .collect()
+      }
+      NodeValue::SLIST(list) => {
+        list.iter()
+          .map(|v| NodeValue::STRING(v.clone()))
+          .collect()
+      }
       NodeValue::JSON(json) => match json {
-        Value::Array(a) => a.iter()
-          .map(|v| NodeValue::JSON(v.clone()))
-          .collect(),
-        _ => vec![ NodeValue::JSON(json.clone()) ]
+        Value::Array(a) => {
+          a.iter()
+            .map(|v| NodeValue::JSON(v.clone()))
+            .collect()
+        }
+        _ => vec![ self.clone() ]
       }
       NodeValue::LIST(list) => list.clone(),
       _ => vec![ self.clone() ]
@@ -505,6 +511,22 @@ impl NodeResult {
       NodeResult::OK => Ok(NodeValue::BOOL(true)),
       NodeResult::VALUE(v) => Ok(v.clone()),
       NodeResult::ERROR(err) => Err(anyhow!(err.clone()))
+    }
+  }
+
+  /// If the result is an error result
+  pub fn is_err(&self) -> bool {
+    match self {
+      NodeResult::ERROR(_) => true,
+      _ => false
+    }
+  }
+
+  /// If the result is an ok result
+  pub fn is_ok(&self) -> bool {
+    match self {
+      NodeResult::OK => true,
+      _ => false
     }
   }
 }
