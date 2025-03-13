@@ -718,6 +718,7 @@ impl FromStr for Category {
       "method" => Ok(Category::METHOD),
       "path" => Ok(Category::PATH),
       "header" => Ok(Category::HEADER),
+      "headers" => Ok(Category::HEADER),
       "query" => Ok(Category::QUERY),
       "body" => Ok(Category::BODY),
       "status" => Ok(Category::STATUS),
@@ -2638,7 +2639,7 @@ mod tests {
 
   #[test]
   #[should_panic]
-  fn each_value_matching_rule_comparation_test() {
+  fn each_value_matching_rule_comparison_test() {
     assert_eq!(
       matchingrules_list!{"body"; "$.array_values" => [MatchingRule::EachValue(MatchingRuleDefinition::new("[\"string value\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None))]},
       matchingrules_list!{"body"; "$.array_values" => [MatchingRule::EachValue(MatchingRuleDefinition::new("[\"something else\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None))]}
@@ -2647,7 +2648,7 @@ mod tests {
 
   #[test]
   #[should_panic]
-  fn each_key_matching_rule_comparation_test() {
+  fn each_key_matching_rule_comparison_test() {
     assert_eq!(
       matchingrules_list!{"body"; "$.array_values" => [MatchingRule::EachKey(MatchingRuleDefinition::new("a_key".to_string(), ValueType::Unknown, MatchingRule::Type, None))]},
       matchingrules_list!{"body"; "$.array_values" => [MatchingRule::EachKey(MatchingRuleDefinition::new("another_key".to_string(), ValueType::Unknown, MatchingRule::Type, None))]}

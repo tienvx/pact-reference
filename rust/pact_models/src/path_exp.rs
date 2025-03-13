@@ -22,9 +22,10 @@ lazy_static! {
 }
 
 /// Struct to store path token
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum PathToken {
   /// Root token $
+  #[default]
   Root,
   /// named field token
   Field(String),
@@ -34,6 +35,16 @@ pub enum PathToken {
   Star,
   /// * index token
   StarIndex
+}
+
+impl PathToken {
+  /// If this path token is an index
+  pub fn is_index(&self) -> bool {
+    match self {
+      PathToken::Index(_) => true,
+      _ => false
+    }
+  }
 }
 
 impl Display for PathToken {
@@ -117,6 +128,17 @@ impl DocPath {
     }
   }
 
+  /// Construct a new DocPath from a list of tokens
+  pub fn from_tokens<I>(tokens: I) -> Self
+    where I: IntoIterator<Item = PathToken> {
+    let mut path = Self {
+      path_tokens: tokens.into_iter().collect(),
+      expr: "".into(),
+    };
+    path.expr = path.build_expr();
+    path
+  }
+
   /// Return the list of tokens that comprise this path.
   pub fn tokens(&self) -> &Vec<PathToken> {
     &self.path_tokens
@@ -125,6 +147,11 @@ impl DocPath {
   /// Return the length, in parsed tokens.
   pub fn len(&self) -> usize {
     self.path_tokens.len()
+  }
+
+  /// Returns the last item in the path. Will panic if the path is empty.
+  pub fn last(&self) -> Option<PathToken> {
+    self.path_tokens.last().cloned()
   }
 
   /// Extract the string contents of the first Field token.
@@ -197,6 +224,8 @@ impl DocPath {
     let mut path = self.clone();
     if part == "*" {
       path.push_star();
+    } else if part == "[*]" {
+      path.push_star_index();
     } else if let Ok(index) = part.parse() {
       path.push_index(index);
     } else {
@@ -222,6 +251,27 @@ impl DocPath {
         }
       }
       None => { path.push_index(index); }
+    }
+    path
+  }
+
+  /// Creates a new path by cloning this one and joining the field onto the end. Paths that end
+  /// with `*` will have the `*` replaced with the field.
+  pub fn join_field<S: Into<String>>(&self, name: S) -> Self {
+    let mut path = self.clone();
+    match self.path_tokens.last() {
+      Some(PathToken::Root) => { path.push_field(name.into()); }
+      Some(PathToken::Field(_)) => { path.push_field(name.into()); }
+      Some(PathToken::Index(_)) => { path.push_field(name.into()); }
+      Some(PathToken::Star) | Some(PathToken::StarIndex) => {
+        if let Some(part) = path.path_tokens.last_mut() {
+          *part = PathToken::Field(name.into());
+          path.expr = path.build_expr();
+        } else {
+          path.push_field(name.into());
+        }
+      }
+      None => { path.push_field(name.into()); }
     }
     path
   }
