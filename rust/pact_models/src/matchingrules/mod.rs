@@ -2720,7 +2720,7 @@ mod tests {
 
   #[test]
   #[should_panic]
-  fn each_value_matching_rule_comparation_test() {
+  fn each_value_matching_rule_comparison_test() {
     assert_eq!(
       matchingrules_list!{"body"; "$.array_values" => [
         MatchingRule::EachValue(MatchingRuleDefinition::new("[\"string value\"]".to_string(), ValueType::Unknown, MatchingRule::Type, None, "".to_string()))
@@ -2733,7 +2733,7 @@ mod tests {
 
   #[test]
   #[should_panic]
-  fn each_key_matching_rule_comparation_test() {
+  fn each_key_matching_rule_comparison_test() {
     assert_eq!(
       matchingrules_list!{"body"; "$.array_values" => [
         MatchingRule::EachKey(MatchingRuleDefinition::new("a_key".to_string(), ValueType::Unknown, MatchingRule::Type, None, "".to_string()))

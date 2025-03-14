@@ -80,6 +80,11 @@ impl <T: Debug + Display + PartialEq + Clone> Matches<&[T]> for &[T] {
       MatchingRule::EachValue(_) => Ok(()),
       MatchingRule::Values => Ok(()),
       MatchingRule::Number | MatchingRule::Decimal | MatchingRule::Integer => Ok(()),
+      MatchingRule::Time(_) | MatchingRule::Date(_) | MatchingRule::Timestamp(_) => Ok(()),
+      MatchingRule::Include(_) => Ok(()),
+      MatchingRule::ContentType(_) => Ok(()),
+      MatchingRule::Boolean => Ok(()),
+      MatchingRule::Semver => Ok(()),
       _ => Err(anyhow!("Unable to match {} using {:?}", self.for_mismatch(), matcher))
     };
     debug!("Comparing '{:?}' to '{:?}' using {:?} -> {:?}", self, actual, matcher, result);

@@ -15,7 +15,7 @@ onig = { git = "https://github.com/rust-onig/rust-onig", default-features = fals
 # version across all crates (i.e. mock server crate).
 pact_matching = { version = "~2.0.0-beta", path = "./pact_matching" }
 # Issue 389 - Pull change into other crates
-pact_models = { version = "~1.2.6", path = "./pact_models" }
+pact_models = { version = "~1.2.7", path = "./pact_models" }
 
 [profile.release]
 strip = true

@@ -1170,12 +1170,14 @@ pub struct PactVerificationProperties {
 
 #[cfg(test)]
 mod tests {
+  use std::time::Duration;
   use expectest::expect;
   use expectest::prelude::*;
   use pact_models::{Consumer, PactSpecification, Provider};
   use pact_models::prelude::RequestResponsePact;
   use pact_models::sync_interaction::RequestResponseInteraction;
   use pretty_assertions::assert_eq;
+  use tokio::time::sleep;
 
   use pact_consumer::mock_server::StartMockServerAsync;
   use pact_consumer::prelude::*;
@@ -1376,6 +1378,9 @@ mod tests {
     let client = HALClient::with_url(pact_broker.url().as_str(), None);
     let expected_requests = client.retries as usize;
     let result = client.post_json(pact_broker.url().as_str(), "{}").await;
+
+    sleep(Duration::from_millis(100)).await;
+
     expect!(result.clone()).to(be_err());
     expect!(pact_broker.metrics().requests).to(be_equal_to(expected_requests ));
   }

@@ -1,9 +1,11 @@
 use std::{env, thread};
+use std::collections::HashSet;
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 use std::ptr::null;
+use std::str::from_utf8;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -12,31 +14,29 @@ use itertools::Itertools;
 use libc::c_char;
 use log::LevelFilter;
 use maplit::*;
-use pact_ffi::log::pactffi_log_to_buffer;
-use pact_models::bodies::OptionalBody;
-use pact_models::PactSpecification;
+use multipart_2021 as multipart;
 use pretty_assertions::assert_eq;
+use regex::Regex;
 use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
-use tempfile::TempDir;
-use serde_json::{json, Value};
 use rstest::rstest;
-use regex::Regex;
+use serde_json::{json, Value};
+use tempfile::TempDir;
 
+use pact_ffi::log::pactffi_log_to_buffer;
 #[allow(deprecated)]
 use pact_ffi::mock_server::{
   pactffi_cleanup_mock_server,
   pactffi_create_mock_server,
   pactffi_create_mock_server_for_pact,
-  pactffi_mock_server_mismatches,
-  pactffi_write_pact_file,
+  pactffi_create_mock_server_for_transport,
   pactffi_mock_server_logs,
-  pactffi_create_mock_server_for_transport
+  pactffi_mock_server_mismatches,
+  pactffi_write_pact_file
 };
 #[allow(deprecated)]
 use pact_ffi::mock_server::handles::{
   InteractionPart,
-  PactHandle,
   pact_default_file_name,
   pactffi_add_text_comment,
   pactffi_free_pact_handle,
@@ -68,7 +68,9 @@ use pact_ffi::mock_server::handles::{
   pactffi_with_request,
   pactffi_with_specification,
   pactffi_write_message_pact_file,
+  PactHandle,
 };
+use pact_ffi::mock_server::handles::pactffi_with_matching_rules;
 use pact_ffi::verifier::{
   OptionsFlags,
   pactffi_verifier_add_directory_source,
@@ -80,6 +82,11 @@ use pact_ffi::verifier::{
   pactffi_verifier_set_provider_info,
   pactffi_verifier_shutdown
 };
+use pact_models::{matchingrules, PactSpecification};
+use pact_models::bodies::OptionalBody;
+use pact_models::matchingrules::{MatchingRule, RuleLogic};
+use pact_models::matchingrules::matchers_to_json;
+use pact_models::path_exp::DocPath;
 
 #[test]
 fn post_to_mock_server_with_mismatches() {
@@ -1939,6 +1946,213 @@ fn http_form_urlencoded_consumer_feature_test() {
 
   let mismatches = unsafe {
     CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
+  };
+
+  pactffi_cleanup_mock_server(port);
+
+  expect!(mismatches).to(be_equal_to("[]"));
+}
+
+// Issue #483
+#[test_log::test]
+fn time_matcher_in_query_parameters() {
+  let consumer_name = CString::new("483-consumer").unwrap();
+  let provider_name = CString::new("483-provider").unwrap();
+  let pact_handle = pactffi_new_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+  let description = CString::new("request_with_query_matcher").unwrap();
+  let interaction = pactffi_new_interaction(pact_handle.clone(), description.as_ptr());
+  let path = CString::new("/request").unwrap();
+  let query_param_matcher = CString::new("{\"value\":\"12:12\",\"pact:matcher:type\":\"time\", \"format\":\"HH:mm\"}").unwrap();
+  let address = CString::new("127.0.0.1:0").unwrap();
+  let method = CString::new("GET").unwrap();
+  let query =  CString::new("item").unwrap();
+
+  pactffi_upon_receiving(interaction.clone(), description.as_ptr());
+  pactffi_with_request(interaction.clone(), method.as_ptr(), path.as_ptr());
+  pactffi_with_query_parameter_v2(interaction.clone(), query.as_ptr(), 0, query_param_matcher.as_ptr());
+  pactffi_response_status(interaction.clone(), 200);
+
+  let port = pactffi_create_mock_server_for_pact(pact_handle.clone(), address.as_ptr(), false);
+  expect!(port).to(be_greater_than(0));
+
+  let client = Client::default();
+  let result = client.get(format!("http://127.0.0.1:{}/request?item=12:13", port).as_str())
+    .send();
+
+  let mismatches = unsafe {
+    CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
+  };
+
+  pactffi_cleanup_mock_server(port);
+
+  expect!(mismatches).to(be_equal_to("[]"));
+  match result {
+    Ok(res) => {
+      expect!(res.status()).to(be_eq(200));
+    },
+    Err(_) => {
+      panic!("expected 200 response but request failed");
+    }
+  };
+}
+
+// Issue #484
+#[test_log::test]
+fn numeric_matcher_passing_test_sending_string_value() {
+  let consumer_name = CString::new("484-consumer").unwrap();
+  let provider_name = CString::new("484-provider").unwrap();
+  let pact_handle = pactffi_new_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+
+  let description = CString::new("request_with_number_matchers").unwrap();
+  let interaction = pactffi_new_interaction(pact_handle.clone(), description.as_ptr());
+
+  let path = CString::new("/request").unwrap();
+  let content_type = CString::new("Content-Type").unwrap();
+  let request_body_with_matchers = CString::new("{\"value\":{\
+     \"key2\":{\"value\":321,\"pact:matcher:type\":\"number\"},\
+     \"key1\":{\"pact:matcher:type\":\"number\",\"value\":123.1}},\
+     \"pact:matcher:type\":\"type\"\
+  }").unwrap();
+  let address = CString::new("127.0.0.1").unwrap();
+  let description = CString::new("a request with number matchers").unwrap();
+  let method = CString::new("POST").unwrap();
+  let header = CString::new("application/json").unwrap();
+
+  pactffi_upon_receiving(interaction.clone(), description.as_ptr());
+  pactffi_with_request(interaction.clone(), method.as_ptr(), path.as_ptr());
+  pactffi_with_body(interaction.clone(), InteractionPart::Request, header.as_ptr(), request_body_with_matchers.as_ptr());
+
+  let port = pactffi_create_mock_server_for_transport(pact_handle.clone(), address.as_ptr(), 0, null(), null());
+  expect!(port).to(be_greater_than(0));
+
+  let client = Client::default();
+  let result = client.post(format!("http://127.0.0.1:{}/request", port).as_str())
+    .header("Content-Type", "application/json")
+    .body(r#"{"key2":"456","key1":"321.1"}"#)
+    .send();
+
+  thread::sleep(Duration::from_millis(100)); // Give mock server some time to update events
+  let mismatches = unsafe {
+    CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
+  };
+
+  pactffi_cleanup_mock_server(port);
+
+  let json: Value = serde_json::from_str(mismatches.as_str()).unwrap();
+  let mismatches = json.as_array()
+    .unwrap()
+    .iter()
+    .flat_map(|m| m.get("mismatches").unwrap().as_array().unwrap().clone())
+    .map(|mismatch| mismatch.as_object().cloned().unwrap())
+    .map(|mismatch| mismatch.get("mismatch").cloned().unwrap())
+    .map(|mismatch| mismatch.as_str().unwrap().to_string())
+    .collect::<HashSet<_>>();
+  assert_eq!(mismatches, hashset![
+    "Expected '456' (String) to be a number".to_string(),
+    "Expected '321.1' (String) to be a number".to_string()
+  ]);
+}
+
+// Issue #485
+#[test_log::test]
+fn include_matcher_in_query_parameters() {
+  let consumer_name = CString::new("485-consumer").unwrap();
+  let provider_name = CString::new("485-provider").unwrap();
+  let pact_handle = pactffi_new_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+
+  let description = CString::new("request_with_query_matcher").unwrap();
+  let interaction = pactffi_new_interaction(pact_handle.clone(), description.as_ptr());
+
+  let path = CString::new("/request").unwrap();
+  let query_param_matcher = CString::new("{\"value\":\"substring\",\"pact:matcher:type\":\"include\", \"value\":\"sub\"}").unwrap();
+  let address = CString::new("127.0.0.1:0").unwrap();
+  let method = CString::new("GET").unwrap();
+  let query =  CString::new("item").unwrap();
+
+  pactffi_upon_receiving(interaction.clone(), description.as_ptr());
+  pactffi_with_request(interaction.clone(), method.as_ptr(), path.as_ptr());
+  pactffi_with_query_parameter_v2(interaction.clone(), query.as_ptr(), 0, query_param_matcher.as_ptr());
+  pactffi_response_status(interaction.clone(), 200);
+
+  let port = pactffi_create_mock_server_for_pact(pact_handle.clone(), address.as_ptr(), false);
+  expect!(port).to(be_greater_than(0));
+
+  let client = Client::default();
+  let result = client.get(format!("http://127.0.0.1:{}/request?item=subway", port).as_str())
+    .send();
+
+  let mismatches = unsafe {
+    CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
+  };
+
+  pactffi_cleanup_mock_server(port);
+
+  expect!(mismatches).to(be_equal_to("[]"));
+  match result {
+    Ok(res) => {
+      expect!(res.status()).to(be_eq(200));
+    },
+    Err(_) => {
+      panic!("expected 200 response but request failed");
+    }
+  };
+}
+
+// Issue #482
+#[test_log::test]
+#[ignore = "Test for issue #452 failing after merge from master"]
+fn mime_multipart() {
+  let consumer_name = CString::new("multipart-consumer").unwrap();
+  let provider_name = CString::new("multipart-provider").unwrap();
+  let pact_handle = pactffi_new_pact(consumer_name.as_ptr(), provider_name.as_ptr());
+
+  let description = CString::new("create_multipart_file").unwrap();
+  let method = CString::new("POST").unwrap();
+  let path = CString::new("/formpost").unwrap();
+  let interaction = pactffi_new_interaction(pact_handle, description.as_ptr());
+  pactffi_with_request(interaction, method.as_ptr(), path.as_ptr());
+
+  let mut multipart = multipart::client::Multipart::from_request(multipart::mock::ClientRequest::default()).unwrap();
+  multipart.write_text("baz", "bat").unwrap();
+  let result = multipart.send().unwrap();
+  let multipart = format!("multipart/form-data; boundary={}", result.boundary);
+  let content_type = CString::new(multipart).unwrap();
+  let body = CString::new(from_utf8(result.buf.as_slice()).unwrap()).unwrap();
+
+  pactffi_with_body(interaction, InteractionPart::Request, content_type.as_ptr(), body.as_ptr());
+
+  let matching_rules = matchingrules!{
+    "header" => { "Content-Type" => [
+      MatchingRule::Regex("multipart/form-data;(\\s*charset=[^;]*;)?\\s*boundary=.*".to_string())
+    ] }
+  };
+  let matching_rules_json = matchers_to_json(&matching_rules, &PactSpecification::V4);
+  let matching_rules_str = CString::new(matching_rules_json.to_string()).unwrap();
+  pactffi_with_matching_rules(interaction, InteractionPart::Request, matching_rules_str.as_ptr());
+
+  let address = CString::new("127.0.0.1").unwrap();
+  let port = pactffi_create_mock_server_for_transport(pact_handle.clone(), address.as_ptr(), 0, null(), null());
+  expect!(port).to(be_greater_than(0));
+
+  let client = Client::default();
+  let form = reqwest::blocking::multipart::Form::new().text("baz", "bat");
+  let result = client.post(format!("http://127.0.0.1:{}/formpost", port).as_str())
+    .multipart(form)
+    .send();
+
+  thread::sleep(Duration::from_millis(100)); // Give mock server some time to update events
+  let mismatches = unsafe {
+    CStr::from_ptr(pactffi_mock_server_mismatches(port)).to_string_lossy().into_owned()
+  };
+
+  match result {
+    Ok(res) => {
+      let status = res.status();
+      expect!(status).to(be_eq(200));
+    },
+    Err(err) => {
+      panic!("expected 200 response but request failed - {}", err);
+    }
   };
 
   pactffi_cleanup_mock_server(port);

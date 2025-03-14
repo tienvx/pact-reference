@@ -11,9 +11,6 @@ on:
 
   workflow_dispatch:
 
-  schedule:
-    - cron: 0 0 * * 4 # Midnight Wednesday
-
 jobs:
   build-release:
     name: build-release (${{ matrix.targets }})

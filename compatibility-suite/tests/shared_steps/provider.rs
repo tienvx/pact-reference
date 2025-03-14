@@ -296,8 +296,8 @@ async fn a_provider_is_started_that_returns_the_response_from_interaction_with_t
     for (index, value) in table.rows.get(1).unwrap().iter().enumerate() {
       if let Some(field) = headers.get(index) {
         match field.as_str() {
-          "status" => interaction.response.status = value.parse().unwrap(),
-          "headers" => {
+          "response" => interaction.response.status = value.parse().unwrap(),
+          "response headers" => {
             let headers = interaction.response.headers_mut();
             let headers_to_add = value.split(",")
               .map(|header| {
@@ -319,7 +319,7 @@ async fn a_provider_is_started_that_returns_the_response_from_interaction_with_t
               }
             }
           },
-          "body" => {
+          "response body" => {
             setup_body(value, &mut interaction.response, None);
           },
           _ => {}

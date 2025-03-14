@@ -670,7 +670,7 @@ impl MatchingContext for CoreMatchingContext {
 }
 
 #[derive(Debug, Clone, Default)]
-/// Matching context for headers. Keys will be applied in a case-insenstive manor
+/// Matching context for headers. Keys will be applied in a case-insensitive manor
 pub struct HeaderMatchingContext {
   inner_context: CoreMatchingContext
 }
@@ -1672,7 +1672,7 @@ fn group_by<I, F, K>(items: I, f: F) -> HashMap<K, Vec<I::Item>>
   m
 }
 
-#[instrument(level = "trace", ret, skip(expected, actual))]
+#[instrument(level = "trace", ret, skip_all)]
 pub(crate) async fn compare_bodies(
   content_type: &ContentType,
   expected: &(dyn HttpPart + Send + Sync),
@@ -1789,7 +1789,7 @@ fn compare_bodies_core(
   mismatches
 }
 
-#[instrument(level = "trace", ret, skip(expected, actual))]
+#[instrument(level = "trace", ret, skip_all, fields(%content_type, ?context))]
 async fn match_body_content(
   content_type: &ContentType,
   expected: &(dyn HttpPart + Send + Sync),
@@ -1841,7 +1841,7 @@ pub async fn match_body(
   let actual_content_type = actual.content_type().unwrap_or_default();
   debug!("expected content type = '{}', actual content type = '{}'", expected_content_type,
          actual_content_type);
-  let content_type_matcher = header_context.select_best_matcher(&DocPath::root().join("Content-Type"));
+  let content_type_matcher = header_context.select_best_matcher(&DocPath::root().join("content-type"));
   debug!("content type header matcher = '{:?}'", content_type_matcher);
   if expected_content_type.is_unknown() || actual_content_type.is_unknown() ||
     expected_content_type.is_equivalent_to(&actual_content_type) ||

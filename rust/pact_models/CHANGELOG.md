@@ -1,5 +1,16 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.7 - Maintenance Release
+
+* c6346594 - fix: join_field should only replace * and not [*] parts (Ronald Holshausen, Fri Mar 14 10:38:08 2025 +1100)
+* 92394a40 - feat: enhancements backported from the V2 matching engine branch (Ronald Holshausen, Fri Mar 14 10:21:40 2025 +1100)
+* a63fb583 - fix: Path weight calculation did not take [*] fragments into account (Ronald Holshausen, Fri Mar 14 09:53:14 2025 +1100)
+* bcf2934b - feat: add additional conversions for docpath (Ronald Holshausen, Tue Mar 11 11:26:28 2025 +1100)
+* a4ecc0b6 - refactor: Extract the DocPath resolving functions from the generators to the json_utils module (Ronald Holshausen, Thu Feb 20 14:31:59 2025 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* 74df5d1d - fix: Remove duplicated timezone entries from timezone_db (Ronald Holshausen, Wed Dec 11 15:45:10 2024 +1100)
+* c266f8ea - bump version to 1.2.7 (Ronald Holshausen, Wed Dec 11 15:22:25 2024 +1100)
+
 # 1.2.6 - Maintenance Release
 
 * 707752ad - feat: Support generators for form urlencoded (tien.xuan.vo, Mon Dec 2 10:10:43 2024 +0700)

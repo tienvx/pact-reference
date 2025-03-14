@@ -170,32 +170,16 @@ impl Matches<&Value> for Value {
       },
       MatchingRule::Integer => if actual.is_i64() || actual.is_u64() {
         Ok(())
-      } else if let Some(str) = actual.as_str() {
-        match str.parse::<u64>() {
-          Ok(_) => Ok(()),
-          Err(_) => Err(anyhow!("Expected '{}' (String) to be an integer number", str))
-        }
       } else {
         Err(anyhow!("Expected {} ({}) to be an integer", value_of(actual), type_of(actual)))
       },
       MatchingRule::Decimal => if actual.is_f64() {
         Ok(())
-      } else if let Some(str) = actual.as_str() {
-        if DEC_REGEX.is_match(str) {
-          Ok(())
-        } else {
-          Err(anyhow!("Expected '{}' (String) to be a decimal number", str))
-        }
       } else {
         Err(anyhow!("Expected {} ({}) to be a decimal number", value_of(actual), type_of(actual)))
       },
       MatchingRule::Number => if actual.is_number() {
         Ok(())
-      } else if let Some(str) = actual.as_str() {
-        match str.parse::<f64>() {
-          Ok(_) => Ok(()),
-          Err(_) => Err(anyhow!("Expected '{}' (String) to be a number", str))
-        }
       } else {
         Err(anyhow!("Expected {} ({}) to be a number", value_of(actual), type_of(actual)))
       },
@@ -294,7 +278,8 @@ impl Matches<&Value> for Value {
       }
       _ => Ok(())
     };
-    debug!("JSON -> JSON: Comparing '{}' to '{}' using {:?} -> {:?}", self, actual, matcher, result);
+    debug!("JSON -> JSON: Comparing '{}' ({}) to '{}' ({}) using {:?} -> {:?}", self,
+      type_of(&self), actual, type_of(&actual), matcher, result);
     result
   }
 }
@@ -926,7 +911,7 @@ mod tests {
     let matcher = MatchingRule::Integer;
     expect!(Value::String("100".into()).matches_with(&Value::String("100.0".into()), &matcher, false)).to(be_err());
     expect!(Value::String("100".into()).matches_with(&json!(100), &matcher, false)).to(be_ok());
-    expect!(Value::String("100".into()).matches_with(&json!("100"), &matcher, false)).to(be_ok());
+    expect!(Value::String("100".into()).matches_with(&json!("100"), &matcher, false)).to(be_err());
     expect!(Value::String("100".into()).matches_with(&json!(100.02), &matcher, false)).to(be_err());
   }
 
@@ -936,7 +921,7 @@ mod tests {
     expect!(Value::String("100".into()).matches_with(&Value::String("100".into()), &matcher, false)).to(be_err());
     expect!(Value::String("100".into()).matches_with(&json!(100), &matcher, false)).to(be_err());
     expect!(Value::String("100".into()).matches_with(&json!(100.01), &matcher, false)).to(be_ok());
-    expect!(Value::String("100".into()).matches_with(&json!("100.01"), &matcher, false)).to(be_ok());
+    expect!(Value::String("100".into()).matches_with(&json!("100.01"), &matcher, false)).to(be_err());
   }
 
   #[test]
@@ -944,7 +929,7 @@ mod tests {
     let matcher = MatchingRule::Number;
     expect!(Value::String("100".into()).matches_with(&Value::String("100x".into()), &matcher, false)).to(be_err());
     expect!(Value::String("100".into()).matches_with(&json!(100), &matcher, false)).to(be_ok());
-    expect!(Value::String("100".into()).matches_with(&json!("100"), &matcher, false)).to(be_ok());
+    expect!(Value::String("100".into()).matches_with(&json!("100"), &matcher, false)).to(be_err());
     expect!(Value::String("100".into()).matches_with(&json!(100.01), &matcher, false)).to(be_ok());
   }
 

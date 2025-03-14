@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use expectest::prelude::*;
-use pretty_assertions::assert_eq;
+use pretty_assertions::{assert_eq, assert_ne};
 
 use pact_models::{matchingrules, matchingrules_list};
 use pact_models::matchingrules::expressions::{MatchingRuleDefinition, ValueType};
@@ -450,6 +450,27 @@ fn match_query_with_each_value_matching_rules_fails() {
   ]));
 }
 
+// Issue 483
+#[test_log::test]
+fn match_query_with_a_time_matcher() {
+  let context = CoreMatchingContext::new(
+    DiffConfig::AllowUnexpectedKeys,
+    &matchingrules! {
+      "query" => {
+        "a" => [ MatchingRule::Time("HH:mm".to_string()) ]
+      }
+    }.rules_for_category("query").unwrap_or_default(), &hashmap!{}
+  );
+  let mut query_map = HashMap::new();
+  query_map.insert("a".to_string(), vec![Some("12:13".to_string())]);
+  let expected = Some(query_map);
+  query_map = HashMap::new();
+  query_map.insert("a".to_string(), vec![Some("11:11".to_string())]);
+  let actual = Some(query_map);
+  let result = match_query(expected, actual, &context);
+  expect!(result.get("a").unwrap().iter()).to(be_empty());
+}
+
 #[tokio::test]
 async fn body_does_not_match_if_different_content_types() {
   let expected = Request {
@@ -610,6 +631,44 @@ async fn body_matches_with_nested_matchers() {
     &category, &hashmap!{});
   let result = match_body(&expected, &actual, &matching_context, &CoreMatchingContext::default()).await;
   expect!(result.mismatches()).to(be_equal_to(vec![]));
+}
+
+// Issue #484
+#[test_log::test(tokio::test)]
+async fn body_matching_with_number_matchers() {
+  let expected = Request {
+    headers: Some(hashmap! { "Content-Type".to_string() => vec!["application/json".to_string()] }),
+    body: OptionalBody::Present(r#"{"key2":456,"key1":321.1}"#.into(), None, None),
+    ..Request::default()
+  };
+
+  let actual = Request {
+    headers: Some(hashmap! { "Content-Type".to_string() => vec!["application/json".to_string()] }),
+    body: OptionalBody::Present(r#"{"key2":789,"key1":432.1}"#.into(), None, None),
+    ..Request::default()
+  };
+  let actual2 = Request {
+    headers: Some(hashmap! { "Content-Type".to_string() => vec!["application/json".to_string()] }),
+    body: OptionalBody::Present(r#"{"key2":"456","key1":"321.1"}"#.into(), None, None),
+    ..Request::default()
+  };
+
+  let rules = matchingrules! {
+    "body" => {
+      "$" => [ MatchingRule::Type ],
+      "$.key1" => [ MatchingRule::Number ],
+      "$.key2" => [ MatchingRule::Number ]
+    }
+  };
+  let category = rules.rules_for_category("body").unwrap();
+  let matching_context = CoreMatchingContext::new(DiffConfig::AllowUnexpectedKeys,
+    &category, &hashmap!{});
+
+  let result = match_body(&expected, &actual, &matching_context, &CoreMatchingContext::default()).await;
+  expect!(result.mismatches().iter()).to(be_empty());
+
+  let result2 = match_body(&expected, &actual2, &matching_context, &CoreMatchingContext::default()).await;
+  assert_ne!(result2.mismatches(), vec![]);
 }
 
 #[test]
@@ -896,7 +955,8 @@ fn values_matcher_defined() {
   expect!(context.values_matcher_defined(&path_y.join("0").join("y"))).to(be_false());
 }
 
-const IMAGE_BYTES: [u8; 16] = [ 0o107, 0o111, 0o106, 0o070, 0o067, 0o141, 0o001, 0o000, 0o001, 0o000, 0o200, 0o000, 0o000, 0o377, 0o377, 0o377 ];
+const IMAGE_BYTES: [u8; 16] = [ 0o107, 0o111, 0o106, 0o070, 0o067, 0o141, 0o001, 0o000, 0o001,
+  0o000, 0o200, 0o000, 0o000, 0o377, 0o377, 0o377 ];
 
 #[test]
 fn compare_bodies_core_should_check_for_content_type_matcher() {
