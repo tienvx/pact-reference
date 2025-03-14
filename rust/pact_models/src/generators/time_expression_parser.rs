@@ -353,7 +353,7 @@ mod tests {
     let result = super::expression(&mut lex, "not valid");
     assert_eq!(
       "|Error: Expected one of now, midnight, noon, 1-12 o'clock, +, -, next or last
-       |   ╭─[expression:1:1]
+       |   ╭─[ expression:1:1 ]
        |   │
        | 1 │ not valid
        |   │ ┬ \u{0020}
@@ -368,7 +368,7 @@ mod tests {
     let result = super::expression(&mut lex, "44 o'clock");
     assert_eq!(
       "|Error: Expected hour 1 to 12
-       |   ╭─[expression:1:1]
+       |   ╭─[ expression:1:1 ]
        |   │
        | 1 │ 44 o'clock
        |   │ ─┬ \u{0020}
@@ -383,7 +383,7 @@ mod tests {
     let result = super::expression(&mut lex, "now today not valid");
     assert_eq!(
       "|Error: Expected no more tokens
-       |   ╭─[expression:1:5]
+       |   ╭─[ expression:1:5 ]
        |   │
        | 1 │ now today not valid
        |   │     ┬ \u{0020}
@@ -472,7 +472,7 @@ mod tests {
     let result = super::expression(&mut lex, "midnight 2 week");
     assert_eq!(
       "|Error: Expected + or -
-       |   ╭─[expression:1:10]
+       |   ╭─[ expression:1:10 ]
        |   │
        | 1 │ midnight 2 week
        |   │          ┬ \u{0020}

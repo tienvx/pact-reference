@@ -1231,7 +1231,7 @@ mod test {
     expect!(as_string!(super::parse_comma(&mut lex, "100 notEmpty(100)"))).to(
       be_err().value(
         "|Error: Expected a comma, got 'notEmpty'
-            |   ╭─[expression:1:5]
+            |   ╭─[ expression:1:5 ]
             |   │
             | 1 │ 100 notEmpty(100)
             |   │     ────┬─── \u{0020}
@@ -1246,7 +1246,7 @@ mod test {
     expect!(as_string!(super::parse_comma(&mut lex2, "100"))).to(
       be_err().value(
         "|Error: Expected a comma, got the end of the expression
-            |   ╭─[expression:1:4]
+            |   ╭─[ expression:1:4 ]
             |   │
             | 1 │ 100
             |   │    │\u{0020}
@@ -1308,7 +1308,7 @@ mod test {
     expect!(as_string!(super::parse_matcher_def("matching(semver, '100')"))).to(
       be_err().value(
         "|Error: Expected a semver compatible string, got '100' - unexpected end of input while parsing major version number
-            |   ╭─[expression:1:18]
+            |   ╭─[ expression:1:18 ]
             |   │
             | 1 │ matching(semver, '100')
             |   │                  ──┬── \u{0020}
@@ -1320,7 +1320,7 @@ mod test {
     expect!(as_string!(super::parse_matcher_def("matching(semver, 100)"))).to(
       be_err().value(
         "|Error: Expected a string value, got 100
-            |   ╭─[expression:1:18]
+            |   ╭─[ expression:1:18 ]
             |   │
             | 1 │ matching(semver, 100)
             |   │                  ─┬─ \u{0020}
@@ -1345,7 +1345,7 @@ mod test {
     expect!(as_string!(super::parse_matching_rule(&mut lex, "matching("))).to(
       be_err().value(
         "|Error: Expected a matcher (equalTo, regex, etc.), got the end of the expression
-            |   ╭─[expression:1:10]
+            |   ╭─[ expression:1:10 ]
             |   │
             | 1 │ matching(
             |   │          │\u{0020}
@@ -1360,7 +1360,7 @@ mod test {
     expect!(as_string!(super::parse_matching_rule(&mut lex, "match(100, '100')"))).to(
       be_err().value(
         "|Error: Expected the type of matcher, got '100'
-            |   ╭─[expression:1:7]
+            |   ╭─[ expression:1:7 ]
             |   │
             | 1 │ match(100, '100')
             |   │       ─┬─ \u{0020}
@@ -1375,7 +1375,7 @@ mod test {
     expect!(as_string!(super::parse_matching_rule(&mut lex, "match(testABBC, '100')"))).to(
       be_err().value(
         "|Error: Expected the type of matcher, got 'testABBC'
-            |   ╭─[expression:1:7]
+            |   ╭─[ expression:1:7 ]
             |   │
             | 1 │ match(testABBC, '100')
             |   │       ────┬─── \u{0020}
@@ -1401,7 +1401,7 @@ mod test {
     expect!(as_string!(super::parse_matching_rule(&mut lex, "matching($"))).to(
       be_err().value(
         "|Error: Expected a string, got the end of the expression
-            |   ╭─[expression:1:11]
+            |   ╭─[ expression:1:11 ]
             |   │
             | 1 │ matching($
             |   │           │\u{0020}
@@ -1416,7 +1416,7 @@ mod test {
     expect!(as_string!(super::parse_matching_rule(&mut lex, "match($100)"))).to(
       be_err().value(
         "|Error: Expected a string value, got 100
-            |   ╭─[expression:1:8]
+            |   ╭─[ expression:1:8 ]
             |   │
             | 1 │ match($100)
             |   │        ─┬─ \u{0020}
@@ -1495,7 +1495,7 @@ mod test {
     expect!(as_string!(super::matching_definition_exp(&mut lex, "100"))).to(
       be_err().value(
         "|Error: Expected a type of matching rule definition but got the end of the expression
-            |   ╭─[expression:1:4]
+            |   ╭─[ expression:1:4 ]
             |   │
             | 1 │ 100
             |   │    │\u{0020}
@@ -1510,7 +1510,7 @@ mod test {
     expect!(as_string!(super::matching_definition_exp(&mut lex, "somethingElse('to test')"))).to(
       be_err().value(
         "|Error: Expected a type of matching rule definition, but got 'somethingElse'
-            |   ╭─[expression:1:1]
+            |   ╭─[ expression:1:1 ]
             |   │
             | 1 │ somethingElse('to test')
             |   │ ──────┬────── \u{0020}
@@ -1543,7 +1543,7 @@ mod test {
     expect!(as_string!(super::parse_each_key(&mut lex, "eachKey"))).to(
       be_err().value(
         "|Error: Expected an opening bracket, got the end of the expression
-            |   ╭─[expression:1:8]
+            |   ╭─[ expression:1:8 ]
             |   │
             | 1 │ eachKey
             |   │        │\u{0020}
@@ -1557,7 +1557,7 @@ mod test {
     expect!(as_string!(super::parse_each_key(&mut lex, "eachKey matching"))).to(
       be_err().value(
         "|Error: Expected an opening bracket, got 'matching'
-            |   ╭─[expression:1:9]
+            |   ╭─[ expression:1:9 ]
             |   │
             | 1 │ eachKey matching
             |   │         ────┬─── \u{0020}
@@ -1571,7 +1571,7 @@ mod test {
     expect!(as_string!(super::parse_each_key(&mut lex, "eachKey(matching(type, 'test') stuff"))).to(
       be_err().value(
         "|Error: Expected a closing bracket, got 'stuff'
-            |   ╭─[expression:1:32]
+            |   ╭─[ expression:1:32 ]
             |   │
             | 1 │ eachKey(matching(type, 'test') stuff
             |   │                                ──┬── \u{0020}
@@ -1585,7 +1585,7 @@ mod test {
     expect!(as_string!(super::parse_each_key(&mut lex, "eachKey(matching(type, 'test')"))).to(
       be_err().value(
         "|Error: Expected a closing bracket, got the end of the expression
-            |   ╭─[expression:1:31]
+            |   ╭─[ expression:1:31 ]
             |   │
             | 1 │ eachKey(matching(type, 'test')
             |   │                               │\u{0020}
@@ -1616,7 +1616,7 @@ mod test {
     expect!(as_string!(super::parse_each_value(&mut lex, "eachKey"))).to(
       be_err().value(
         "|Error: Expected an opening bracket, got the end of the expression
-            |   ╭─[expression:1:8]
+            |   ╭─[ expression:1:8 ]
             |   │
             | 1 │ eachKey
             |   │        │\u{0020}
@@ -1630,7 +1630,7 @@ mod test {
     expect!(as_string!(super::parse_each_value(&mut lex, "eachKey matching"))).to(
       be_err().value(
         "|Error: Expected an opening bracket, got 'matching'
-            |   ╭─[expression:1:9]
+            |   ╭─[ expression:1:9 ]
             |   │
             | 1 │ eachKey matching
             |   │         ────┬─── \u{0020}
@@ -1644,7 +1644,7 @@ mod test {
     expect!(as_string!(super::parse_each_value(&mut lex, "eachKey(matching(type, 'test') stuff"))).to(
       be_err().value(
         "|Error: Expected a closing bracket, got 'stuff'
-            |   ╭─[expression:1:32]
+            |   ╭─[ expression:1:32 ]
             |   │
             | 1 │ eachKey(matching(type, 'test') stuff
             |   │                                ──┬── \u{0020}
@@ -1658,7 +1658,7 @@ mod test {
     expect!(as_string!(super::parse_each_value(&mut lex, "eachKey(matching(type, 'test')"))).to(
       be_err().value(
         "|Error: Expected a closing bracket, got the end of the expression
-            |   ╭─[expression:1:31]
+            |   ╭─[ expression:1:31 ]
             |   │
             | 1 │ eachKey(matching(type, 'test')
             |   │                               │\u{0020}
@@ -1810,7 +1810,7 @@ mod test {
   fn process_raw_string_error_test() {
     assert_eq!(
       ">Error: Invalid unicode character escape sequence
-       >   ╭─[expression:1:2]
+       >   ╭─[ expression:1:2 ]
        >   │
        > 1 │ 'invalid escape \\u in string'
        >   │  ─────────────┬──────────── \u{0020}
@@ -1843,7 +1843,7 @@ mod test {
     let result = super::matching_definition(&mut lex, "atLeast");
     assert_eq!(as_string!(result).unwrap_err(),
         "|Error: Expected an opening bracket, got the end of the expression
-        |   ╭─[expression:1:8]
+        |   ╭─[ expression:1:8 ]
         |   │
         | 1 │ atLeast
         |   │        │\u{0020}
@@ -1855,7 +1855,7 @@ mod test {
     let mut lex = MatcherDefinitionToken::lexer("atLeast(-10)");
     assert_eq!(as_string!(super::matching_definition_exp(&mut lex, "atLeast(-10)")).unwrap_err(),
         "|Error: Expected an unsigned number, got '-10'
-        |   ╭─[expression:1:9]
+        |   ╭─[ expression:1:9 ]
         |   │
         | 1 │ atLeast(-10)
         |   │         ─┬─ \u{0020}
@@ -1867,7 +1867,7 @@ mod test {
     let mut lex = MatcherDefinitionToken::lexer("atLeast('10')");
     assert_eq!(as_string!(super::matching_definition_exp(&mut lex, "atLeast('10')")).unwrap_err(),
         "|Error: Expected an unsigned number, got ''10''
-        |   ╭─[expression:1:9]
+        |   ╭─[ expression:1:9 ]
         |   │
         | 1 │ atLeast('10')
         |   │         ──┬─ \u{0020}
@@ -1879,7 +1879,7 @@ mod test {
     let mut lex = MatcherDefinitionToken::lexer("atLeast(10");
     assert_eq!(as_string!(super::matching_definition_exp(&mut lex, "atLeast(10")).unwrap_err(),
         "|Error: Expected ')', got the end of the expression
-        |   ╭─[expression:1:11]
+        |   ╭─[ expression:1:11 ]
         |   │
         | 1 │ atLeast(10
         |   │           │\u{0020}
@@ -1905,7 +1905,7 @@ mod test {
     let result = super::matching_definition(&mut lex, "atMost");
     assert_eq!(as_string!(result).unwrap_err(),
         "|Error: Expected an opening bracket, got the end of the expression
-        |   ╭─[expression:1:7]
+        |   ╭─[ expression:1:7 ]
         |   │
         | 1 │ atMost
         |   │       │\u{0020}
@@ -1917,7 +1917,7 @@ mod test {
     let mut lex = MatcherDefinitionToken::lexer("atMost(-10)");
     assert_eq!(as_string!(super::matching_definition_exp(&mut lex, "atMost(-10)")).unwrap_err(),
         "|Error: Expected an unsigned number, got '-10'
-        |   ╭─[expression:1:8]
+        |   ╭─[ expression:1:8 ]
         |   │
         | 1 │ atMost(-10)
         |   │        ─┬─ \u{0020}
@@ -1929,7 +1929,7 @@ mod test {
     let mut lex = MatcherDefinitionToken::lexer("atMost('10')");
     assert_eq!(as_string!(super::matching_definition_exp(&mut lex, "atMost('10')")).unwrap_err(),
         "|Error: Expected an unsigned number, got ''10''
-        |   ╭─[expression:1:8]
+        |   ╭─[ expression:1:8 ]
         |   │
         | 1 │ atMost('10')
         |   │        ──┬─ \u{0020}
@@ -1941,7 +1941,7 @@ mod test {
     let mut lex = MatcherDefinitionToken::lexer("atMost(10");
     assert_eq!(as_string!(super::matching_definition_exp(&mut lex, "atMost(10")).unwrap_err(),
         "|Error: Expected ')', got the end of the expression
-        |   ╭─[expression:1:10]
+        |   ╭─[ expression:1:10 ]
         |   │
         | 1 │ atMost(10
         |   │          │\u{0020}

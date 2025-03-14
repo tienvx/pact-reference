@@ -407,7 +407,7 @@ mod tests {
     let result = super::expression(&mut lex, "not valid");
     assert_eq!(
       "|Error: Expected one of now, today, yesterday, tomorrow, +, -, next or last
-          |   ╭─[expression:1:1]
+          |   ╭─[ expression:1:1 ]
           |   │
           | 1 │ not valid
           |   │ ┬ \u{0020}
@@ -422,7 +422,7 @@ mod tests {
     let result = super::expression(&mut lex, "now today not valid");
     assert_eq!(
       "|Error: Expected + or -
-          |   ╭─[expression:1:5]
+          |   ╭─[ expression:1:5 ]
           |   │
           | 1 │ now today not valid
           |   │     ──┬── \u{0020}
@@ -511,7 +511,7 @@ mod tests {
     let result = super::expression(&mut lex, "today 2 week");
     assert_eq!(
       "|Error: Expected + or -
-       |   ╭─[expression:1:7]
+       |   ╭─[ expression:1:7 ]
        |   │
        | 1 │ today 2 week
        |   │       ┬ \u{0020}
