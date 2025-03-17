@@ -776,39 +776,39 @@ mod tests {
 
   #[test]
   fn matches_path_matches_root_path_element() {
-    expect!(DocPath::new_unwrap("$").path_weight(&vec!["$"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$").path_weight(&vec![]).0 > 0).to(be_false());
+    expect!(DocPath::new_unwrap("$").matches_path(&vec!["$"])).to(be_true());
+    expect!(DocPath::new_unwrap("$").matches_path(&vec![])).to(be_false());
   }
 
   #[test]
   fn matches_path_matches_field_name() {
-    expect!(DocPath::new_unwrap("$.name").path_weight(&vec!["$", "name"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$['name']").path_weight(&vec!["$", "name"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.name.other").path_weight(&vec!["$", "name", "other"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$['name'].other").path_weight(&vec!["$", "name", "other"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.name").path_weight(&vec!["$", "other"]).0 > 0).to(be_false());
-    expect!(DocPath::new_unwrap("$.name").path_weight(&vec!["$", "name", "other"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.other").path_weight(&vec!["$", "name", "other"]).0 > 0).to(be_false());
-    expect!(DocPath::new_unwrap("$.name.other").path_weight(&vec!["$", "name"]).0 > 0).to(be_false());
+    expect!(DocPath::new_unwrap("$.name").matches_path(&vec!["$", "name"])).to(be_true());
+    expect!(DocPath::new_unwrap("$['name']").matches_path(&vec!["$", "name"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.name.other").matches_path(&vec!["$", "name", "other"])).to(be_true());
+    expect!(DocPath::new_unwrap("$['name'].other").matches_path(&vec!["$", "name", "other"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.name").matches_path(&vec!["$", "other"])).to(be_false());
+    expect!(DocPath::new_unwrap("$.name").matches_path(&vec!["$", "name", "other"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.other").matches_path(&vec!["$", "name", "other"])).to(be_false());
+    expect!(DocPath::new_unwrap("$.name.other").matches_path(&vec!["$", "name"])).to(be_false());
   }
 
   #[test]
   fn matches_path_matches_array_indices() {
-    expect!(DocPath::new_unwrap("$[0]").path_weight(&vec!["$", "0"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.name[1]").path_weight(&vec!["$", "name", "1"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.name").path_weight(&vec!["$", "0"]).0 > 0).to(be_false());
-    expect!(DocPath::new_unwrap("$.name[1]").path_weight(&vec!["$", "name", "0"]).0 > 0).to(be_false());
-    expect!(DocPath::new_unwrap("$[1].name").path_weight(&vec!["$", "name", "1"]).0 > 0).to(be_false());
+    expect!(DocPath::new_unwrap("$[0]").matches_path(&vec!["$", "0"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.name[1]").matches_path(&vec!["$", "name", "1"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.name").matches_path(&vec!["$", "0"])).to(be_false());
+    expect!(DocPath::new_unwrap("$.name[1]").matches_path(&vec!["$", "name", "0"])).to(be_false());
+    expect!(DocPath::new_unwrap("$[1].name").matches_path(&vec!["$", "name", "1"])).to(be_false());
   }
 
   #[test]
   fn matches_path_matches_with_wildcard() {
-    expect!(DocPath::new_unwrap("$[*]").path_weight(&vec!["$", "0"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.*").path_weight(&vec!["$", "name"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.*.name").path_weight(&vec!["$", "some", "name"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.name[*]").path_weight(&vec!["$", "name", "0"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$.name[*].name").path_weight(&vec!["$", "name", "1", "name"]).0 > 0).to(be_true());
-    expect!(DocPath::new_unwrap("$[*]").path_weight(&vec!["$", "name"]).0 > 0).to(be_false());
+    expect!(DocPath::new_unwrap("$[*]").matches_path(&vec!["$", "0"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.*").matches_path(&vec!["$", "name"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.*.name").matches_path(&vec!["$", "some", "name"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.name[*]").matches_path(&vec!["$", "name", "0"])).to(be_true());
+    expect!(DocPath::new_unwrap("$.name[*].name").matches_path(&vec!["$", "name", "1", "name"])).to(be_true());
+    expect!(DocPath::new_unwrap("$[*]").matches_path(&vec!["$", "name"])).to(be_false());
   }
 
   #[test]
