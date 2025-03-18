@@ -743,6 +743,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
+name = "dyn-clone"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c7a8fb8a9fbf66c1f703fe16184d10ca0ee9d23be5b4436400408ba54a95005"
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1711,6 +1717,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kiss_xml"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5009c56f97c54e3295ba8418a36408872a0019788b0e7e80d8610c3e02e37d28"
+dependencies = [
+ "dyn-clone",
+ "regex",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2369,6 +2385,7 @@ dependencies = [
  "http 1.3.1",
  "infer",
  "itertools 0.14.0",
+ "kiss_xml",
  "lazy_static",
  "lenient_semver",
  "maplit",
@@ -2483,6 +2500,7 @@ dependencies = [
  "hex",
  "indextree",
  "itertools 0.13.0",
+ "kiss_xml",
  "lazy_static",
  "lenient_semver",
  "logos",
@@ -3889,11 +3907,10 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.18.0"
+version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c317e0a526ee6120d8dabad239c8dadca62b24b6f168914bbbc8e2fb1f0e567"
+checksum = "488960f40a3fd53d72c2a29a58722561dee8afdd175bd88e3db4677d7b2ba600"
 dependencies = [
- "cfg-if",
  "fastrand",
  "getrandom 0.3.1",
  "once_cell",
