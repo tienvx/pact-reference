@@ -4,7 +4,7 @@ use tracing::trace;
 use pact_models::path_exp::DocPath;
 use pretty_assertions::assert_eq;
 
-use crate::engine::bodies::{JsonPlanBuilder, PlanBodyBuilder};
+use crate::engine::bodies::{JsonPlanBuilder, PlanBodyBuilder, XMLPlanBuilder};
 use crate::engine::context::PlanMatchingContext;
 use crate::engine::NodeValue;
 use crate::engine::value_resolvers::ValueResolver;
@@ -432,4 +432,132 @@ fn json_with_array() {
       ) => BOOL(true)
     ) => BOOL(false)
   ) => BOOL(false)", buffer);
+}
+
+#[test_log::test]
+fn simple_xml() {
+  let path = vec!["$".to_string()];
+  let builder = XMLPlanBuilder::new();
+  let mut context = PlanMatchingContext::default();
+  let content = Bytes::copy_from_slice("<foo>test</foo>".as_bytes());
+  let node = builder.build_plan(&content, &context).unwrap();
+
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!("  %tee (
+    %xml:parse (
+      $.body => BYTES(15, PGZvbz50ZXN0PC9mb28+)
+    ) => xml:'<foo>test</foo>',
+    :$ (
+      %expect:only-entries (
+        ['foo'] => ['foo'],
+        %xml:tag-name (
+          ~>$ => xml:'<foo>test</foo>'
+        ) => 'foo'
+      ) => OK,
+      :$.foo (
+        %if (
+          %check:exists (
+            ~>$.foo => xml:'<foo>test</foo>'
+          ) => BOOL(true),
+          %match:equality (
+            xml:'<foo>test</foo>' => xml:'<foo>test</foo>',
+            ~>$.foo => xml:'<foo>test</foo>',
+            NULL => NULL
+          ) => BOOL(true),
+          %error (
+            'Was expecting an XML element <',
+            %xml:tag-name (
+              xml:'<foo>test</foo>'
+            ),
+            '> but it was missing'
+          )
+        ) => BOOL(true)
+      ) => BOOL(true)
+    ) => BOOL(true)
+  ) => BOOL(true)", buffer);
+
+  let content = Bytes::copy_from_slice("<bar></bar>".as_bytes());
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!("  %tee (
+    %xml:parse (
+      $.body => BYTES(11, PGJhcj48L2Jhcj4=)
+    ) => xml:'<bar/>',
+    :$ (
+      %expect:only-entries (
+        ['foo'] => ['foo'],
+        %xml:tag-name (
+          ~>$ => xml:'<bar/>'
+        ) => 'bar'
+      ) => ERROR(The following unexpected entries were received: ['bar']),
+      :$.foo (
+        %if (
+          %check:exists (
+            ~>$.foo => NULL
+          ) => BOOL(false),
+          %match:equality (
+            xml:'<foo>test</foo>',
+            ~>$.foo,
+            NULL
+          ),
+          %error (
+            'Was expecting an XML element <' => 'Was expecting an XML element <',
+            %xml:tag-name (
+              xml:'<foo>test</foo>' => xml:'<foo>test</foo>'
+            ) => 'foo',
+            '> but it was missing' => '> but it was missing'
+          ) => ERROR(Was expecting an XML element <foo> but it was missing)
+        ) => ERROR(Was expecting an XML element <foo> but it was missing)
+      ) => BOOL(false)
+    ) => BOOL(false)
+  ) => BOOL(false)", buffer);
+
+  let content = Bytes::copy_from_slice("<foo>test".as_bytes());
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!("  %tee (
+    %xml:parse (
+      $.body => BYTES(9, PGZvbz50ZXN0)
+    ) => ERROR(XML parse error - ParsingError: root element not closed),
+    :$ (
+      %expect:only-entries (
+        ['foo'],
+        %xml:tag-name (
+          ~>$
+        )
+      ),
+      :$.foo (
+        %if (
+          %check:exists (
+            ~>$.foo
+          ),
+          %match:equality (
+            xml:'<foo>test</foo>',
+            ~>$.foo,
+            NULL
+          ),
+          %error (
+            'Was expecting an XML element <',
+            %xml:tag-name (
+              xml:'<foo>test</foo>'
+            ),
+            '> but it was missing'
+          )
+        )
+      )
+    )
+  ) => ERROR(XML parse error - ParsingError: root element not closed)", buffer);
 }

@@ -5,8 +5,7 @@ use std::cell::Cell;
 use std::cmp::PartialEq;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
-use std::iter::Map;
-use std::slice::Iter;
+
 use ansi_term::Colour::{Green, Red};
 use anyhow::anyhow;
 use base64::Engine;
@@ -14,8 +13,8 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use itertools::Itertools;
 use serde_json::Value;
 use serde_json::Value::Object;
-use snailquote::escape;
-use tracing::trace;
+use snailquote::{escape, unescape};
+use tracing::{debug, trace};
 
 use pact_models::bodies::OptionalBody;
 use pact_models::content_types::TEXT;
@@ -27,12 +26,14 @@ use pact_models::v4::http_parts::HttpRequest;
 use crate::engine::bodies::{get_body_plan_builder, PlainTextBuilder, PlanBodyBuilder};
 use crate::engine::context::PlanMatchingContext;
 use crate::engine::value_resolvers::{CurrentStackValueResolver, HttpRequestValueResolver, ValueResolver};
+use crate::engine::xml::XmlValue;
 use crate::headers::{parse_charset_parameters, strip_whitespace};
 use crate::matchers::Matches;
 
 mod bodies;
 mod value_resolvers;
 pub mod context;
+pub mod xml;
 
 /// Enum for the type of Plan Node
 #[derive(Clone, Debug, Default)]
@@ -84,7 +85,9 @@ pub enum NodeValue {
   /// Key/Value Pair
   ENTRY(String, Box<NodeValue>),
   /// List of values
-  LIST(Vec<NodeValue>)
+  LIST(Vec<NodeValue>),
+  /// XML
+  XML(XmlValue)
 }
 
 impl NodeValue {
@@ -164,6 +167,12 @@ impl NodeValue {
         buffer.push(']');
         buffer
       }
+      NodeValue::XML(node) => match node {
+        XmlValue::Element(element) => format!("xml:{}", escape(element.to_string().as_str())),
+        XmlValue::Text(text) => format!("xml:text:{}", escape(text.as_str())),
+        XmlValue::Attribute(name, value) => format!("xml:attribute:{}={}",
+          escape(name.as_str()), escape(value.as_str()))
+      }
     }
   }
 
@@ -189,7 +198,8 @@ impl NodeValue {
       NodeValue::UINT(_) => "Unsigned Integer",
       NodeValue::JSON(_) => "JSON",
       NodeValue::ENTRY(_, _) => "Entry",
-      NodeValue::LIST(_) => "List"
+      NodeValue::LIST(_) => "List",
+      NodeValue::XML(_) => "XML"
     }
   }
 
@@ -197,6 +207,14 @@ impl NodeValue {
   pub fn as_json(&self) -> Option<Value> {
     match self {
       NodeValue::JSON(json) => Some(json.clone()),
+      _ => None
+    }
+  }
+
+  /// If this value is an XML value, returns it, otherwise returns None
+  pub fn as_xml(&self) -> Option<XmlValue> {
+    match self {
+      NodeValue::XML(xml) => Some(xml.clone()),
       _ => None
     }
   }
@@ -245,17 +263,14 @@ impl NodeValue {
   /// Convert this value into a boolean using a "truthy" test
   pub fn truthy(&self) -> bool {
     match self {
-      NodeValue::NULL => false,
       NodeValue::STRING(s) => !s.is_empty(),
       NodeValue::BOOL(b) => *b,
       NodeValue::MMAP(m) => !m.is_empty(),
       NodeValue::SLIST(s) => !s.is_empty(),
       NodeValue::BARRAY(b) => !b.is_empty(),
-      NodeValue::NAMESPACED(_, _) => false,
       NodeValue::UINT(u) => *u != 0,
-      NodeValue::JSON(_) => false,
-      NodeValue::ENTRY(_, _) => false,
-      NodeValue::LIST(l) => !l.is_empty()
+      NodeValue::LIST(l) => !l.is_empty(),
+      _ => false
     }
   }
 
@@ -364,6 +379,11 @@ impl Matches<NodeValue> for NodeValue {
         };
         list.matches_with(&vec![actual_str], matcher, cascaded)
       }
+      NodeValue::XML(xml_value) => if let Some(actual) = actual.as_xml() {
+        xml_value.matches_with(actual, matcher, cascaded)
+      } else {
+        Err(anyhow!("Was expecting an XML value but got {}", actual))
+      },
       _ => Err(anyhow!("Matching rules can not be applied to {} values", self.str_form()))
     }
   }
@@ -424,7 +444,8 @@ impl NodeResult {
         NodeValue::UINT(ui) => Some(ui.to_string()),
         NodeValue::JSON(json) => Some(json.to_string()),
         NodeValue::ENTRY(k, v) => Some(format!("{} -> {}", k, v)),
-        NodeValue::LIST(list) => Some(format!("{:?}", list))
+        NodeValue::LIST(list) => Some(format!("{:?}", list)),
+        NodeValue::XML(node) => Some(node.to_string())
       }
       NodeResult::ERROR(_) => None
     }
@@ -468,17 +489,14 @@ impl NodeResult {
     match self {
       NodeResult::OK => true,
       NodeResult::VALUE(v) => match v {
-        NodeValue::NULL => false,
         NodeValue::STRING(s) => !s.is_empty(),
         NodeValue::BOOL(b) => *b,
         NodeValue::MMAP(m) => !m.is_empty(),
         NodeValue::SLIST(l) => !l.is_empty(),
         NodeValue::BARRAY(b) => !b.is_empty(),
-        NodeValue::NAMESPACED(_, _) => false, // TODO: Need a way to resolve this
         NodeValue::UINT(ui) => *ui != 0,
-        NodeValue::JSON(_) => false,
-        NodeValue::ENTRY(_, _) => false,
-        NodeValue::LIST(l) => !l.is_empty()
+        NodeValue::LIST(l) => !l.is_empty(),
+        _ => false
       }
       NodeResult::ERROR(_) => false
     }
@@ -486,23 +504,7 @@ impl NodeResult {
 
   /// Converts this node result into a truthy value
   pub fn truthy(&self) -> NodeResult {
-    match self {
-      NodeResult::OK => NodeResult::VALUE(NodeValue::BOOL(true)),
-      NodeResult::VALUE(v) => match v {
-        NodeValue::NULL => NodeResult::VALUE(NodeValue::BOOL(false)),
-        NodeValue::STRING(s) => NodeResult::VALUE(NodeValue::BOOL(!s.is_empty())),
-        NodeValue::BOOL(b) => NodeResult::VALUE(NodeValue::BOOL(*b)),
-        NodeValue::MMAP(m) => NodeResult::VALUE(NodeValue::BOOL(!m.is_empty())),
-        NodeValue::SLIST(l) => NodeResult::VALUE(NodeValue::BOOL(!l.is_empty())),
-        NodeValue::BARRAY(b) => NodeResult::VALUE(NodeValue::BOOL(!b.is_empty())),
-        NodeValue::NAMESPACED(_, _) => NodeResult::VALUE(NodeValue::BOOL(false)), // TODO: Need a way to resolve this
-        NodeValue::UINT(ui) => NodeResult::VALUE(NodeValue::BOOL(*ui != 0)),
-        NodeValue::JSON(_) => NodeResult::VALUE(NodeValue::BOOL(false)),
-        NodeValue::ENTRY(_, _) => NodeResult::VALUE(NodeValue::BOOL(false)),
-        NodeValue::LIST(l) => NodeResult::VALUE(NodeValue::BOOL(!l.is_empty()))
-      }
-      NodeResult::ERROR(_) => NodeResult::VALUE(NodeValue::BOOL(false))
-    }
+    NodeResult::VALUE(NodeValue::BOOL(self.is_truthy()))
   }
 
   /// Unwraps the result into a value, or returns the error results as an error
@@ -1689,6 +1691,9 @@ fn walk_tree(
           "json" => serde_json::from_str(value.as_str())
             .map(|v| NodeValue::JSON(v))
             .map_err(|err| anyhow!(err)),
+          "xml" => kiss_xml::parse_str(unescape(value).unwrap_or_else(|_| value.clone()))
+            .map(|doc| NodeValue::XML(XmlValue::Element(doc.root_element().clone())))
+            .map_err(|err| anyhow!("Failed to parse XML value: {}", err)),
           _ => Err(anyhow!("'{}' is not a known namespace", namespace))
         }
         _ => Ok(val.clone())
@@ -1771,7 +1776,7 @@ fn walk_tree(
           })
         }
         Err(err) => {
-          trace!(?path, %expression, %err, "Resolve node failed");
+          debug!(?path, %expression, %err, "Resolve node failed");
           Ok(ExecutionPlanNode {
             node_type: node.node_type.clone(),
             result: Some(NodeResult::ERROR(err.to_string())),

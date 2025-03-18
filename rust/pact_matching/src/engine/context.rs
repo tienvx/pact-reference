@@ -6,15 +6,17 @@ use std::panic::RefUnwindSafe;
 
 use anyhow::anyhow;
 use itertools::Itertools;
+use maplit::hashset;
 use serde_json::{json, Value};
-use tracing::{instrument, trace, Level, debug, error};
+use tracing::{debug, error, instrument, Level, trace};
 
 use pact_models::matchingrules::{MatchingRule, MatchingRuleCategory, RuleList};
 use pact_models::path_exp::{DocPath, PathToken};
 use pact_models::prelude::v4::{SynchronousHttp, V4Pact};
 use pact_models::v4::interaction::V4Interaction;
 
-use crate::engine::{ExecutionPlanNode, NodeResult, NodeValue, PlanNodeType, walk_tree};
+use crate::engine::{ExecutionPlanNode, NodeResult, NodeValue, PlanNodeType, walk_tree, XmlValue};
+use crate::engine::NodeValue::XML;
 use crate::engine::value_resolvers::ValueResolver;
 use crate::headers::{parse_charset_parameters, strip_whitespace};
 use crate::json::type_of;
@@ -127,6 +129,8 @@ impl PlanMatchingContext {
         "push" => self.execute_push(node),
         "pop" => self.execute_pop(node),
         "json:parse" => self.execute_json_parse(action, value_resolver, node, &action_path),
+        "xml:parse" => self.execute_xml_parse(action, value_resolver, node, &action_path),
+        "xml:tag-name" => self.execute_xml_tag_name(action, value_resolver, node, &action_path),
         "json:expect:empty" => self.execute_json_expect_empty(action, value_resolver, node, &action_path),
         "json:match:length" => self.execute_json_match_length(action, value_resolver, node, &action_path),
         "json:expect:entries" => self.execute_json_expect_entries(action, value_resolver, node, &action_path),
@@ -482,6 +486,98 @@ impl PlanMatchingContext {
     }
   }
 
+  fn execute_xml_parse(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let arg_value = value.value().unwrap_or_default().as_value();
+        let result = if let Some(value) = &arg_value {
+          match value {
+            NodeValue::NULL => Ok(NodeResult::VALUE(NodeValue::NULL)),
+            NodeValue::STRING(s) => {
+              kiss_xml::parse_str(s)
+                .map(|doc| NodeResult::VALUE(NodeValue::XML(XmlValue::Element(doc.root_element().clone()))))
+                .map_err(|err| anyhow!("XML parse error - {}", err))
+            }
+            NodeValue::BARRAY(b) => {
+              kiss_xml::parse_str(String::from_utf8_lossy(b.as_slice()))
+                .map(|doc| NodeResult::VALUE(NodeValue::XML(XmlValue::Element(doc.root_element().clone()))))
+                .map_err(|err| anyhow!("XML parse error - {}", err))
+            }
+            _ => Err(anyhow!("xml:parse can not be used with {}", value.value_type()))
+          }
+        } else {
+          Ok(NodeResult::VALUE(NodeValue::NULL))
+        };
+        match result {
+          Ok(result) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result),
+              children: vec![value]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![value]
+            }
+          }
+        }
+      }
+      Err(err) => node.clone_with_result(NodeResult::ERROR(err.to_string()))
+    }
+  }
+
+  fn execute_xml_tag_name(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let arg_value = value.value().unwrap_or_default().as_value();
+        let result = if let Some(value) = &arg_value {
+          match value {
+            NodeValue::XML(xml) => match xml {
+              XmlValue::Element(element) => Ok(NodeResult::VALUE(NodeValue::STRING(element.name()))),
+              _ => Err(anyhow!("xml:tag-name can not be used with {}", xml))
+            }
+            _ => Err(anyhow!("xml:parse can not be used with {}", value.value_type()))
+          }
+        } else {
+          Ok(NodeResult::VALUE(NodeValue::NULL))
+        };
+        match result {
+          Ok(result) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result),
+              children: vec![value]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![value]
+            }
+          }
+        }
+      }
+      Err(err) => node.clone_with_result(NodeResult::ERROR(err.to_string()))
+    }
+  }
+
+
   fn execute_pop(&mut self, node: &ExecutionPlanNode) -> ExecutionPlanNode {
     if let Some(_value) = self.value_stack.pop() {
       ExecutionPlanNode {
@@ -790,7 +886,8 @@ impl PlanMatchingContext {
                 Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
               } else {
                 Err(anyhow!("Expected {} to be empty", value))
-              }
+              },
+              XML(_) => todo!("Implement expect:empty for XML")
             }
           } else {
             Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
@@ -1437,106 +1534,39 @@ impl PlanMatchingContext {
             let actual_keys = map.keys()
               .cloned()
               .collect::<HashSet<_>>();
-            match action {
-              "expect:entries" => {
-                let diff = &expected_keys - &actual_keys;
-                if diff.is_empty() {
-                  Ok(())
-                } else {
-                  let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
-                  Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
-                }
-              }
-              "expect:only-entries" => {
-                let diff = &actual_keys - &expected_keys;
-                if diff.is_empty() {
-                  Ok(())
-                } else {
-                  let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
-                  Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
-                }
-              }
-              _ => Err((format!("'{}' is not a valid action", action), None))
-            }
+            Self::check_diff(action, &expected_keys, &actual_keys)
           }
           NodeValue::SLIST(list) => {
             let actual_keys = list.iter()
               .cloned()
               .collect::<HashSet<_>>();
-            match action {
-              "expect:entries" => {
-                let diff = &expected_keys - &actual_keys;
-                if diff.is_empty() {
-                  Ok(())
-                } else {
-                  let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
-                  Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
-                }
-              }
-              "expect:only-entries" => {
-                let diff = &actual_keys - &expected_keys;
-                if diff.is_empty() {
-                  Ok(())
-                } else {
-                  let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
-                  Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
-                }
-              }
-              _ => Err((format!("'{}' is not a valid action", action), None))
-            }
+            Self::check_diff(action, &expected_keys, &actual_keys)
+          }
+          NodeValue::STRING(str) => {
+            let actual_keys = hashset![str.clone()];
+            Self::check_diff(action, &expected_keys, &actual_keys)
           }
           NodeValue::JSON(json) => match json {
             Value::Object(map) => {
               let actual_keys = map.keys()
                 .cloned()
                 .collect::<HashSet<_>>();
-              match action {
-                "expect:entries" => {
-                  let diff = &expected_keys - &actual_keys;
-                  if diff.is_empty() {
-                    Ok(())
-                  } else {
-                    let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
-                    Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
-                  }
-                }
-                "expect:only-entries" => {
-                  let diff = &actual_keys - &expected_keys;
-                  if diff.is_empty() {
-                    Ok(())
-                  } else {
-                    let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
-                    Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
-                  }
-                }
-                _ => Err((format!("'{}' is not a valid action", action), None))
-              }
+              Self::check_diff(action, &expected_keys, &actual_keys)
             }
             Value::Array(list) => {
               let actual_keys = list.iter()
                 .map(|v| v.to_string())
                 .collect::<HashSet<_>>();
-              match action {
-                "expect:entries" => {
-                  let diff = &expected_keys - &actual_keys;
-                  if diff.is_empty() {
-                    Ok(())
-                  } else {
-                    let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
-                    Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
-                  }
-                }
-                "expect:only-entries" => {
-                  let diff = &actual_keys - &expected_keys;
-                  if diff.is_empty() {
-                    Ok(())
-                  } else {
-                    let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
-                    Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
-                  }
-                }
-                _ => Err((format!("'{}' is not a valid action", action), None))
-              }
+              Self::check_diff(action, &expected_keys, &actual_keys)
+            }
+            _ => Err((format!("'{}' can't be used with a {:?} node", action, second), None))
+          }
+          NodeValue::XML(xml) => match xml {
+            XmlValue::Element(element) => {
+              let actual_keys = element.child_elements()
+                .map(|child| child.name())
+                .collect::<HashSet<_>>();
+              Self::check_diff(action, &expected_keys, &actual_keys)
             }
             _ => Err((format!("'{}' can't be used with a {:?} node", action, second), None))
           }
@@ -1598,6 +1628,34 @@ impl PlanMatchingContext {
           children: node.children.clone()
         }
       }
+    }
+  }
+
+  fn check_diff(
+    action: &str,
+    expected_keys: &HashSet<String>,
+    actual_keys: &HashSet<String>
+  ) -> Result<(), (String, Option<HashSet<String>>)> {
+    match action {
+      "expect:entries" => {
+        let diff = expected_keys - actual_keys;
+        if diff.is_empty() {
+          Ok(())
+        } else {
+          let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+          Err((format!("The following expected entries were missing: {}", keys), Some(diff)))
+        }
+      }
+      "expect:only-entries" => {
+        let diff = actual_keys - expected_keys;
+        if diff.is_empty() {
+          Ok(())
+        } else {
+          let keys = NodeValue::SLIST(diff.iter().cloned().collect_vec());
+          Err((format!("The following unexpected entries were received: {}", keys), Some(diff)))
+        }
+      }
+      _ => Err((format!("'{}' is not a valid action", action), None))
     }
   }
 
@@ -1663,7 +1721,7 @@ impl PlanMatchingContext {
               .as_value()
               .unwrap_or_default()
               .to_list();
-            for (index, value) in loop_items.iter().enumerate() {
+            for (index, _) in loop_items.iter().enumerate() {
               for child in node.children.iter().dropping(1) {
                 let updated_child = inject_index(child, index);
                 match walk_tree(&action_path, &updated_child, value_resolver, self) {

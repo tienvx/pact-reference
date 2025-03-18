@@ -5,10 +5,9 @@ use itertools::Itertools;
 use serde_json::Value;
 use tracing::{instrument, trace};
 use pact_models::bodies::OptionalBody;
-use pact_models::json_utils::resolve_path;
 use pact_models::path_exp::{DocPath, PathToken};
 use pact_models::v4::http_parts::HttpRequest;
-
+use pact_models::xml_utils::resolve_matching_node;
 use crate::engine::{NodeResult, NodeValue, PlanMatchingContext};
 
 /// Value resolver
@@ -129,7 +128,7 @@ impl ValueResolver for CurrentStackValueResolver {
             if path.is_root() {
               Ok(NodeValue::JSON(json))
             } else {
-              let json_paths = resolve_path(&json, path);
+              let json_paths = pact_models::json_utils::resolve_path(&json, path);
               trace!("resolved path {} -> {:?}", path, json_paths);
               if json_paths.is_empty() {
                 Ok(NodeValue::NULL)
@@ -145,6 +144,34 @@ impl ValueResolver for CurrentStackValueResolver {
                   .collect();
                 Ok(NodeValue::JSON(Value::Array(values)))
               }
+            }
+          }
+          NodeValue::XML(value) => {
+            if path.is_root() {
+              Ok(NodeValue::XML(value.clone()))
+            } else if let Some(element) = value.as_element() {
+              let xml_paths = pact_models::xml_utils::resolve_path(&element, path);
+              trace!("resolved path {} -> {:?}", path, xml_paths);
+              if xml_paths.is_empty() {
+                Ok(NodeValue::NULL)
+              } else if xml_paths.len() == 1 {
+                if let Some(value) = resolve_matching_node(&element, xml_paths[0].as_str()) {
+                  Ok(NodeValue::XML(value.into()))
+                } else {
+                  Ok(NodeValue::NULL)
+                }
+              } else {
+                let values = xml_paths.iter()
+                  .map(|path| {
+                    resolve_matching_node(&element, path.as_str())
+                      .map(|node| NodeValue::XML(node.into()))
+                      .unwrap_or_default()
+                  })
+                  .collect();
+                Ok(NodeValue::LIST(values))
+              }
+            } else {
+              todo!("Deal with other XML types: {}", value)
             }
           }
           _ => {

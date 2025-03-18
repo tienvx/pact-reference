@@ -4,9 +4,13 @@ use std::fmt::Debug;
 use std::sync::{Arc, LazyLock, RwLock};
 
 use bytes::Bytes;
+use itertools::Itertools;
+use kiss_xml::dom::Element;
 use nom::AsBytes;
 use serde_json::Value;
+use snailquote::escape;
 use tracing::trace;
+
 use pact_models::content_types::ContentType;
 use pact_models::matchingrules::{MatchingRule, RuleList};
 use pact_models::path_exp::DocPath;
@@ -32,6 +36,7 @@ static BODY_PLAN_BUILDERS: LazyLock<RwLock<Vec<Arc<dyn PlanBodyBuilder + Send + 
 
   // TODO: Add default implementations here
   builders.push(Arc::new(JsonPlanBuilder::new()));
+  builders.push(Arc::new(XMLPlanBuilder::new()));
 
   RwLock::new(builders)
 });
@@ -272,15 +277,112 @@ impl PlanBodyBuilder for JsonPlanBuilder {
   }
 }
 
+/// Plan builder for XML bodies
+#[derive(Clone, Debug)]
+pub struct XMLPlanBuilder;
+
+impl XMLPlanBuilder {
+  /// Create a new instance
+  pub fn new() -> Self {
+    XMLPlanBuilder{}
+  }
+
+  fn process_element(
+    &self,
+    context: &PlanMatchingContext,
+    element: &Element,
+    path: &DocPath,
+    node: &mut ExecutionPlanNode
+  ) {
+    let name = Self::name(element);
+    let element_path = path.join(&name);
+    let mut item_node = ExecutionPlanNode::container(&element_path);
+
+    if context.matcher_is_defined(&element_path) {
+      todo!("implement support for matching rules");
+    } else {
+      let mut presence_check = ExecutionPlanNode::action("if");
+      presence_check
+        .add(ExecutionPlanNode::action("check:exists")
+            .add(ExecutionPlanNode::resolve_current_value(element_path.clone())))
+      ;
+      let mut match_node = ExecutionPlanNode::action("match:equality");
+      match_node
+        .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("xml".to_string(), escape(element.to_string().as_str()).to_string())))
+        .add(ExecutionPlanNode::resolve_current_value(element_path.clone()))
+        .add(ExecutionPlanNode::value_node(NodeValue::NULL));
+      presence_check.add(match_node);
+      presence_check.add(ExecutionPlanNode::action("error")
+        .add(ExecutionPlanNode::value_node("Was expecting an XML element <"))
+        .add(ExecutionPlanNode::action("xml:tag-name")
+          .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("xml".to_string(), escape(element.to_string().as_str()).to_string()))))
+        .add(ExecutionPlanNode::value_node("> but it was missing"))
+      );
+      item_node.add(presence_check);
+    }
+
+    //       compare_attributes(path, expected, actual, mismatches, context);
+    //       compare_children(path, expected, actual, mismatches, context);
+    //       compare_text(path, expected, actual, mismatches, context);
+
+    node.add(item_node);
+  }
+
+  fn name(element: &Element) -> String {
+    if let Some(namespace) = element.namespace() {
+      format!("{}:{}", namespace, element.name())
+    } else {
+      element.name()
+    }
+  }
+}
+
+impl PlanBodyBuilder for XMLPlanBuilder {
+  fn namespace(&self) -> Option<String> {
+    Some("xml".to_string())
+  }
+  fn supports_type(&self, content_type: &ContentType) -> bool {
+    content_type.is_xml()
+  }
+
+  fn build_plan(&self, content: &Bytes, context: &PlanMatchingContext) -> anyhow::Result<ExecutionPlanNode> {
+    let dom = kiss_xml::parse_str(String::from_utf8_lossy(content.as_bytes()))?;
+    let root_element = dom.root_element();
+
+    let mut body_node = ExecutionPlanNode::action("tee");
+    body_node
+      .add(ExecutionPlanNode::action("xml:parse")
+        .add(ExecutionPlanNode::resolve_value(DocPath::new_unwrap("$.body"))));
+
+    let path = DocPath::root();
+    let mut root_node = ExecutionPlanNode::container(&path);
+
+    if !context.config.allow_unexpected_entries {
+      root_node.add(ExecutionPlanNode::action("expect:only-entries")
+        .add(ExecutionPlanNode::value_node(NodeValue::SLIST(vec![root_element.name()])))
+        .add(ExecutionPlanNode::action("xml:tag-name")
+          .add(ExecutionPlanNode::resolve_current_value(path.clone()))));
+    }
+
+    self.process_element(context, root_element, &path, &mut root_node);
+
+    body_node.add(root_node);
+
+    Ok(body_node)
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use bytes::Bytes;
   use pretty_assertions::assert_eq;
   use serde_json::{json, Value};
+
   use pact_models::matchingrules;
   use pact_models::matchingrules::MatchingRule;
-  use crate::engine::bodies::{JsonPlanBuilder, PlanBodyBuilder};
-  use crate::engine::context::PlanMatchingContext;
+
+  use crate::engine::bodies::{JsonPlanBuilder, PlanBodyBuilder, XMLPlanBuilder};
+  use crate::engine::context::{MatchingConfiguration, PlanMatchingContext};
 
   #[test]
   fn json_plan_builder_with_null() {
@@ -658,6 +760,92 @@ mod tests {
               json:{}
             )
           )
+        )
+      )
+    )
+  )
+)"#, buffer);
+  }
+
+  #[test]
+  fn xml_plan_builder_with_simple_xml() {
+    let builder = XMLPlanBuilder::new();
+    let context = PlanMatchingContext::default();
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?> <blah/>"#;
+    let content = Bytes::copy_from_slice(xml.as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(r#"%tee (
+  %xml:parse (
+    $.body
+  ),
+  :$ (
+    %expect:only-entries (
+      ['blah'],
+      %xml:tag-name (
+        ~>$
+      )
+    ),
+    :$.blah (
+      %if (
+        %check:exists (
+          ~>$.blah
+        ),
+        %match:equality (
+          xml:'<blah/>',
+          ~>$.blah,
+          NULL
+        ),
+        %error (
+          'Was expecting an XML element <',
+          %xml:tag-name (
+            xml:'<blah/>'
+          ),
+          '> but it was missing'
+        )
+      )
+    )
+  )
+)"#, buffer);
+  }
+
+  #[test]
+  fn xml_plan_builder_with_allowed_unexpected_values() {
+    let builder = XMLPlanBuilder::new();
+    let context = PlanMatchingContext {
+      config: MatchingConfiguration {
+        allow_unexpected_entries: true,
+        .. MatchingConfiguration::default()
+      },
+      .. PlanMatchingContext::default()
+    };
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?> <blah/>"#;
+    let content = Bytes::copy_from_slice(xml.as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(r#"%tee (
+  %xml:parse (
+    $.body
+  ),
+  :$ (
+    :$.blah (
+      %if (
+        %check:exists (
+          ~>$.blah
+        ),
+        %match:equality (
+          xml:'<blah/>',
+          ~>$.blah,
+          NULL
+        ),
+        %error (
+          'Was expecting an XML element <',
+          %xml:tag-name (
+            xml:'<blah/>'
+          ),
+          '> but it was missing'
         )
       )
     )
