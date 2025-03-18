@@ -3,11 +3,13 @@
 use std::collections::BTreeMap;
 use std::ops::Index;
 use std::str;
-
 use anyhow::anyhow;
 use indextree::{Arena, NodeId};
 use itertools::Itertools;
 use kiss_xml::dom::{Element, Node};
+use lazy_static::lazy_static;
+use onig::EncodedChars;
+use regex::Regex;
 use sxd_document::{Package, parser};
 use tracing::trace;
 
@@ -73,7 +75,7 @@ fn query_graph(
             query_attributes(remaining_tokens, tree, node_id, element, index);
             query_text(remaining_tokens, tree, node_id, element, index);
 
-            if let Some(PathToken::Index(i)) = remaining_tokens.first() {
+            if let Some(PathToken::Index(_)) = remaining_tokens.first() {
               query_graph(remaining_tokens, tree, node_id, element, index);
             }
 
@@ -179,6 +181,86 @@ fn query_text(
   }
 }
 
+lazy_static!{
+   static ref PATH_RE: Regex = Regex::new(r#"(\w+)\[(\d+)]"#).unwrap();
+}
+
+/// Enum to box the result value from resolve_matching_node
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum XmlResult {
+  /// Matched XML element
+  ElementNode(Element),
+  /// Matched XML text
+  TextNode(String),
+  /// Matches an attribute
+  Attribute(String, String)
+}
+
+/// Returns the matching node from the XML for the given path.
+pub fn resolve_matching_node(element: &Element, path: &str) -> Option<XmlResult> {
+  trace!(path, %element, ">>> resolve_matching_node");
+  let paths = path.split("/")
+    .filter(|s| !s.is_empty())
+    .collect_vec();
+  if let Some(first_part) = paths.first() {
+    if let Some(captures) = PATH_RE.captures(first_part) {
+      let name = &captures[1];
+      let index: usize = (&captures[2]).parse().unwrap_or_default();
+      if index == 0 && name == element.name() {
+        if paths.len() > 1 {
+          match_next(element, &paths[1..])
+        } else {
+          Some(XmlResult::ElementNode(element.clone()))
+        }
+      } else {
+        None
+      }
+    } else {
+      None
+    }
+  } else {
+    None
+  }
+}
+
+fn match_next(element: &Element, paths: &[&str]) -> Option<XmlResult> {
+  trace!(?paths, %element, ">>> match_next");
+  if let Some(first_part) = paths.first() {
+    if first_part.starts_with('@') {
+      element.attributes().get(&first_part[1..])
+        .map(|value| XmlResult::Attribute(first_part[1..].to_string(), value.clone()))
+    } else if *first_part == "#text" {
+      let text = element.text();
+      if text.is_empty() {
+        None
+      } else {
+        Some(XmlResult::TextNode(text))
+      }
+    } else if let Some(captures) = PATH_RE.captures(first_part) {
+      let name = &captures[1];
+      let index: usize = (&captures[2]).parse().unwrap_or_default();
+      let grouped_children = group_children(element);
+      let child = grouped_children.get(name)
+        .map(|values| values.get(index))
+        .flatten()
+        .map(|value| *value);
+      if let Some(child) = child {
+        if paths.len() > 1 {
+          match_next(child, &paths[1..])
+        } else {
+          Some(XmlResult::ElementNode(child.clone()))
+        }
+      } else {
+        None
+      }
+    } else {
+      None
+    }
+  } else {
+    None
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use expectest::prelude::*;
@@ -188,7 +270,7 @@ mod tests {
   use super::*;
 
   #[test_log::test]
-  fn basic_xml_test() {
+  fn resolve_path_test() {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
       <config>
         <name>My Settings</name>
@@ -259,5 +341,45 @@ mod tests {
 
     let path = DocPath::new_unwrap("$.config.sound.property[2].@name");
     expect!(resolve_path(root, &path).is_empty()).to(be_true());
+  }
+
+  #[test_log::test]
+  fn resolve_matching_node_test() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+      <config>
+        <name>My Settings</name>
+        <sound>
+          <property name="volume" value="11" />
+          <property name="mixer" value="standard" />
+        </sound>
+      </config>
+      "#;
+    let dom = kiss_xml::parse_str(xml).unwrap();
+    let root = dom.root_element();
+
+    expect!(resolve_matching_node(root, "/config[0]")).to(be_some()
+      .value(XmlResult::ElementNode(root.clone())));
+    expect!(resolve_matching_node(root, "/config[1]")).to(be_none());
+
+    let sound = root.elements_by_name("sound").next().unwrap().clone();
+    expect!(resolve_matching_node(root, "/config[0]/sound[0]")).to(be_some()
+      .value(XmlResult::ElementNode(sound.clone())));
+    expect!(resolve_matching_node(root, "/config[0]/sound[1]")).to(be_none());
+
+    let properties = sound.elements_by_name("property").cloned().collect_vec();
+    expect!(resolve_matching_node(root, "/config[0]/sound[0]/property[0]")).to(be_some()
+      .value(XmlResult::ElementNode(properties[0].clone())));
+    expect!(resolve_matching_node(root, "/config[0]/sound[0]/property[1]")).to(be_some()
+      .value(XmlResult::ElementNode(properties[1].clone())));
+
+    expect!(resolve_matching_node(root, "/config[0]/sound[0]/property[0]/@name")).to(be_some()
+      .value(XmlResult::Attribute("name".to_string(), "volume".to_string())));
+    expect!(resolve_matching_node(root, "/config[0]/sound[0]/property[1]/@name")).to(be_some()
+      .value(XmlResult::Attribute("name".to_string(), "mixer".to_string())));
+    expect!(resolve_matching_node(root, "/config[0]/sound[0]/property[1]/@other")).to(be_none());
+
+    expect!(resolve_matching_node(root, "/config[0]/name[0]/#text")).to(be_some()
+      .value(XmlResult::TextNode("My Settings".to_string())));
+    expect!(resolve_matching_node(root, "/config[0]/sound[0]/property[0]/#text")).to(be_none());
   }
 }
