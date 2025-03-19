@@ -1,5 +1,5 @@
 ARG ARCH=
-FROM rust:1-alpine3.15 AS builder
+FROM rust:1-alpine3.21 AS builder
 ARG BIN_ARCH=x86_64
 ARG VERSION=1.1.1
 
@@ -8,7 +8,7 @@ RUN gunzip pact_verifier_cli.gz
 RUN chmod +x pact_verifier_cli
 
 # Now, we need to build our _real_ Docker container, copying in the executable.
-FROM alpine:3.18
+FROM alpine:3.21
 RUN apk --no-cache add ca-certificates
 COPY --from=builder \
     /pact_verifier_cli \
