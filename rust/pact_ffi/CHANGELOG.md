@@ -1,5 +1,19 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 0.4.27 - Bugfix Release
+
+* df9beec3 - chore: Upgrade pact_verifier to 1.2.5 (Ronald Holshausen, Wed Mar 19 14:08:12 2025 +1100)
+* e32f0dbd - fix: Upgrade pact-plugin-driver to 0.7.3 (Ronald Holshausen, Wed Mar 19 11:20:39 2025 +1100)
+* bdbbd587 - Merge pull request #489 from pulak777/pact-ffi-tests (Ronald Holshausen, Mon Mar 17 09:59:44 2025 +1100)
+* 11dfc492 - feat(test):add tests for different date matcher scenarios in pact_ffi (Pulak Deyashi, Thu Mar 13 17:16:38 2025 +0000)
+* d67db1a4 - chore: Update pact_models to 1.2.7 (Ronald Holshausen, Fri Mar 14 11:02:53 2025 +1100)
+* d86ea2c8 - fix: Content type matcher was not being applied when dealing with multi-part bodies #482 (Ronald Holshausen, Mon Feb 3 17:38:49 2025 +1100)
+* 8fb0bcb9 - chore: Upgrade pact_matching to 1.2.9 (Ronald Holshausen, Fri Jan 31 09:44:14 2025 +1100)
+* e98a2183 - fix: Do not apply include matcher at the collection level #485 (Ronald Holshausen, Wed Jan 29 17:09:04 2025 +1100)
+* 096deedc - fix: when comparing JSON with number matchers, don't covert numbers in string form to numbers #484 (Ronald Holshausen, Wed Jan 29 16:52:06 2025 +1100)
+* d93dfb3f - fix: Do not apply date/time matchers at the collection level #483 (Ronald Holshausen, Wed Jan 29 14:34:31 2025 +1100)
+* 283fcb12 - bump version to 0.4.27 (Ronald Holshausen, Fri Dec 20 14:19:23 2024 +1100)
+
 # 0.4.26 - Re-release FFI
 
 * 823b009a - Reapply "chore(ci): refactor release pipeline" (Ronald Holshausen, Fri Dec 20 11:08:57 2024 +1100)
