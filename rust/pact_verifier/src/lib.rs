@@ -416,7 +416,7 @@ async fn verify_interaction<'a, F: RequestFilterExecutor, S: ProviderStateExecut
   provider_state_executor: &Arc<S>
 ) -> Result<(Option<String>, Vec<String>, Duration), (MismatchResult, Vec<String>, Duration)> {
   let start = Instant::now();
-  trace!("Verifying interaction {} {} ({:?})", interaction.type_of(), interaction.description(), interaction.id());
+  debug!("Verifying interaction {} {} ({:?})", interaction.type_of(), interaction.description(), interaction.id());
   let client = Arc::new(configure_http_client(options)
     .map_err(|err| (
       MismatchResult::Error(err.to_string(), interaction.id()),
