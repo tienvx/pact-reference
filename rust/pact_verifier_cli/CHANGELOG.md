@@ -1,5 +1,17 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.1.5 - Bugfix Release
+
+* e1a7c0f0 - chore(pact_verifier_cli): Update dependencies (Ronald Holshausen, Wed Mar 19 15:11:20 2025 +1100)
+* df9beec3 - chore: Upgrade pact_verifier to 1.2.5 (Ronald Holshausen, Wed Mar 19 14:08:12 2025 +1100)
+* d67db1a4 - chore: Update pact_models to 1.2.7 (Ronald Holshausen, Fri Mar 14 11:02:53 2025 +1100)
+* 823b009a - Reapply "chore(ci): refactor release pipeline" (Ronald Holshausen, Fri Dec 20 11:08:57 2024 +1100)
+* 7c09f177 - Revert "chore(ci): refactor release pipeline" (Ronald Holshausen, Fri Dec 20 09:31:37 2024 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* fab32aa0 - chore: Upgrade pact_models to 1.2.6 (Ronald Holshausen, Wed Dec 11 15:28:01 2024 +1100)
+* 420c654d - chore: Upgrade pact_models to 1.2.5 (Ronald Holshausen, Wed Nov 13 11:01:39 2024 +1100)
+* 791db1fc - bump version to 1.1.5 (Ronald Holshausen, Tue Aug 13 15:48:54 2024 +1000)
+
 # 1.1.4 - Bugfix Release
 
 * fa02c30b - chore: Upgrade pact_verifier to 1.2.4 (Ronald Holshausen, Tue Aug 13 15:42:48 2024 +1000)
