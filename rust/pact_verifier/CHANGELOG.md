@@ -1,5 +1,24 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.2.5 - Bugfix Release
+
+* 5ad52f84 - chore(pact_verifier): Update dependencies (Ronald Holshausen, Wed Mar 19 13:47:29 2025 +1100)
+* e32f0dbd - fix: Upgrade pact-plugin-driver to 0.7.3 (Ronald Holshausen, Wed Mar 19 11:20:39 2025 +1100)
+* 164d6bb8 - chore(pact_verifier): change debug statement (Ronald Holshausen, Wed Mar 19 11:20:16 2025 +1100)
+* d67db1a4 - chore: Update pact_models to 1.2.7 (Ronald Holshausen, Fri Mar 14 11:02:53 2025 +1100)
+* cb060659 - chore: add small timeout to test (Ronald Holshausen, Tue Feb 4 09:53:11 2025 +1100)
+* 8fb0bcb9 - chore: Upgrade pact_matching to 1.2.9 (Ronald Holshausen, Fri Jan 31 09:44:14 2025 +1100)
+* 648ab1c9 - chore: Upgrade pact_matching to 1.2.8 (Ronald Holshausen, Thu Dec 19 16:14:10 2024 +1100)
+* 5fdfd023 - chore: Upgrade all the tracing crates to the latest (Ronald Holshausen, Fri Dec 13 10:54:51 2024 +1100)
+* fab32aa0 - chore: Upgrade pact_models to 1.2.6 (Ronald Holshausen, Wed Dec 11 15:28:01 2024 +1100)
+* 44d9dc1e - fix(plugins): Upgrade pact-plugin-driver to 0.7.2, fixes #473 (Ronald Holshausen, Fri Nov 29 15:48:40 2024 +1100)
+* 7735a276 - Merge branch 'fix/verifier_publish_results_ruby_thin_server' of github.com:YOU54F/pact-reference into YOU54F-fix/verifier_publish_results_ruby_thin_server (Ronald Holshausen, Thu Nov 28 09:36:09 2024 +1100)
+* 420c654d - chore: Upgrade pact_models to 1.2.5 (Ronald Holshausen, Wed Nov 13 11:01:39 2024 +1100)
+* abf14232 - fix(verifier): add Accept-Charset=utf8 header when post/put (Yousaf Nabi, Tue Nov 12 23:57:56 2024 +0000)
+* c1a00dd8 - chore: Upgrade pact-plugin-driver to 0.7.1 (Ronald Holshausen, Tue Sep 3 15:47:22 2024 +1000)
+* dc441709 - chore: Upgrade pact_matching to 1.2.7 (Ronald Holshausen, Tue Aug 27 14:57:12 2024 +1000)
+* b33fa126 - bump version to 1.2.5 (Ronald Holshausen, Tue Aug 13 15:39:33 2024 +1000)
+
 # 1.2.4 - Bugfix Release
 
 * 978677cc - chore: Upgrade pact_matching to 1.2.6 (Ronald Holshausen, Tue Aug 13 15:27:49 2024 +1000)
