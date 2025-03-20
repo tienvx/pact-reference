@@ -128,7 +128,8 @@ fn query_graph(
   }
 }
 
-fn group_children(element: &Element) -> BTreeMap<String, Vec<&Element>> {
+/// Groups all the child element by name
+pub fn group_children(element: &Element) -> BTreeMap<String, Vec<&Element>> {
   element.child_elements()
     .fold(BTreeMap::new(), |mut acc, child| {
       acc.entry(child.name())

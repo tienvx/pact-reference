@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::cmp::PartialEq;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
 use ansi_term::Colour::{Green, Red};
@@ -13,8 +13,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use itertools::Itertools;
 use serde_json::Value;
 use serde_json::Value::Object;
-use snailquote::{escape, unescape};
-use tracing::{debug, trace};
+use snailquote::escape;
 
 use pact_models::bodies::OptionalBody;
 use pact_models::content_types::TEXT;
@@ -25,7 +24,8 @@ use pact_models::v4::http_parts::HttpRequest;
 
 use crate::engine::bodies::{get_body_plan_builder, PlainTextBuilder, PlanBodyBuilder};
 use crate::engine::context::PlanMatchingContext;
-use crate::engine::value_resolvers::{CurrentStackValueResolver, HttpRequestValueResolver, ValueResolver};
+use crate::engine::interpreter::ExecutionPlanInterpreter;
+use crate::engine::value_resolvers::{HttpRequestValueResolver, ValueResolver};
 use crate::engine::xml::XmlValue;
 use crate::headers::{parse_charset_parameters, strip_whitespace};
 use crate::matchers::Matches;
@@ -34,6 +34,7 @@ mod bodies;
 mod value_resolvers;
 pub mod context;
 pub mod xml;
+mod interpreter;
 
 /// Enum for the type of Plan Node
 #[derive(Clone, Debug, Default)]
@@ -1630,200 +1631,17 @@ fn setup_body_plan(
 pub fn execute_request_plan(
   plan: &ExecutionPlan,
   actual: &HttpRequest,
-  context: &mut PlanMatchingContext
+  context: &PlanMatchingContext
 ) -> anyhow::Result<ExecutionPlan> {
   let value_resolver = HttpRequestValueResolver {
     request: actual.clone()
   };
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(context);
   let path = vec![];
-  let executed_tree = walk_tree(&path, &plan.plan_root, &value_resolver, context)?;
+  let executed_tree = interpreter.walk_tree(&path, &plan.plan_root, &value_resolver)?;
   Ok(ExecutionPlan {
     plan_root: executed_tree
   })
-}
-
-fn walk_tree(
-  path: &[String],
-  node: &ExecutionPlanNode,
-  value_resolver: &dyn ValueResolver,
-  context: &mut PlanMatchingContext
-) -> anyhow::Result<ExecutionPlanNode> {
-  match &node.node_type {
-    PlanNodeType::EMPTY => {
-      trace!(?path, "walk_tree ==> Empty node");
-      Ok(node.clone())
-    },
-    PlanNodeType::CONTAINER(label) => {
-      trace!(?path, %label, "walk_tree ==> Container node");
-
-      let mut result = vec![];
-      let mut child_path = path.to_vec();
-      child_path.push(label.clone());
-      let mut status = NodeResult::OK;
-      let mut loop_items = VecDeque::from(node.children.clone());
-
-      while !loop_items.is_empty() {
-        let child = loop_items.pop_front().unwrap();
-        let child_result = walk_tree(&child_path, &child, value_resolver, context)?;
-        status = status.and(&child_result.result);
-        result.push(child_result.clone());
-        if child_result.is_splat() {
-          for item in child_result.children.iter().rev() {
-            loop_items.push_front(item.clone());
-          }
-        }
-      }
-
-      Ok(ExecutionPlanNode {
-        node_type: node.node_type.clone(),
-        result: Some(status.truthy()),
-        children: result
-      })
-    }
-    PlanNodeType::ACTION(action) => {
-      trace!(?path, %action, "walk_tree ==> Action node");
-      Ok(context.execute_action(action.as_str(), value_resolver, node, path))
-    }
-    PlanNodeType::VALUE(val) => {
-      trace!(?path, ?val, "walk_tree ==> Value node");
-      let value = match val {
-        NodeValue::NAMESPACED(namespace, value) => match namespace.as_str() {
-          "json" => serde_json::from_str(value.as_str())
-            .map(|v| NodeValue::JSON(v))
-            .map_err(|err| anyhow!(err)),
-          "xml" => kiss_xml::parse_str(unescape(value).unwrap_or_else(|_| value.clone()))
-            .map(|doc| NodeValue::XML(XmlValue::Element(doc.root_element().clone())))
-            .map_err(|err| anyhow!("Failed to parse XML value: {}", err)),
-          _ => Err(anyhow!("'{}' is not a known namespace", namespace))
-        }
-        _ => Ok(val.clone())
-      }?;
-      Ok(ExecutionPlanNode {
-        node_type: node.node_type.clone(),
-        result: Some(NodeResult::VALUE(value)),
-        children: vec![]
-      })
-    }
-    PlanNodeType::RESOLVE(resolve_path) => {
-      trace!(?path, %resolve_path, "walk_tree ==> Resolve node");
-      match value_resolver.resolve(resolve_path, context) {
-        Ok(val) => {
-          Ok(ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::VALUE(val.clone())),
-            children: vec![]
-          })
-        }
-        Err(err) => {
-          trace!(?path, %resolve_path, %err, "Resolve node failed");
-          Ok(ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::ERROR(err.to_string())),
-            children: vec![]
-          })
-        }
-      }
-    }
-    PlanNodeType::PIPELINE => {
-      trace!(?path, "walk_tree ==> Apply pipeline node");
-
-      let child_path = path.to_vec();
-      context.push_result(None);
-      let mut child_results = vec![];
-      let mut loop_items = VecDeque::from(node.children.clone());
-
-      // TODO: Need a short circuit here if any child results in an error
-      while !loop_items.is_empty() {
-        let child = loop_items.pop_front().unwrap();
-        let child_result = walk_tree(&child_path, &child, value_resolver, context)?;
-        context.update_result(child_result.result.clone());
-        child_results.push(child_result.clone());
-        if child_result.is_splat() {
-          for item in child_result.children.iter().rev() {
-            loop_items.push_front(item.clone());
-          }
-        }
-      }
-
-      let result = context.pop_result();
-      match result {
-        Some(value) => {
-          Ok(ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(value),
-            children: child_results
-          })
-        }
-        None => {
-          trace!(?path, "Value from stack is empty");
-          Ok(ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::ERROR("Value from stack is empty".to_string())),
-            children: child_results
-          })
-        }
-      }
-    }
-    PlanNodeType::RESOLVE_CURRENT(expression) => {
-      trace!(?path, %expression, "walk_tree ==> Resolve current node");
-      let resolver = CurrentStackValueResolver {};
-      match resolver.resolve(expression, context) {
-        Ok(val) => {
-          Ok(ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::VALUE(val.clone())),
-            children: vec![]
-          })
-        }
-        Err(err) => {
-          debug!(?path, %expression, %err, "Resolve node failed");
-          Ok(ExecutionPlanNode {
-            node_type: node.node_type.clone(),
-            result: Some(NodeResult::ERROR(err.to_string())),
-            children: vec![]
-          })
-        }
-      }
-    }
-    PlanNodeType::SPLAT => {
-      trace!(?path, "walk_tree ==> Apply splat node");
-
-      let child_path = path.to_vec();
-      let mut child_results = vec![];
-
-      // TODO: Need a short circuit here if any child results in an error
-      for child in &node.children {
-        let child_result = walk_tree(&child_path, child, value_resolver, context)?;
-        match &child_result.result {
-          None => child_results.push(child_result.clone()),
-          Some(result) => match result {
-            NodeResult::OK => child_results.push(child_result.clone()),
-            NodeResult::VALUE(value) => match value {
-              NodeValue::MMAP(map) => {
-                for (key, value) in map {
-                  child_results.push(child_result.clone_with_value(NodeValue::ENTRY(key.clone(), Box::new(NodeValue::SLIST(value.clone())))));
-                }
-              }
-              NodeValue::SLIST(list) => {
-                for item in list {
-                  child_results.push(child_result.clone_with_value(NodeValue::STRING(item.clone())));
-                }
-              }
-              _ => child_results.push(child_result.clone())
-            }
-            NodeResult::ERROR(_) => child_results.push(child_result.clone())
-          }
-        }
-      }
-
-      Ok(ExecutionPlanNode {
-        node_type: node.node_type.clone(),
-        result: Some(NodeResult::OK),
-        children: child_results
-      })
-    }
-    PlanNodeType::ANNOTATION(_) => Ok(node.clone())
-  }
 }
 
 #[cfg(test)]

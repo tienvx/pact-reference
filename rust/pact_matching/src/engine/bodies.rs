@@ -4,7 +4,6 @@ use std::fmt::Debug;
 use std::sync::{Arc, LazyLock, RwLock};
 
 use bytes::Bytes;
-use itertools::Itertools;
 use kiss_xml::dom::Element;
 use nom::AsBytes;
 use serde_json::Value;
@@ -14,7 +13,7 @@ use tracing::trace;
 use pact_models::content_types::ContentType;
 use pact_models::matchingrules::{MatchingRule, RuleList};
 use pact_models::path_exp::DocPath;
-
+use pact_models::xml_utils::group_children;
 use crate::engine::{build_matching_rule_node, ExecutionPlanNode, NodeValue, PlanMatchingContext};
 
 /// Trait for implementations of builders for different types of bodies

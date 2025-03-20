@@ -1896,7 +1896,6 @@ pub async fn match_request<'a>(
     let mut context = PlanMatchingContext {
       pact: pact.as_v4_pact().unwrap_or_default(),
       interaction: interaction.as_v4().unwrap(),
-      value_stack: vec![],
       matching_rules: Default::default(),
       config
     };

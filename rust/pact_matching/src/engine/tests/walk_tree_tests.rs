@@ -8,7 +8,7 @@ use crate::engine::bodies::{JsonPlanBuilder, PlanBodyBuilder, XMLPlanBuilder};
 use crate::engine::context::PlanMatchingContext;
 use crate::engine::NodeValue;
 use crate::engine::value_resolvers::ValueResolver;
-use crate::engine::walk_tree;
+use crate::engine::interpreter::ExecutionPlanInterpreter;
 
 struct TestValueResolver {
   pub bytes: Vec<u8>
@@ -25,14 +25,15 @@ impl ValueResolver for TestValueResolver {
 fn json_with_null() {
   let path = vec!["$".to_string()];
   let builder = JsonPlanBuilder::new();
-  let mut context = PlanMatchingContext::default();
+  let context = PlanMatchingContext::default();
   let content = Bytes::copy_from_slice(Value::Null.to_string().as_bytes());
   let node = builder.build_plan(&content, &context).unwrap();
 
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -52,7 +53,8 @@ fn json_with_null() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -72,7 +74,8 @@ fn json_with_null() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -93,14 +96,15 @@ fn json_with_null() {
 fn json_with_boolean() {
   let path = vec!["$".to_string()];
   let builder = JsonPlanBuilder::new();
-  let mut context = PlanMatchingContext::default();
+  let context = PlanMatchingContext::default();
   let content = Bytes::copy_from_slice(Value::Bool(true).to_string().as_bytes());
   let node = builder.build_plan(&content, &context).unwrap();
 
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -120,7 +124,8 @@ fn json_with_boolean() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -141,14 +146,15 @@ fn json_with_boolean() {
 fn json_with_empty_array() {
   let path = vec!["$".to_string()];
   let builder = JsonPlanBuilder::new();
-  let mut context = PlanMatchingContext::default();
+  let context = PlanMatchingContext::default();
   let content = Bytes::copy_from_slice(Value::Array(vec![]).to_string().as_bytes());
   let node = builder.build_plan(&content, &context).unwrap();
 
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -167,7 +173,8 @@ fn json_with_empty_array() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -186,7 +193,8 @@ fn json_with_empty_array() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -206,14 +214,15 @@ fn json_with_empty_array() {
 fn json_with_array() {
   let path = vec!["$".to_string()];
   let builder = JsonPlanBuilder::new();
-  let mut context = PlanMatchingContext::default();
+  let context = PlanMatchingContext::default();
   let content = Bytes::copy_from_slice(json!([1, 2, 3]).to_string().as_bytes());
   let node = builder.build_plan(&content, &context).unwrap();
 
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -269,7 +278,8 @@ fn json_with_array() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -325,7 +335,8 @@ fn json_with_array() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -381,7 +392,8 @@ fn json_with_array() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -435,17 +447,18 @@ fn json_with_array() {
 }
 
 #[test_log::test]
-fn simple_xml() {
+fn very_simple_xml() {
   let path = vec!["$".to_string()];
   let builder = XMLPlanBuilder::new();
-  let mut context = PlanMatchingContext::default();
+  let context = PlanMatchingContext::default();
   let content = Bytes::copy_from_slice("<foo>test</foo>".as_bytes());
   let node = builder.build_plan(&content, &context).unwrap();
 
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -485,7 +498,8 @@ fn simple_xml() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
@@ -525,7 +539,8 @@ fn simple_xml() {
   let resolver = TestValueResolver {
     bytes: content.to_vec()
   };
-  let result = walk_tree(&path, &node, &resolver, &mut context).unwrap();
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
   let mut buffer = String::new();
   result.pretty_form(&mut buffer, 2);
   assert_eq!("  %tee (
