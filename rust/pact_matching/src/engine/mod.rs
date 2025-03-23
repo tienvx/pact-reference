@@ -25,7 +25,7 @@ use pact_models::v4::http_parts::HttpRequest;
 use crate::engine::bodies::{get_body_plan_builder, PlainTextBuilder, PlanBodyBuilder};
 use crate::engine::context::PlanMatchingContext;
 use crate::engine::interpreter::ExecutionPlanInterpreter;
-use crate::engine::value_resolvers::{HttpRequestValueResolver, ValueResolver};
+use crate::engine::value_resolvers::HttpRequestValueResolver;
 use crate::engine::xml::XmlValue;
 use crate::headers::{parse_charset_parameters, strip_whitespace};
 use crate::matchers::Matches;
@@ -342,6 +342,18 @@ impl From<HashMap<&str, Value>> for NodeValue {
   fn from(value: HashMap<&str, Value>) -> Self {
     let json = Object(value.iter().map(|(k, v)| (k.to_string(), v.clone())).collect());
     NodeValue::JSON(json)
+  }
+}
+
+impl From<Vec<String>> for NodeValue {
+  fn from(value: Vec<String>) -> Self {
+    NodeValue::SLIST(value)
+  }
+}
+
+impl From<Vec<&String>> for NodeValue {
+  fn from(value: Vec<&String>) -> Self {
+    NodeValue::SLIST(value.iter().map(|v| (*v).clone()).collect())
   }
 }
 

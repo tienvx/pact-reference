@@ -466,30 +466,27 @@ fn very_simple_xml() {
       $.body => BYTES(15, PGZvbz50ZXN0PC9mb28+)
     ) => xml:'<foo>test</foo>',
     :$ (
-      %expect:only-entries (
-        ['foo'] => ['foo'],
-        %xml:tag-name (
-          ~>$ => xml:'<foo>test</foo>'
-        ) => 'foo'
-      ) => OK,
-      :$.foo (
-        %if (
-          %check:exists (
+      %if (
+        %check:exists (
+          ~>$.foo => xml:'<foo>test</foo>'
+        ) => BOOL(true),
+        :$.foo (
+          :#text (
+            %match:equality (
+              'test' => 'test',
+              %to-string (
+                ~>$.foo['#text'] => xml:text:test
+              ) => 'test',
+              NULL => NULL
+            ) => BOOL(true)
+          ) => BOOL(true),
+          %expect:empty (
             ~>$.foo => xml:'<foo>test</foo>'
-          ) => BOOL(true),
-          %match:equality (
-            xml:'<foo>test</foo>' => xml:'<foo>test</foo>',
-            ~>$.foo => xml:'<foo>test</foo>',
-            NULL => NULL
-          ) => BOOL(true),
-          %error (
-            'Was expecting an XML element <',
-            %xml:tag-name (
-              xml:'<foo>test</foo>'
-            ),
-            '> but it was missing'
-          )
-        ) => BOOL(true)
+          ) => BOOL(true)
+        ) => BOOL(true),
+        %error (
+          'Was expecting an XML element /foo but it was missing'
+        )
       ) => BOOL(true)
     ) => BOOL(true)
   ) => BOOL(true)", buffer);
@@ -507,31 +504,28 @@ fn very_simple_xml() {
       $.body => BYTES(11, PGJhcj48L2Jhcj4=)
     ) => xml:'<bar/>',
     :$ (
-      %expect:only-entries (
-        ['foo'] => ['foo'],
-        %xml:tag-name (
-          ~>$ => xml:'<bar/>'
-        ) => 'bar'
-      ) => ERROR(The following unexpected entries were received: ['bar']),
-      :$.foo (
-        %if (
-          %check:exists (
-            ~>$.foo => NULL
-          ) => BOOL(false),
-          %match:equality (
-            xml:'<foo>test</foo>',
-            ~>$.foo,
-            NULL
+      %if (
+        %check:exists (
+          ~>$.foo => NULL
+        ) => BOOL(false),
+        :$.foo (
+          :#text (
+            %match:equality (
+              'test',
+              %to-string (
+                ~>$.foo['#text']
+              ),
+              NULL
+            )
           ),
-          %error (
-            'Was expecting an XML element <' => 'Was expecting an XML element <',
-            %xml:tag-name (
-              xml:'<foo>test</foo>' => xml:'<foo>test</foo>'
-            ) => 'foo',
-            '> but it was missing' => '> but it was missing'
-          ) => ERROR(Was expecting an XML element <foo> but it was missing)
-        ) => ERROR(Was expecting an XML element <foo> but it was missing)
-      ) => BOOL(false)
+          %expect:empty (
+            ~>$.foo
+          )
+        ),
+        %error (
+          'Was expecting an XML element /foo but it was missing' => 'Was expecting an XML element /foo but it was missing'
+        ) => ERROR(Was expecting an XML element /foo but it was missing)
+      ) => ERROR(Was expecting an XML element /foo but it was missing)
     ) => BOOL(false)
   ) => BOOL(false)", buffer);
 
@@ -548,31 +542,918 @@ fn very_simple_xml() {
       $.body => BYTES(9, PGZvbz50ZXN0)
     ) => ERROR(XML parse error - ParsingError: root element not closed),
     :$ (
-      %expect:only-entries (
-        ['foo'],
-        %xml:tag-name (
-          ~>$
-        )
-      ),
-      :$.foo (
-        %if (
-          %check:exists (
+      %if (
+        %check:exists (
+          ~>$.foo
+        ),
+        :$.foo (
+          :#text (
+            %match:equality (
+              'test',
+              %to-string (
+                ~>$.foo['#text']
+              ),
+              NULL
+            )
+          ),
+          %expect:empty (
             ~>$.foo
-          ),
-          %match:equality (
-            xml:'<foo>test</foo>',
-            ~>$.foo,
-            NULL
-          ),
-          %error (
-            'Was expecting an XML element <',
-            %xml:tag-name (
-              xml:'<foo>test</foo>'
-            ),
-            '> but it was missing'
           )
+        ),
+        %error (
+          'Was expecting an XML element /foo but it was missing'
         )
       )
     )
   ) => ERROR(XML parse error - ParsingError: root element not closed)", buffer);
+}
+
+#[test_log::test]
+fn simple_xml() {
+  let path = vec!["$".to_string()];
+  let context = PlanMatchingContext::default();
+  let builder = XMLPlanBuilder::new();
+  let content = Bytes::copy_from_slice(r#"<?xml version="1.0" encoding="UTF-8"?>
+      <config>
+        <name>My Settings</name>
+        <sound>
+          <property name="volume" value="11" />
+          <property name="mixer" value="standard" />
+        </sound>
+      </config>
+  "#.as_bytes());
+  let node = builder.build_plan(&content, &context).unwrap();
+
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!(r#"  %tee (
+    %xml:parse (
+      $.body => BYTES(239, PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KICAgICAgPGNvbmZpZz4KICAgICAgICA8bmFtZT5NeSBTZXR0aW5nczwvbmFtZT4KICAgICAgICA8c291bmQ+CiAgICAgICAgICA8cHJvcGVydHkgbmFtZT0idm9sdW1lIiB2YWx1ZT0iMTEiIC8+CiAgICAgICAgICA8cHJvcGVydHkgbmFtZT0ibWl4ZXIiIHZhbHVlPSJzdGFuZGFyZCIgLz4KICAgICAgICA8L3NvdW5kPgogICAgICA8L2NvbmZpZz4KICA=)
+    ) => xml:"<config>\n  <name>My Settings</name>\n  <sound>\n    <property name=\"volume\" value=\"11\"/>\n    <property name=\"mixer\" value=\"standard\"/>\n  </sound>\n</config>",
+    :$ (
+      %if (
+        %check:exists (
+          ~>$.config => xml:"<config>\n  <name>My Settings</name>\n  <sound>\n    <property name=\"volume\" value=\"11\"/>\n    <property name=\"mixer\" value=\"standard\"/>\n  </sound>\n</config>"
+        ) => BOOL(true),
+        :$.config (
+          :#text (
+            %expect:empty (
+              %to-string (
+                ~>$.config['#text'] => NULL
+              ) => NULL
+            ) => BOOL(true)
+          ) => BOOL(true),
+          %expect:only-entries (
+            ['name', 'sound'] => ['name', 'sound'],
+            ~>$.config => xml:"<config>\n  <name>My Settings</name>\n  <sound>\n    <property name=\"volume\" value=\"11\"/>\n    <property name=\"mixer\" value=\"standard\"/>\n  </sound>\n</config>"
+          ) => OK,
+          %if (
+            %check:exists (
+              ~>$.config.name[0] => xml:'<name>My Settings</name>'
+            ) => BOOL(true),
+            :$.config.name[0] (
+              :#text (
+                %match:equality (
+                  'My Settings' => 'My Settings',
+                  %to-string (
+                    ~>$.config.name[0]['#text'] => xml:text:'My Settings'
+                  ) => 'My Settings',
+                  NULL => NULL
+                ) => BOOL(true)
+              ) => BOOL(true),
+              %expect:empty (
+                ~>$.config.name[0] => xml:'<name>My Settings</name>'
+              ) => BOOL(true)
+            ) => BOOL(true),
+            %error (
+              'Was expecting an XML element /config/name/0 but it was missing'
+            )
+          ) => BOOL(true),
+          %if (
+            %check:exists (
+              ~>$.config.sound[0] => xml:"<sound>\n  <property name=\"volume\" value=\"11\"/>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>"
+            ) => BOOL(true),
+            :$.config.sound[0] (
+              :#text (
+                %expect:empty (
+                  %to-string (
+                    ~>$.config.sound[0]['#text'] => NULL
+                  ) => NULL
+                ) => BOOL(true)
+              ) => BOOL(true),
+              %expect:only-entries (
+                ['property'] => ['property'],
+                ~>$.config.sound[0] => xml:"<sound>\n  <property name=\"volume\" value=\"11\"/>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>"
+              ) => OK,
+              %if (
+                %check:exists (
+                  ~>$.config.sound[0].property[0] => xml:'<property name="volume" value="11"/>'
+                ) => BOOL(true),
+                :$.config.sound[0].property[0] (
+                  :attributes (
+                    :$.config.sound[0].property[0]['@name'] (
+                      #{"@name='volume'"},
+                      %if (
+                        %check:exists (
+                          ~>$.config.sound[0].property[0]['@name'] => xml:attribute:name=volume
+                        ) => BOOL(true),
+                        %match:equality (
+                          'volume' => 'volume',
+                          %xml:value (
+                            ~>$.config.sound[0].property[0]['@name'] => xml:attribute:name=volume
+                          ) => 'volume',
+                          NULL => NULL
+                        ) => BOOL(true)
+                      ) => BOOL(true)
+                    ) => BOOL(true),
+                    :$.config.sound[0].property[0]['@value'] (
+                      #{"@value='11'"},
+                      %if (
+                        %check:exists (
+                          ~>$.config.sound[0].property[0]['@value'] => xml:attribute:value=11
+                        ) => BOOL(true),
+                        %match:equality (
+                          '11' => '11',
+                          %xml:value (
+                            ~>$.config.sound[0].property[0]['@value'] => xml:attribute:value=11
+                          ) => '11',
+                          NULL => NULL
+                        ) => BOOL(true)
+                      ) => BOOL(true)
+                    ) => BOOL(true),
+                    %expect:entries (
+                      ['name', 'value'] => ['name', 'value'],
+                      %xml:attributes (
+                        ~>$.config.sound[0].property[0] => xml:'<property name="volume" value="11"/>'
+                      ) => {'name': 'volume', 'value': '11'},
+                      %join (
+                        'The following expected attributes were missing: ',
+                        %join-with (
+                          ', ',
+                          ** (
+                            %apply ()
+                          )
+                        )
+                      )
+                    ) => OK
+                  ) => BOOL(true),
+                  :#text (
+                    %expect:empty (
+                      %to-string (
+                        ~>$.config.sound[0].property[0]['#text'] => NULL
+                      ) => NULL
+                    ) => BOOL(true)
+                  ) => BOOL(true),
+                  %expect:empty (
+                    ~>$.config.sound[0].property[0] => xml:'<property name="volume" value="11"/>'
+                  ) => BOOL(true)
+                ) => BOOL(true),
+                %error (
+                  'Was expecting an XML element /config/sound/0/property/0 but it was missing'
+                )
+              ) => BOOL(true),
+              %if (
+                %check:exists (
+                  ~>$.config.sound[0].property[1] => xml:'<property name="mixer" value="standard"/>'
+                ) => BOOL(true),
+                :$.config.sound[0].property[1] (
+                  :attributes (
+                    :$.config.sound[0].property[1]['@name'] (
+                      #{"@name='mixer'"},
+                      %if (
+                        %check:exists (
+                          ~>$.config.sound[0].property[1]['@name'] => xml:attribute:name=mixer
+                        ) => BOOL(true),
+                        %match:equality (
+                          'mixer' => 'mixer',
+                          %xml:value (
+                            ~>$.config.sound[0].property[1]['@name'] => xml:attribute:name=mixer
+                          ) => 'mixer',
+                          NULL => NULL
+                        ) => BOOL(true)
+                      ) => BOOL(true)
+                    ) => BOOL(true),
+                    :$.config.sound[0].property[1]['@value'] (
+                      #{"@value='standard'"},
+                      %if (
+                        %check:exists (
+                          ~>$.config.sound[0].property[1]['@value'] => xml:attribute:value=standard
+                        ) => BOOL(true),
+                        %match:equality (
+                          'standard' => 'standard',
+                          %xml:value (
+                            ~>$.config.sound[0].property[1]['@value'] => xml:attribute:value=standard
+                          ) => 'standard',
+                          NULL => NULL
+                        ) => BOOL(true)
+                      ) => BOOL(true)
+                    ) => BOOL(true),
+                    %expect:entries (
+                      ['name', 'value'] => ['name', 'value'],
+                      %xml:attributes (
+                        ~>$.config.sound[0].property[1] => xml:'<property name="mixer" value="standard"/>'
+                      ) => {'name': 'mixer', 'value': 'standard'},
+                      %join (
+                        'The following expected attributes were missing: ',
+                        %join-with (
+                          ', ',
+                          ** (
+                            %apply ()
+                          )
+                        )
+                      )
+                    ) => OK
+                  ) => BOOL(true),
+                  :#text (
+                    %expect:empty (
+                      %to-string (
+                        ~>$.config.sound[0].property[1]['#text'] => NULL
+                      ) => NULL
+                    ) => BOOL(true)
+                  ) => BOOL(true),
+                  %expect:empty (
+                    ~>$.config.sound[0].property[1] => xml:'<property name="mixer" value="standard"/>'
+                  ) => BOOL(true)
+                ) => BOOL(true),
+                %error (
+                  'Was expecting an XML element /config/sound/0/property/1 but it was missing'
+                )
+              ) => BOOL(true)
+            ) => BOOL(true),
+            %error (
+              'Was expecting an XML element /config/sound/0 but it was missing'
+            )
+          ) => BOOL(true)
+        ) => BOOL(true),
+        %error (
+          'Was expecting an XML element /config but it was missing'
+        )
+      ) => BOOL(true)
+    ) => BOOL(true)
+  ) => BOOL(true)"#, buffer);
+
+  let content = Bytes::copy_from_slice(r#"<?xml version="1.0" encoding="UTF-8"?>
+      <config>
+        <name/>
+        <sound>
+          <property name="mixer" value="standard" />
+        </sound>
+      </config>
+  "#.as_bytes());
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!(r#"  %tee (
+    %xml:parse (
+      $.body => BYTES(174, PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KICAgICAgPGNvbmZpZz4KICAgICAgICA8bmFtZS8+CiAgICAgICAgPHNvdW5kPgogICAgICAgICAgPHByb3BlcnR5IG5hbWU9Im1peGVyIiB2YWx1ZT0ic3RhbmRhcmQiIC8+CiAgICAgICAgPC9zb3VuZD4KICAgICAgPC9jb25maWc+CiAg)
+    ) => xml:"<config>\n  <name/>\n  <sound>\n    <property name=\"mixer\" value=\"standard\"/>\n  </sound>\n</config>",
+    :$ (
+      %if (
+        %check:exists (
+          ~>$.config => xml:"<config>\n  <name/>\n  <sound>\n    <property name=\"mixer\" value=\"standard\"/>\n  </sound>\n</config>"
+        ) => BOOL(true),
+        :$.config (
+          :#text (
+            %expect:empty (
+              %to-string (
+                ~>$.config['#text'] => NULL
+              ) => NULL
+            ) => BOOL(true)
+          ) => BOOL(true),
+          %expect:only-entries (
+            ['name', 'sound'] => ['name', 'sound'],
+            ~>$.config => xml:"<config>\n  <name/>\n  <sound>\n    <property name=\"mixer\" value=\"standard\"/>\n  </sound>\n</config>"
+          ) => OK,
+          %if (
+            %check:exists (
+              ~>$.config.name[0] => xml:'<name/>'
+            ) => BOOL(true),
+            :$.config.name[0] (
+              :#text (
+                %match:equality (
+                  'My Settings' => 'My Settings',
+                  %to-string (
+                    ~>$.config.name[0]['#text'] => NULL
+                  ) => NULL,
+                  NULL => NULL
+                ) => ERROR(Expected 'NULL' to be equal to 'My Settings')
+              ) => BOOL(false),
+              %expect:empty (
+                ~>$.config.name[0] => xml:'<name/>'
+              ) => BOOL(true)
+            ) => BOOL(false),
+            %error (
+              'Was expecting an XML element /config/name/0 but it was missing'
+            )
+          ) => BOOL(false),
+          %if (
+            %check:exists (
+              ~>$.config.sound[0] => xml:"<sound>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>"
+            ) => BOOL(true),
+            :$.config.sound[0] (
+              :#text (
+                %expect:empty (
+                  %to-string (
+                    ~>$.config.sound[0]['#text'] => NULL
+                  ) => NULL
+                ) => BOOL(true)
+              ) => BOOL(true),
+              %expect:only-entries (
+                ['property'] => ['property'],
+                ~>$.config.sound[0] => xml:"<sound>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>"
+              ) => OK,
+              %if (
+                %check:exists (
+                  ~>$.config.sound[0].property[0] => xml:'<property name="mixer" value="standard"/>'
+                ) => BOOL(true),
+                :$.config.sound[0].property[0] (
+                  :attributes (
+                    :$.config.sound[0].property[0]['@name'] (
+                      #{"@name='volume'"},
+                      %if (
+                        %check:exists (
+                          ~>$.config.sound[0].property[0]['@name'] => xml:attribute:name=mixer
+                        ) => BOOL(true),
+                        %match:equality (
+                          'volume' => 'volume',
+                          %xml:value (
+                            ~>$.config.sound[0].property[0]['@name'] => xml:attribute:name=mixer
+                          ) => 'mixer',
+                          NULL => NULL
+                        ) => ERROR(Expected 'mixer' to be equal to 'volume')
+                      ) => BOOL(false)
+                    ) => BOOL(false),
+                    :$.config.sound[0].property[0]['@value'] (
+                      #{"@value='11'"},
+                      %if (
+                        %check:exists (
+                          ~>$.config.sound[0].property[0]['@value'] => xml:attribute:value=standard
+                        ) => BOOL(true),
+                        %match:equality (
+                          '11' => '11',
+                          %xml:value (
+                            ~>$.config.sound[0].property[0]['@value'] => xml:attribute:value=standard
+                          ) => 'standard',
+                          NULL => NULL
+                        ) => ERROR(Expected 'standard' to be equal to '11')
+                      ) => BOOL(false)
+                    ) => BOOL(false),
+                    %expect:entries (
+                      ['name', 'value'] => ['name', 'value'],
+                      %xml:attributes (
+                        ~>$.config.sound[0].property[0] => xml:'<property name="mixer" value="standard"/>'
+                      ) => {'name': 'mixer', 'value': 'standard'},
+                      %join (
+                        'The following expected attributes were missing: ',
+                        %join-with (
+                          ', ',
+                          ** (
+                            %apply ()
+                          )
+                        )
+                      )
+                    ) => OK
+                  ) => BOOL(false),
+                  :#text (
+                    %expect:empty (
+                      %to-string (
+                        ~>$.config.sound[0].property[0]['#text'] => NULL
+                      ) => NULL
+                    ) => BOOL(true)
+                  ) => BOOL(true),
+                  %expect:empty (
+                    ~>$.config.sound[0].property[0] => xml:'<property name="mixer" value="standard"/>'
+                  ) => BOOL(true)
+                ) => BOOL(false),
+                %error (
+                  'Was expecting an XML element /config/sound/0/property/0 but it was missing'
+                )
+              ) => BOOL(false),
+              %if (
+                %check:exists (
+                  ~>$.config.sound[0].property[1] => NULL
+                ) => BOOL(false),
+                :$.config.sound[0].property[1] (
+                  :attributes (
+                    :$.config.sound[0].property[1]['@name'] (
+                      #{"@name='mixer'"},
+                      %if (
+                        %check:exists (
+                          ~>$.config.sound[0].property[1]['@name']
+                        ),
+                        %match:equality (
+                          'mixer',
+                          %xml:value (
+                            ~>$.config.sound[0].property[1]['@name']
+                          ),
+                          NULL
+                        )
+                      )
+                    ),
+                    :$.config.sound[0].property[1]['@value'] (
+                      #{"@value='standard'"},
+                      %if (
+                        %check:exists (
+                          ~>$.config.sound[0].property[1]['@value']
+                        ),
+                        %match:equality (
+                          'standard',
+                          %xml:value (
+                            ~>$.config.sound[0].property[1]['@value']
+                          ),
+                          NULL
+                        )
+                      )
+                    ),
+                    %expect:entries (
+                      ['name', 'value'],
+                      %xml:attributes (
+                        ~>$.config.sound[0].property[1]
+                      ),
+                      %join (
+                        'The following expected attributes were missing: ',
+                        %join-with (
+                          ', ',
+                          ** (
+                            %apply ()
+                          )
+                        )
+                      )
+                    )
+                  ),
+                  :#text (
+                    %expect:empty (
+                      %to-string (
+                        ~>$.config.sound[0].property[1]['#text']
+                      )
+                    )
+                  ),
+                  %expect:empty (
+                    ~>$.config.sound[0].property[1]
+                  )
+                ),
+                %error (
+                  'Was expecting an XML element /config/sound/0/property/1 but it was missing' => 'Was expecting an XML element /config/sound/0/property/1 but it was missing'
+                ) => ERROR(Was expecting an XML element /config/sound/0/property/1 but it was missing)
+              ) => ERROR(Was expecting an XML element /config/sound/0/property/1 but it was missing)
+            ) => BOOL(false),
+            %error (
+              'Was expecting an XML element /config/sound/0 but it was missing'
+            )
+          ) => BOOL(false)
+        ) => BOOL(false),
+        %error (
+          'Was expecting an XML element /config but it was missing'
+        )
+      ) => BOOL(false)
+    ) => BOOL(false)
+  ) => BOOL(false)"#, buffer);
+}
+
+#[test_log::test]
+fn missing_xml_value() {
+  let path = vec!["$".to_string()];
+  let builder = XMLPlanBuilder::new();
+  let mut context = PlanMatchingContext::default();
+  let content = Bytes::copy_from_slice("<values><value>A</value><value>B</value></values>".as_bytes());
+  let node = builder.build_plan(&content, &context).unwrap();
+
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!(r#"  %tee (
+    %xml:parse (
+      $.body => BYTES(49, PHZhbHVlcz48dmFsdWU+QTwvdmFsdWU+PHZhbHVlPkI8L3ZhbHVlPjwvdmFsdWVzPg==)
+    ) => xml:"<values>\n  <value>A</value>\n  <value>B</value>\n</values>",
+    :$ (
+      %if (
+        %check:exists (
+          ~>$.values => xml:"<values>\n  <value>A</value>\n  <value>B</value>\n</values>"
+        ) => BOOL(true),
+        :$.values (
+          :#text (
+            %expect:empty (
+              %to-string (
+                ~>$.values['#text'] => NULL
+              ) => NULL
+            ) => BOOL(true)
+          ) => BOOL(true),
+          %expect:only-entries (
+            ['value'] => ['value'],
+            ~>$.values => xml:"<values>\n  <value>A</value>\n  <value>B</value>\n</values>"
+          ) => OK,
+          %if (
+            %check:exists (
+              ~>$.values.value[0] => xml:'<value>A</value>'
+            ) => BOOL(true),
+            :$.values.value[0] (
+              :#text (
+                %match:equality (
+                  'A' => 'A',
+                  %to-string (
+                    ~>$.values.value[0]['#text'] => xml:text:A
+                  ) => 'A',
+                  NULL => NULL
+                ) => BOOL(true)
+              ) => BOOL(true),
+              %expect:empty (
+                ~>$.values.value[0] => xml:'<value>A</value>'
+              ) => BOOL(true)
+            ) => BOOL(true),
+            %error (
+              'Was expecting an XML element /values/value/0 but it was missing'
+            )
+          ) => BOOL(true),
+          %if (
+            %check:exists (
+              ~>$.values.value[1] => xml:'<value>B</value>'
+            ) => BOOL(true),
+            :$.values.value[1] (
+              :#text (
+                %match:equality (
+                  'B' => 'B',
+                  %to-string (
+                    ~>$.values.value[1]['#text'] => xml:text:B
+                  ) => 'B',
+                  NULL => NULL
+                ) => BOOL(true)
+              ) => BOOL(true),
+              %expect:empty (
+                ~>$.values.value[1] => xml:'<value>B</value>'
+              ) => BOOL(true)
+            ) => BOOL(true),
+            %error (
+              'Was expecting an XML element /values/value/1 but it was missing'
+            )
+          ) => BOOL(true)
+        ) => BOOL(true),
+        %error (
+          'Was expecting an XML element /values but it was missing'
+        )
+      ) => BOOL(true)
+    ) => BOOL(true)
+  ) => BOOL(true)"#, buffer);
+
+  let content = Bytes::copy_from_slice("<bar></bar>".as_bytes());
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!(r#"  %tee (
+    %xml:parse (
+      $.body => BYTES(11, PGJhcj48L2Jhcj4=)
+    ) => xml:'<bar/>',
+    :$ (
+      %if (
+        %check:exists (
+          ~>$.values => NULL
+        ) => BOOL(false),
+        :$.values (
+          :#text (
+            %expect:empty (
+              %to-string (
+                ~>$.values['#text']
+              )
+            )
+          ),
+          %expect:only-entries (
+            ['value'],
+            ~>$.values
+          ),
+          %if (
+            %check:exists (
+              ~>$.values.value[0]
+            ),
+            :$.values.value[0] (
+              :#text (
+                %match:equality (
+                  'A',
+                  %to-string (
+                    ~>$.values.value[0]['#text']
+                  ),
+                  NULL
+                )
+              ),
+              %expect:empty (
+                ~>$.values.value[0]
+              )
+            ),
+            %error (
+              'Was expecting an XML element /values/value/0 but it was missing'
+            )
+          ),
+          %if (
+            %check:exists (
+              ~>$.values.value[1]
+            ),
+            :$.values.value[1] (
+              :#text (
+                %match:equality (
+                  'B',
+                  %to-string (
+                    ~>$.values.value[1]['#text']
+                  ),
+                  NULL
+                )
+              ),
+              %expect:empty (
+                ~>$.values.value[1]
+              )
+            ),
+            %error (
+              'Was expecting an XML element /values/value/1 but it was missing'
+            )
+          )
+        ),
+        %error (
+          'Was expecting an XML element /values but it was missing' => 'Was expecting an XML element /values but it was missing'
+        ) => ERROR(Was expecting an XML element /values but it was missing)
+      ) => ERROR(Was expecting an XML element /values but it was missing)
+    ) => BOOL(false)
+  ) => BOOL(false)"#, buffer);
+
+  let content = Bytes::copy_from_slice("<values><value>A</value></values>".as_bytes());
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!(r#"  %tee (
+    %xml:parse (
+      $.body => BYTES(33, PHZhbHVlcz48dmFsdWU+QTwvdmFsdWU+PC92YWx1ZXM+)
+    ) => xml:"<values>\n  <value>A</value>\n</values>",
+    :$ (
+      %if (
+        %check:exists (
+          ~>$.values => xml:"<values>\n  <value>A</value>\n</values>"
+        ) => BOOL(true),
+        :$.values (
+          :#text (
+            %expect:empty (
+              %to-string (
+                ~>$.values['#text'] => NULL
+              ) => NULL
+            ) => BOOL(true)
+          ) => BOOL(true),
+          %expect:only-entries (
+            ['value'] => ['value'],
+            ~>$.values => xml:"<values>\n  <value>A</value>\n</values>"
+          ) => OK,
+          %if (
+            %check:exists (
+              ~>$.values.value[0] => xml:'<value>A</value>'
+            ) => BOOL(true),
+            :$.values.value[0] (
+              :#text (
+                %match:equality (
+                  'A' => 'A',
+                  %to-string (
+                    ~>$.values.value[0]['#text'] => xml:text:A
+                  ) => 'A',
+                  NULL => NULL
+                ) => BOOL(true)
+              ) => BOOL(true),
+              %expect:empty (
+                ~>$.values.value[0] => xml:'<value>A</value>'
+              ) => BOOL(true)
+            ) => BOOL(true),
+            %error (
+              'Was expecting an XML element /values/value/0 but it was missing'
+            )
+          ) => BOOL(true),
+          %if (
+            %check:exists (
+              ~>$.values.value[1] => NULL
+            ) => BOOL(false),
+            :$.values.value[1] (
+              :#text (
+                %match:equality (
+                  'B',
+                  %to-string (
+                    ~>$.values.value[1]['#text']
+                  ),
+                  NULL
+                )
+              ),
+              %expect:empty (
+                ~>$.values.value[1]
+              )
+            ),
+            %error (
+              'Was expecting an XML element /values/value/1 but it was missing' => 'Was expecting an XML element /values/value/1 but it was missing'
+            ) => ERROR(Was expecting an XML element /values/value/1 but it was missing)
+          ) => ERROR(Was expecting an XML element /values/value/1 but it was missing)
+        ) => BOOL(false),
+        %error (
+          'Was expecting an XML element /values but it was missing'
+        )
+      ) => BOOL(false)
+    ) => BOOL(false)
+  ) => BOOL(false)"#, buffer);
+}
+
+#[test_log::test]
+fn invalid_xml() {
+  let path = vec!["$".to_string()];
+  let builder = XMLPlanBuilder::new();
+  let mut context = PlanMatchingContext::default();
+  let content = Bytes::copy_from_slice("<values><value>A</value><value>B</value></values>".as_bytes());
+  let node = builder.build_plan(&content, &context).unwrap();
+
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+
+  let content = Bytes::copy_from_slice("<foo>test".as_bytes());
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!(r#"  %tee (
+    %xml:parse (
+      $.body => BYTES(9, PGZvbz50ZXN0)
+    ) => ERROR(XML parse error - ParsingError: root element not closed),
+    :$ (
+      %if (
+        %check:exists (
+          ~>$.values
+        ),
+        :$.values (
+          :#text (
+            %expect:empty (
+              %to-string (
+                ~>$.values['#text']
+              )
+            )
+          ),
+          %expect:only-entries (
+            ['value'],
+            ~>$.values
+          ),
+          %if (
+            %check:exists (
+              ~>$.values.value[0]
+            ),
+            :$.values.value[0] (
+              :#text (
+                %match:equality (
+                  'A',
+                  %to-string (
+                    ~>$.values.value[0]['#text']
+                  ),
+                  NULL
+                )
+              ),
+              %expect:empty (
+                ~>$.values.value[0]
+              )
+            ),
+            %error (
+              'Was expecting an XML element /values/value/0 but it was missing'
+            )
+          ),
+          %if (
+            %check:exists (
+              ~>$.values.value[1]
+            ),
+            :$.values.value[1] (
+              :#text (
+                %match:equality (
+                  'B',
+                  %to-string (
+                    ~>$.values.value[1]['#text']
+                  ),
+                  NULL
+                )
+              ),
+              %expect:empty (
+                ~>$.values.value[1]
+              )
+            ),
+            %error (
+              'Was expecting an XML element /values/value/1 but it was missing'
+            )
+          )
+        ),
+        %error (
+          'Was expecting an XML element /values but it was missing'
+        )
+      )
+    )
+  ) => ERROR(XML parse error - ParsingError: root element not closed)"#, buffer);
+}
+
+#[test_log::test]
+fn unexpected_xml_value() {
+  let path = vec!["$".to_string()];
+  let builder = XMLPlanBuilder::new();
+  let mut context = PlanMatchingContext::default();
+  let content = Bytes::copy_from_slice("<values><value>A</value><value>B</value></values>".as_bytes());
+  let node = builder.build_plan(&content, &context).unwrap();
+
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+
+  let content = Bytes::copy_from_slice("<values><value>A</value><value>B</value><value>C</value></values>".as_bytes());
+  let resolver = TestValueResolver {
+    bytes: content.to_vec()
+  };
+  let mut interpreter = ExecutionPlanInterpreter::new_with_context(&context);
+  let result = interpreter.walk_tree(&path, &node, &resolver).unwrap();
+  let mut buffer = String::new();
+  result.pretty_form(&mut buffer, 2);
+  assert_eq!(r#"  %tee (
+    %xml:parse (
+      $.body => BYTES(65, PHZhbHVlcz48dmFsdWU+QTwvdmFsdWU+PHZhbHVlPkI8L3ZhbHVlPjx2YWx1ZT5DPC92YWx1ZT48L3ZhbHVlcz4=)
+    ) => xml:"<values>\n  <value>A</value>\n  <value>B</value>\n  <value>C</value>\n</values>",
+    :$ (
+      %if (
+        %check:exists (
+          ~>$.values => xml:"<values>\n  <value>A</value>\n  <value>B</value>\n  <value>C</value>\n</values>"
+        ) => BOOL(true),
+        :$.values (
+          :#text (
+            %expect:empty (
+              %to-string (
+                ~>$.values['#text'] => NULL
+              ) => NULL
+            ) => BOOL(true)
+          ) => BOOL(true),
+          %expect:only-entries (
+            ['value'] => ['value'],
+            ~>$.values => xml:"<values>\n  <value>A</value>\n  <value>B</value>\n  <value>C</value>\n</values>"
+          ) => OK,
+          %if (
+            %check:exists (
+              ~>$.values.value[0] => xml:'<value>A</value>'
+            ) => BOOL(true),
+            :$.values.value[0] (
+              :#text (
+                %match:equality (
+                  'A' => 'A',
+                  %to-string (
+                    ~>$.values.value[0]['#text'] => xml:text:A
+                  ) => 'A',
+                  NULL => NULL
+                ) => BOOL(true)
+              ) => BOOL(true),
+              %expect:empty (
+                ~>$.values.value[0] => xml:'<value>A</value>'
+              ) => BOOL(true)
+            ) => BOOL(true),
+            %error (
+              'Was expecting an XML element /values/value/0 but it was missing'
+            )
+          ) => BOOL(true),
+          %if (
+            %check:exists (
+              ~>$.values.value[1] => xml:'<value>B</value>'
+            ) => BOOL(true),
+            :$.values.value[1] (
+              :#text (
+                %match:equality (
+                  'B' => 'B',
+                  %to-string (
+                    ~>$.values.value[1]['#text'] => xml:text:B
+                  ) => 'B',
+                  NULL => NULL
+                )
+              ),
+              %expect:empty (
+                ~>$.values.value[1] => xml:'<value>B</value>'
+              ) => BOOL(true)
+            ) => BOOL(true),
+            %error (
+              'Was expecting an XML element /values/value/1 but it was missing'
+            )
+          )
+        ) => BOOL(false),
+        %error (
+          'Was expecting an XML element /values but it was missing'
+        )
+      ) => BOOL(false)
+    ) => BOOL(false)
+  ) => BOOL(false)"#, buffer);
 }

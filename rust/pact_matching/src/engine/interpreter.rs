@@ -272,6 +272,8 @@ impl ExecutionPlanInterpreter {
         "json:parse" => self.execute_json_parse(action, value_resolver, node, &action_path),
         "xml:parse" => self.execute_xml_parse(action, value_resolver, node, &action_path),
         "xml:tag-name" => self.execute_xml_tag_name(action, value_resolver, node, &action_path),
+        "xml:value" => self.execute_xml_value(action, value_resolver, node, &action_path),
+        "xml:attributes" => self.execute_xml_attributes(action, value_resolver, node, &action_path),
         "json:expect:empty" => self.execute_json_expect_empty(action, value_resolver, node, &action_path),
         "json:match:length" => self.execute_json_match_length(action, value_resolver, node, &action_path),
         "json:expect:entries" => self.execute_json_expect_entries(action, value_resolver, node, &action_path),
@@ -692,7 +694,94 @@ impl ExecutionPlanInterpreter {
               XmlValue::Element(element) => Ok(NodeResult::VALUE(NodeValue::STRING(element.name()))),
               _ => Err(anyhow!("xml:tag-name can not be used with {}", xml))
             }
-            _ => Err(anyhow!("xml:parse can not be used with {}", value.value_type()))
+            _ => Err(anyhow!("xml:tag-name can not be used with {}", value.value_type()))
+          }
+        } else {
+          Ok(NodeResult::VALUE(NodeValue::NULL))
+        };
+        match result {
+          Ok(result) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result),
+              children: vec![value]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![value]
+            }
+          }
+        }
+      }
+      Err(err) => node.clone_with_result(NodeResult::ERROR(err.to_string()))
+    }
+  }
+
+  fn execute_xml_value(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let arg_value = value.value().unwrap_or_default().as_value();
+        let result = if let Some(value) = &arg_value {
+          match value {
+            NodeValue::XML(xml) => match xml {
+              XmlValue::Attribute(_, value) => Ok(NodeResult::VALUE(NodeValue::STRING(value.clone()))),
+              _ => Err(anyhow!("xml:value can not be used with {}", xml))
+            }
+            _ => Err(anyhow!("xml:value can not be used with {}", value.value_type()))
+          }
+        } else {
+          Ok(NodeResult::VALUE(NodeValue::NULL))
+        };
+        match result {
+          Ok(result) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(result),
+              children: vec![value]
+            }
+          }
+          Err(err) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::ERROR(err.to_string())),
+              children: vec![value]
+            }
+          }
+        }
+      }
+      Err(err) => node.clone_with_result(NodeResult::ERROR(err.to_string()))
+    }
+  }
+
+  fn execute_xml_attributes(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let arg_value = value.value().unwrap_or_default().as_value();
+        let result = if let Some(value) = &arg_value {
+          match value {
+            NodeValue::XML(xml) => match xml {
+              XmlValue::Attribute(name, value) => Ok(NodeResult::VALUE(NodeValue::ENTRY(name.clone(), Box::new(NodeValue::STRING(value.clone()))))),
+              XmlValue::Element(element) => Ok(NodeResult::VALUE(NodeValue::MMAP(element.attributes().iter()
+                .map(|(k, v)| (k.clone(), vec![v.clone()]))
+                .collect()))),
+              _ => Err(anyhow!("xml:attributes can not be used with {}", xml))
+            }
+            _ => Err(anyhow!("xml:attributes can not be used with {}", value.value_type()))
           }
         } else {
           Ok(NodeResult::VALUE(NodeValue::NULL))
@@ -1027,7 +1116,23 @@ impl ExecutionPlanInterpreter {
               } else {
                 Err(anyhow!("Expected {} to be empty", value))
               },
-              NodeValue::XML(_) => todo!("Implement expect:empty for XML")
+              NodeValue::XML(xml) => match xml {
+                XmlValue::Element(element) => if element.child_elements().next().is_none() {
+                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+                } else {
+                  Err(anyhow!("Expected {} to be empty", element))
+                }
+                XmlValue::Text(text) => if text.is_empty() {
+                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+                } else {
+                  Err(anyhow!("Expected {:?} to be empty", value))
+                }
+                XmlValue::Attribute(name, value) => if value.is_empty() {
+                  Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
+                } else {
+                  Err(anyhow!("Expected {}={} to be empty", name, value))
+                }
+              }
             }
           } else {
             Ok(NodeResult::VALUE(NodeValue::BOOL(true)))
@@ -1268,11 +1373,17 @@ impl ExecutionPlanInterpreter {
     let results = values.iter()
       .map(|v| {
         match v {
+          NodeValue::NULL => NodeValue::NULL,
           NodeValue::STRING(_) => v.clone(),
           NodeValue::SLIST(_) => v.clone(),
           NodeValue::JSON(json) => match json {
             Value::String(s) => NodeValue::STRING(s.clone()),
             _ => NodeValue::STRING(json.to_string())
+          }
+          NodeValue::XML(xml) => match xml {
+            XmlValue::Element(element) => NodeValue::STRING(element.to_string()),
+            XmlValue::Text(text) => NodeValue::STRING(text.clone()),
+            XmlValue::Attribute(name, value) => NodeValue::STRING(format!("@{}='{}'", name, value))
           }
           _ => NodeValue::STRING(v.str_form())
         }

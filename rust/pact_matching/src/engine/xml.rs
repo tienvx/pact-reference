@@ -1,13 +1,17 @@
 //! Structs and functions for dealing with XML
 
 use std::fmt::{Display, Formatter};
+
 use anyhow::anyhow;
+use itertools::Itertools;
 use kiss_xml::dom::Element;
 use onig::Regex;
 use snailquote::escape;
 use tracing::debug;
+
 use pact_models::matchingrules::MatchingRule;
 use pact_models::xml_utils::XmlResult;
+
 use crate::matchers::Matches;
 
 /// Enum to store different XML nodes
@@ -166,5 +170,13 @@ impl Matches<&Element> for Element {
     };
     debug!("Comparing '{:?}' to '{:?}' using {:?} -> {:?}", self, actual, matcher, result);
     result
+  }
+}
+
+pub(crate) fn name(element: &Element) -> String {
+  if let Some(namespace) = element.namespace() {
+    format!("{}:{}", namespace, element.name())
+  } else {
+    element.name()
   }
 }

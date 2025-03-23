@@ -2,13 +2,12 @@
 
 use anyhow::anyhow;
 use itertools::Itertools;
-use serde_json::Value;
-use tracing::{instrument, trace};
+
 use pact_models::bodies::OptionalBody;
 use pact_models::path_exp::{DocPath, PathToken};
 use pact_models::v4::http_parts::HttpRequest;
-use pact_models::xml_utils::resolve_matching_node;
-use crate::engine::{NodeResult, NodeValue, PlanMatchingContext};
+
+use crate::engine::{NodeValue, PlanMatchingContext};
 
 /// Value resolver
 pub trait ValueResolver {

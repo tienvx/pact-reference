@@ -4,7 +4,8 @@ use std::fmt::Debug;
 use std::sync::{Arc, LazyLock, RwLock};
 
 use bytes::Bytes;
-use kiss_xml::dom::Element;
+use itertools::Itertools;
+use kiss_xml::dom::{Element, Node};
 use nom::AsBytes;
 use serde_json::Value;
 use snailquote::escape;
@@ -13,8 +14,9 @@ use tracing::trace;
 use pact_models::content_types::ContentType;
 use pact_models::matchingrules::{MatchingRule, RuleList};
 use pact_models::path_exp::DocPath;
-use pact_models::xml_utils::group_children;
+use pact_models::xml_utils::{group_children, text_nodes};
 use crate::engine::{build_matching_rule_node, ExecutionPlanNode, NodeValue, PlanMatchingContext};
+use crate::engine::xml::name;
 
 /// Trait for implementations of builders for different types of bodies
 pub trait PlanBodyBuilder: Debug {
@@ -290,49 +292,170 @@ impl XMLPlanBuilder {
     &self,
     context: &PlanMatchingContext,
     element: &Element,
+    index: Option<usize>,
     path: &DocPath,
     node: &mut ExecutionPlanNode
   ) {
-    let name = Self::name(element);
-    let element_path = path.join(&name);
-    let mut item_node = ExecutionPlanNode::container(&element_path);
+    let name = name(element);
+    let element_path = if let Some(index) = index {
+      path.join_field(&name).join_index(index)
+    } else {
+      path.join_field(&name)
+    };
 
+    let mut presence_check = ExecutionPlanNode::action("if");
     if context.matcher_is_defined(&element_path) {
       todo!("implement support for matching rules");
     } else {
-      let mut presence_check = ExecutionPlanNode::action("if");
       presence_check
         .add(ExecutionPlanNode::action("check:exists")
-            .add(ExecutionPlanNode::resolve_current_value(element_path.clone())))
-      ;
-      let mut match_node = ExecutionPlanNode::action("match:equality");
-      match_node
-        .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("xml".to_string(), escape(element.to_string().as_str()).to_string())))
-        .add(ExecutionPlanNode::resolve_current_value(element_path.clone()))
-        .add(ExecutionPlanNode::value_node(NodeValue::NULL));
-      presence_check.add(match_node);
-      presence_check.add(ExecutionPlanNode::action("error")
-        .add(ExecutionPlanNode::value_node("Was expecting an XML element <"))
-        .add(ExecutionPlanNode::action("xml:tag-name")
-          .add(ExecutionPlanNode::value_node(NodeValue::NAMESPACED("xml".to_string(), escape(element.to_string().as_str()).to_string()))))
-        .add(ExecutionPlanNode::value_node("> but it was missing"))
-      );
-      item_node.add(presence_check);
+            .add(ExecutionPlanNode::resolve_current_value(element_path.clone())));
+
+      let mut item_node = ExecutionPlanNode::container(&element_path);
+      if !element.attributes().is_empty() {
+        let mut attributes_node = ExecutionPlanNode::container("attributes");
+        self.process_attributes(&element_path, element, &mut attributes_node, context);
+        item_node.add(attributes_node);
+      }
+      let mut text_node = ExecutionPlanNode::container("#text");
+      self.process_text(&element_path, element, &mut text_node, context);
+      item_node.add(text_node);
+      self.process_children(context, &element_path, element, &mut item_node);
+      presence_check.add(item_node);
+
+      let mut error_node = ExecutionPlanNode::action("error");
+      error_node
+        .add(ExecutionPlanNode::value_node(
+          format!("Was expecting an XML element {} but it was missing", element_path
+            .as_json_pointer().unwrap_or_else(|_| element.name())
+          )));
+      presence_check.add(error_node);
     }
-
-    //       compare_attributes(path, expected, actual, mismatches, context);
-    //       compare_children(path, expected, actual, mismatches, context);
-    //       compare_text(path, expected, actual, mismatches, context);
-
-    node.add(item_node);
+    node.add(presence_check);
   }
 
-  fn name(element: &Element) -> String {
-    if let Some(namespace) = element.namespace() {
-      format!("{}:{}", namespace, element.name())
-    } else {
-      element.name()
+  fn process_children(
+    &self,
+    context: &PlanMatchingContext,
+    path: &DocPath,
+    element: &Element,
+    parent_node: &mut ExecutionPlanNode
+  ) {
+    let children = group_children(element);
+    if !context.config.allow_unexpected_entries {
+      if element.child_elements().next().is_none() {
+        parent_node.add(
+          ExecutionPlanNode::action("expect:empty")
+            .add(ExecutionPlanNode::resolve_current_value(path))
+        );
+      } else {
+        parent_node.add(
+          ExecutionPlanNode::action("expect:only-entries")
+            .add(ExecutionPlanNode::value_node(children.keys().collect_vec()))
+            .add(ExecutionPlanNode::resolve_current_value(path))
+        );
+      }
     }
+    for (_child_name, elements) in children {
+      if elements.len() == 1 {
+        self.process_element(context, elements[0], Some(0), path, parent_node);
+      } else {
+        for (index, child) in elements.iter().enumerate() {
+          self.process_element(context, child, Some(index), path, parent_node);
+        }
+      }
+    }
+  }
+
+  fn process_text(
+    &self,
+    path: &DocPath,
+    element: &Element,
+    node: &mut ExecutionPlanNode,
+    context: &PlanMatchingContext
+  ) {
+    let p = path.join("#text");
+    if context.matcher_is_defined(path) {
+      let matchers = context.select_best_matcher(path);
+      node.add(ExecutionPlanNode::annotation(format!("{} {}", p.last_field().unwrap_or_default(), matchers.generate_description(false))));
+      node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(NodeValue::NAMESPACED("xml".to_string(), escape(element.text().as_str()).to_string())), &p, &matchers, true, false));
+    } else {
+      let text_nodes = text_nodes(element);
+      if text_nodes.is_empty() {
+        node.add(ExecutionPlanNode::action("expect:empty")
+          .add(ExecutionPlanNode::action("to-string")
+            .add(ExecutionPlanNode::resolve_current_value(&p))));
+      } else {
+        let mut match_node = ExecutionPlanNode::action("match:equality");
+        match_node
+          .add(ExecutionPlanNode::value_node(NodeValue::STRING(text_nodes.join(""))))
+          .add(ExecutionPlanNode::action("to-string")
+            .add(ExecutionPlanNode::resolve_current_value(&p)))
+          .add(ExecutionPlanNode::value_node(NodeValue::NULL));
+        node.add(match_node);
+      }
+    }
+  }
+
+  fn process_attributes(
+    &self,
+    path: &DocPath,
+    element: &Element,
+    node: &mut ExecutionPlanNode,
+    context: &PlanMatchingContext
+  ) {
+    let attributes = element.attributes();
+    let keys = attributes.keys().cloned().sorted().collect_vec();
+    for key in &keys {
+      let p = path.join_field(format!("@{}", key));
+      let value = attributes.get(key).unwrap();
+      let mut item_node = ExecutionPlanNode::container(p.to_string());
+
+      let mut presence_check = ExecutionPlanNode::action("if");
+      let item_value = NodeValue::STRING(value.clone());
+      presence_check
+        .add(
+          ExecutionPlanNode::action("check:exists")
+            .add(ExecutionPlanNode::resolve_current_value(&p))
+        );
+
+      if context.matcher_is_defined(&p) {
+        let matchers = context.select_best_matcher(&p);
+        item_node.add(ExecutionPlanNode::annotation(format!("@{} {}", key, matchers.generate_description(true))));
+        presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
+          &p, &matchers, false, true));
+      } else {
+        item_node.add(ExecutionPlanNode::annotation(format!("@{}={}", key, item_value.to_string())));
+        let mut item_check = ExecutionPlanNode::action("match:equality");
+        item_check
+          .add(ExecutionPlanNode::value_node(item_value.clone()))
+          .add(ExecutionPlanNode::action("xml:value")
+            .add(ExecutionPlanNode::resolve_current_value(&p)))
+          .add(ExecutionPlanNode::value_node(NodeValue::NULL));
+        presence_check.add(item_check);
+      }
+
+      item_node.add(presence_check);
+      node.add(item_node);
+    }
+
+    node.add(
+      ExecutionPlanNode::action("expect:entries")
+        .add(ExecutionPlanNode::value_node(NodeValue::SLIST(keys.clone())))
+        .add(ExecutionPlanNode::action("xml:attributes")
+          .add(ExecutionPlanNode::resolve_current_value(path.clone())))
+        .add(
+          ExecutionPlanNode::action("join")
+            .add(ExecutionPlanNode::value_node("The following expected attributes were missing: "))
+            .add(ExecutionPlanNode::action("join-with")
+              .add(ExecutionPlanNode::value_node(", "))
+              .add(
+                ExecutionPlanNode::splat()
+                  .add(ExecutionPlanNode::action("apply"))
+              )
+            )
+        )
+    );
   }
 }
 
@@ -355,15 +478,7 @@ impl PlanBodyBuilder for XMLPlanBuilder {
 
     let path = DocPath::root();
     let mut root_node = ExecutionPlanNode::container(&path);
-
-    if !context.config.allow_unexpected_entries {
-      root_node.add(ExecutionPlanNode::action("expect:only-entries")
-        .add(ExecutionPlanNode::value_node(NodeValue::SLIST(vec![root_element.name()])))
-        .add(ExecutionPlanNode::action("xml:tag-name")
-          .add(ExecutionPlanNode::resolve_current_value(path.clone()))));
-    }
-
-    self.process_element(context, root_element, &path, &mut root_node);
+    self.process_element(context, root_element, None, &path, &mut root_node);
 
     body_node.add(root_node);
 
@@ -767,7 +882,7 @@ mod tests {
   }
 
   #[test]
-  fn xml_plan_builder_with_simple_xml() {
+  fn xml_plan_builder_with_very_simple_xml() {
     let builder = XMLPlanBuilder::new();
     let context = PlanMatchingContext::default();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?> <blah/>"#;
@@ -780,29 +895,24 @@ mod tests {
     $.body
   ),
   :$ (
-    %expect:only-entries (
-      ['blah'],
-      %xml:tag-name (
-        ~>$
-      )
-    ),
-    :$.blah (
-      %if (
-        %check:exists (
+    %if (
+      %check:exists (
+        ~>$.blah
+      ),
+      :$.blah (
+        :#text (
+          %expect:empty (
+            %to-string (
+              ~>$.blah['#text']
+            )
+          )
+        ),
+        %expect:empty (
           ~>$.blah
-        ),
-        %match:equality (
-          xml:'<blah/>',
-          ~>$.blah,
-          NULL
-        ),
-        %error (
-          'Was expecting an XML element <',
-          %xml:tag-name (
-            xml:'<blah/>'
-          ),
-          '> but it was missing'
         )
+      ),
+      %error (
+        'Was expecting an XML element /blah but it was missing'
       )
     )
   )
@@ -829,23 +939,245 @@ mod tests {
     $.body
   ),
   :$ (
-    :$.blah (
-      %if (
-        %check:exists (
-          ~>$.blah
-        ),
-        %match:equality (
-          xml:'<blah/>',
-          ~>$.blah,
-          NULL
-        ),
-        %error (
-          'Was expecting an XML element <',
-          %xml:tag-name (
-            xml:'<blah/>'
-          ),
-          '> but it was missing'
+    %if (
+      %check:exists (
+        ~>$.blah
+      ),
+      :$.blah (
+        :#text (
+          %expect:empty (
+            %to-string (
+              ~>$.blah['#text']
+            )
+          )
         )
+      ),
+      %error (
+        'Was expecting an XML element /blah but it was missing'
+      )
+    )
+  )
+)"#, buffer);
+  }
+
+  #[test]
+  fn xml_plan_builder_with_simple_xml() {
+    let builder = XMLPlanBuilder::new();
+    let context = PlanMatchingContext::default();
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+      <config>
+        <name>My Settings</name>
+        <sound>
+          <property name="volume" value="11" />
+          <property name="mixer" value="standard" />
+        </sound>
+      </config>
+    "#;
+    let content = Bytes::copy_from_slice(xml.as_bytes());
+    let node = builder.build_plan(&content, &context).unwrap();
+    let mut buffer = String::new();
+    node.pretty_form(&mut buffer, 0);
+    assert_eq!(r#"%tee (
+  %xml:parse (
+    $.body
+  ),
+  :$ (
+    %if (
+      %check:exists (
+        ~>$.config
+      ),
+      :$.config (
+        :#text (
+          %expect:empty (
+            %to-string (
+              ~>$.config['#text']
+            )
+          )
+        ),
+        %expect:only-entries (
+          ['name', 'sound'],
+          ~>$.config
+        ),
+        %if (
+          %check:exists (
+            ~>$.config.name[0]
+          ),
+          :$.config.name[0] (
+            :#text (
+              %match:equality (
+                'My Settings',
+                %to-string (
+                  ~>$.config.name[0]['#text']
+                ),
+                NULL
+              )
+            ),
+            %expect:empty (
+              ~>$.config.name[0]
+            )
+          ),
+          %error (
+            'Was expecting an XML element /config/name/0 but it was missing'
+          )
+        ),
+        %if (
+          %check:exists (
+            ~>$.config.sound[0]
+          ),
+          :$.config.sound[0] (
+            :#text (
+              %expect:empty (
+                %to-string (
+                  ~>$.config.sound[0]['#text']
+                )
+              )
+            ),
+            %expect:only-entries (
+              ['property'],
+              ~>$.config.sound[0]
+            ),
+            %if (
+              %check:exists (
+                ~>$.config.sound[0].property[0]
+              ),
+              :$.config.sound[0].property[0] (
+                :attributes (
+                  :$.config.sound[0].property[0]['@name'] (
+                    #{"@name='volume'"},
+                    %if (
+                      %check:exists (
+                        ~>$.config.sound[0].property[0]['@name']
+                      ),
+                      %match:equality (
+                        'volume',
+                        %xml:value (
+                          ~>$.config.sound[0].property[0]['@name']
+                        ),
+                        NULL
+                      )
+                    )
+                  ),
+                  :$.config.sound[0].property[0]['@value'] (
+                    #{"@value='11'"},
+                    %if (
+                      %check:exists (
+                        ~>$.config.sound[0].property[0]['@value']
+                      ),
+                      %match:equality (
+                        '11',
+                        %xml:value (
+                          ~>$.config.sound[0].property[0]['@value']
+                        ),
+                        NULL
+                      )
+                    )
+                  ),
+                  %expect:entries (
+                    ['name', 'value'],
+                    %xml:attributes (
+                      ~>$.config.sound[0].property[0]
+                    ),
+                    %join (
+                      'The following expected attributes were missing: ',
+                      %join-with (
+                        ', ',
+                        ** (
+                          %apply ()
+                        )
+                      )
+                    )
+                  )
+                ),
+                :#text (
+                  %expect:empty (
+                    %to-string (
+                      ~>$.config.sound[0].property[0]['#text']
+                    )
+                  )
+                ),
+                %expect:empty (
+                  ~>$.config.sound[0].property[0]
+                )
+              ),
+              %error (
+                'Was expecting an XML element /config/sound/0/property/0 but it was missing'
+              )
+            ),
+            %if (
+              %check:exists (
+                ~>$.config.sound[0].property[1]
+              ),
+              :$.config.sound[0].property[1] (
+                :attributes (
+                  :$.config.sound[0].property[1]['@name'] (
+                    #{"@name='mixer'"},
+                    %if (
+                      %check:exists (
+                        ~>$.config.sound[0].property[1]['@name']
+                      ),
+                      %match:equality (
+                        'mixer',
+                        %xml:value (
+                          ~>$.config.sound[0].property[1]['@name']
+                        ),
+                        NULL
+                      )
+                    )
+                  ),
+                  :$.config.sound[0].property[1]['@value'] (
+                    #{"@value='standard'"},
+                    %if (
+                      %check:exists (
+                        ~>$.config.sound[0].property[1]['@value']
+                      ),
+                      %match:equality (
+                        'standard',
+                        %xml:value (
+                          ~>$.config.sound[0].property[1]['@value']
+                        ),
+                        NULL
+                      )
+                    )
+                  ),
+                  %expect:entries (
+                    ['name', 'value'],
+                    %xml:attributes (
+                      ~>$.config.sound[0].property[1]
+                    ),
+                    %join (
+                      'The following expected attributes were missing: ',
+                      %join-with (
+                        ', ',
+                        ** (
+                          %apply ()
+                        )
+                      )
+                    )
+                  )
+                ),
+                :#text (
+                  %expect:empty (
+                    %to-string (
+                      ~>$.config.sound[0].property[1]['#text']
+                    )
+                  )
+                ),
+                %expect:empty (
+                  ~>$.config.sound[0].property[1]
+                )
+              ),
+              %error (
+                'Was expecting an XML element /config/sound/0/property/1 but it was missing'
+              )
+            )
+          ),
+          %error (
+            'Was expecting an XML element /config/sound/0 but it was missing'
+          )
+        )
+      ),
+      %error (
+        'Was expecting an XML element /config but it was missing'
       )
     )
   )
