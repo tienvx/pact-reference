@@ -77,12 +77,12 @@ fn query_graph(
 
             if let Some(PathToken::Index(_)) = remaining_tokens.first() {
               query_graph(remaining_tokens, tree, node_id, element, index);
-            }
-
-            let grouped_children = group_children(element);
-            for children in grouped_children.values() {
-              for (index, child) in children.iter().enumerate() {
-                query_graph(remaining_tokens, tree, node_id, *child, index);
+            } else {
+              let grouped_children = group_children(element);
+              for children in grouped_children.values() {
+                for (index, child) in children.iter().enumerate() {
+                  query_graph(remaining_tokens, tree, node_id, *child, index);
+                }
               }
             }
           }
@@ -90,6 +90,7 @@ fn query_graph(
       },
       PathToken::Index(i) => {
         if *i == index {
+          trace!(index, i, %parent_id, "Index matches element index");
           let remaining_tokens = &path_iter[1..];
           if !remaining_tokens.is_empty() {
             query_attributes(remaining_tokens, tree, parent_id, element, index);
@@ -102,6 +103,9 @@ fn query_graph(
               }
             }
           }
+        } else {
+          trace!(index, i, %parent_id, "Index does not match element index, removing");
+          parent_id.detach(tree);
         }
       }
       PathToken::Star | PathToken::StarIndex => {
@@ -174,12 +178,28 @@ fn query_text(
   if let Some(token) = path_iter.first() {
     trace!(?token, "next token");
     if let PathToken::Field(name) = token {
-      if name == "#text" && !element.text().is_empty() {
+      let text_nodes = text_nodes(element);
+      if name == "#text" && !text_nodes.is_empty() {
         trace!(name, "Field name matches element text");
         parent_id.append_value(name.clone(), tree);
       }
     }
   }
+}
+
+/// Return all the content of the element text nodes
+pub fn text_nodes(element: &Element) -> Vec<String> {
+  element.children()
+    .filter_map(|child| if let Ok(text) = child.as_text() {
+      if text.content.is_empty() {
+        None
+      } else {
+        Some(text.content.clone())
+      }
+    } else {
+      None
+    })
+    .collect_vec()
 }
 
 lazy_static!{
@@ -297,6 +317,11 @@ mod tests {
     expect!(resolve_path(root, &path)).to(be_equal_to(vec![
       "/config[0]/sound[0]/property[0]",
       "/config[0]/sound[0]/property[1]"
+    ]));
+
+    let path = DocPath::new_unwrap("$.config.sound[0].property[0]");
+    expect!(resolve_path(root, &path)).to(be_equal_to(vec![
+      "/config[0]/sound[0]/property[0]"
     ]));
 
     let path = DocPath::new_unwrap("$.config.*");
