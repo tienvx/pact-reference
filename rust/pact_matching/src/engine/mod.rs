@@ -1298,10 +1298,11 @@ fn setup_path_plan(
   let mut plan_node = ExecutionPlanNode::container("path");
   let expected_node = ExecutionPlanNode::value_node(expected.path.as_str());
   let doc_path = DocPath::new("$.path")?;
+  let actual_node = ExecutionPlanNode::resolve_value(doc_path.clone());
   if context.matcher_is_defined(&doc_path) {
     let matchers = context.select_best_matcher(&doc_path);
     plan_node.add(ExecutionPlanNode::annotation(format!("path {}", matchers.generate_description(false))));
-    plan_node.add(build_matching_rule_node(&expected_node, &doc_path, &matchers, false, false));
+    plan_node.add(build_matching_rule_node(&expected_node, &actual_node, &matchers, false));
   } else {
     plan_node.add(ExecutionPlanNode::annotation(format!("path == '{}'", expected.path)));
     plan_node
@@ -1317,17 +1318,10 @@ fn setup_path_plan(
 
 fn build_matching_rule_node(
   expected_node: &ExecutionPlanNode,
-  doc_path: &DocPath,
+  actual_node: &ExecutionPlanNode,
   matchers: &RuleList,
-  local_ref: bool,
   for_collection: bool
 ) -> ExecutionPlanNode {
-  let value_node = if local_ref {
-    ExecutionPlanNode::resolve_current_value(doc_path)
-  } else {
-    ExecutionPlanNode::resolve_value(doc_path.clone())
-  };
-
   if matchers.rules.len() == 1 {
     let matcher = if for_collection {
       matchers.rules[0].clone()
@@ -1337,7 +1331,7 @@ fn build_matching_rule_node(
     let mut plan_node = ExecutionPlanNode::action(format!("match:{}", matcher.name()).as_str());
     plan_node
       .add(expected_node.clone())
-      .add(value_node)
+      .add(actual_node.clone())
       .add(ExecutionPlanNode::value_node(matcher.values()));
     plan_node
   } else {
@@ -1355,7 +1349,7 @@ fn build_matching_rule_node(
         .add(
           ExecutionPlanNode::action(format!("match:{}", matcher.name()).as_str())
             .add(expected_node.clone())
-            .add(value_node.clone())
+            .add(actual_node.clone())
             .add(ExecutionPlanNode::value_node(matcher.values()))
         );
     }
@@ -1402,17 +1396,18 @@ fn setup_query_plan(
           );
 
         let item_path = DocPath::root().join(key);
+        let path = doc_path.join(key);
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
           item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description(true))));
           presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
-            &doc_path.join(key), &matchers, false, true));
+                                                      &ExecutionPlanNode::resolve_value(&path), &matchers, true));
         } else {
           item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           let mut item_check = ExecutionPlanNode::action("match:equality");
           item_check
             .add(ExecutionPlanNode::value_node(item_value))
-            .add(ExecutionPlanNode::resolve_value(doc_path.join(key)))
+            .add(ExecutionPlanNode::resolve_value(&path))
             .add(ExecutionPlanNode::value_node(NodeValue::NULL));
           presence_check.add(item_check);
         }
@@ -1498,15 +1493,16 @@ fn setup_header_plan(
           );
 
         let item_path = DocPath::root().join(key);
+        let path = doc_path.join(key);
         if context.matcher_is_defined(&item_path) {
           let matchers = context.select_best_matcher(&item_path);
           item_node.add(ExecutionPlanNode::annotation(format!("{} {}", key, matchers.generate_description(true))));
           presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
-            &doc_path.join(key), &matchers, false, true));
+                                                      &ExecutionPlanNode::resolve_value(&path), &matchers, true));
         } else if PARAMETERISED_HEADERS.contains(&key.to_lowercase().as_str()) {
           item_node.add(ExecutionPlanNode::annotation(format!("{}={}", key, item_value.to_string())));
           if value.len() == 1 {
-            let apply_node = build_parameterised_header_plan(&doc_path.join(key), value[0].as_str());
+            let apply_node = build_parameterised_header_plan(&path, value[0].as_str());
             presence_check.add(apply_node);
           } else {
             for (index, item_value) in value.iter().enumerate() {

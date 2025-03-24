@@ -730,6 +730,12 @@ fn simple_xml() {
                           )
                         )
                       )
+                    ) => OK,
+                    %expect:only-entries (
+                      ['name', 'value'] => ['name', 'value'],
+                      %xml:attributes (
+                        ~>$.config.sound[0].property[0] => xml:'<property name="volume" value="11"/>'
+                      ) => {'name': 'volume', 'value': '11'}
                     ) => OK
                   ) => BOOL(true),
                   :#text (
@@ -797,6 +803,12 @@ fn simple_xml() {
                           )
                         )
                       )
+                    ) => OK,
+                    %expect:only-entries (
+                      ['name', 'value'] => ['name', 'value'],
+                      %xml:attributes (
+                        ~>$.config.sound[0].property[1] => xml:'<property name="mixer" value="standard"/>'
+                      ) => {'name': 'mixer', 'value': 'standard'}
                     ) => OK
                   ) => BOOL(true),
                   :#text (
@@ -981,6 +993,12 @@ fn simple_xml() {
                           )
                         )
                       )
+                    ) => OK,
+                    %expect:only-entries (
+                      ['name', 'value'] => ['name', 'value'],
+                      %xml:attributes (
+                        ~>$.config.sound[0].property[0] => xml:'<property name="mixer" value="standard"/>'
+                      ) => {'name': 'mixer', 'value': 'standard'}
                     ) => OK
                   ) => BOOL(false),
                   :#text (
@@ -1047,6 +1065,12 @@ fn simple_xml() {
                             %apply ()
                           )
                         )
+                      )
+                    ),
+                    %expect:only-entries (
+                      ['name', 'value'],
+                      %xml:attributes (
+                        ~>$.config.sound[0].property[1]
                       )
                     )
                   ),

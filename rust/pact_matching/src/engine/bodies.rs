@@ -5,16 +5,16 @@ use std::sync::{Arc, LazyLock, RwLock};
 
 use bytes::Bytes;
 use itertools::Itertools;
-use kiss_xml::dom::{Element, Node};
+use kiss_xml::dom::Element;
 use nom::AsBytes;
 use serde_json::Value;
-use snailquote::escape;
 use tracing::trace;
 
 use pact_models::content_types::ContentType;
 use pact_models::matchingrules::{MatchingRule, RuleList};
-use pact_models::path_exp::DocPath;
+use pact_models::path_exp::{DocPath, PathToken};
 use pact_models::xml_utils::{group_children, text_nodes};
+
 use crate::engine::{build_matching_rule_node, ExecutionPlanNode, NodeValue, PlanMatchingContext};
 use crate::engine::xml::name;
 
@@ -101,7 +101,8 @@ impl JsonPlanBuilder {
           root_node.add(ExecutionPlanNode::annotation(format!("{} {}",
             path.last_field().unwrap_or_default(),
             matchers.generate_description(true))));
-          root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json.clone()), &path, &matchers, true, true));
+          root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json.clone()),
+                                                 &ExecutionPlanNode::resolve_current_value(path), &matchers, true));
 
           if let Some(template) = items.first() {
             let mut for_each_node = ExecutionPlanNode::action("for-each");
@@ -121,7 +122,8 @@ impl JsonPlanBuilder {
                 if context.matcher_is_defined(&item_path) {
                   let matchers = context.select_best_matcher(&item_path);
                   presence_check.add(ExecutionPlanNode::annotation(format!("[*] {}", matchers.generate_description(false))));
-                  presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(template), &item_path, &matchers, true, false));
+                  presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(template),
+                                                              &ExecutionPlanNode::resolve_current_value(&item_path), &matchers, false));
                 } else {
                   presence_check.add(
                     ExecutionPlanNode::action("match:equality")
@@ -166,7 +168,8 @@ impl JsonPlanBuilder {
                 if context.matcher_is_defined(&item_path) {
                   let matchers = context.select_best_matcher(&item_path);
                   presence_check.add(ExecutionPlanNode::annotation(format!("[{}] {}", index, matchers.generate_description(false))));
-                  presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item), &item_path, &matchers, true, false));
+                  presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item),
+                                                              &ExecutionPlanNode::resolve_current_value(&item_path), &matchers, false));
                 } else {
                   presence_check.add(
                     ExecutionPlanNode::action("match:equality")
@@ -186,7 +189,8 @@ impl JsonPlanBuilder {
         let rules = context.select_best_matcher(path);
         if !rules.is_empty() && should_apply_to_map_entries(&rules) {
           root_node.add(ExecutionPlanNode::annotation(rules.generate_description(true)));
-          root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json.clone()), &path, &rules, true, true));
+          root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json.clone()),
+                                                 &ExecutionPlanNode::resolve_current_value(path), &rules, true));
         } else if entries.is_empty() {
           root_node.add(
             ExecutionPlanNode::action("json:expect:empty")
@@ -228,7 +232,8 @@ impl JsonPlanBuilder {
         if context.matcher_is_defined(path) {
           let matchers = context.select_best_matcher(path);
           root_node.add(ExecutionPlanNode::annotation(format!("{} {}", path.last_field().unwrap_or_default(), matchers.generate_description(false))));
-          root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json), path, &matchers, true, false));
+          root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json),
+                                                 &ExecutionPlanNode::resolve_current_value(path), &matchers, false));
         } else {
           let mut match_node = ExecutionPlanNode::action("match:equality");
           match_node
@@ -394,13 +399,24 @@ impl XMLPlanBuilder {
     node: &mut ExecutionPlanNode,
     context: &PlanMatchingContext
   ) {
+    let text_nodes = text_nodes(element);
     let p = path.join("#text");
-    if context.matcher_is_defined(path) {
-      let matchers = context.select_best_matcher(path);
+    let no_indices = drop_indices(&p);
+    if context.matcher_is_defined(&p) {
+      let matchers = context.select_best_matcher(&p);
       node.add(ExecutionPlanNode::annotation(format!("{} {}", p.last_field().unwrap_or_default(), matchers.generate_description(false))));
-      node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(NodeValue::NAMESPACED("xml".to_string(), escape(element.text().as_str()).to_string())), &p, &matchers, true, false));
+      let mut current_value = ExecutionPlanNode::action("to-string");
+      current_value.add(ExecutionPlanNode::resolve_current_value(&p));
+      node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(text_nodes.join("")),
+        &current_value, &matchers, false));
+    } else if context.matcher_is_defined(&no_indices) {
+      let matchers = context.select_best_matcher(&no_indices);
+      node.add(ExecutionPlanNode::annotation(format!("{} {}", p.last_field().unwrap_or_default(), matchers.generate_description(false))));
+      let mut current_value = ExecutionPlanNode::action("to-string");
+      current_value.add(ExecutionPlanNode::resolve_current_value(&p));
+      node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(text_nodes.join("")),
+        &current_value, &matchers, false));
     } else {
-      let text_nodes = text_nodes(element);
       if text_nodes.is_empty() {
         node.add(ExecutionPlanNode::action("expect:empty")
           .add(ExecutionPlanNode::action("to-string")
@@ -439,11 +455,21 @@ impl XMLPlanBuilder {
             .add(ExecutionPlanNode::resolve_current_value(&p))
         );
 
+      let no_indices = drop_indices(&p);
       if context.matcher_is_defined(&p) {
         let matchers = context.select_best_matcher(&p);
         item_node.add(ExecutionPlanNode::annotation(format!("@{} {}", key, matchers.generate_description(true))));
         presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
-          &p, &matchers, false, true));
+          ExecutionPlanNode::action("xml:value")
+            .add(ExecutionPlanNode::resolve_current_value(&p)),
+          &matchers, false));
+      } else if context.matcher_is_defined(&no_indices) {
+        let matchers = context.select_best_matcher(&no_indices);
+        item_node.add(ExecutionPlanNode::annotation(format!("@{} {}", key, matchers.generate_description(true))));
+        presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
+          ExecutionPlanNode::action("xml:value")
+            .add(ExecutionPlanNode::resolve_current_value(&p)),
+          &matchers, false));
       } else {
         item_node.add(ExecutionPlanNode::annotation(format!("@{}={}", key, item_value.to_string())));
         let mut item_check = ExecutionPlanNode::action("match:equality");
@@ -476,7 +502,29 @@ impl XMLPlanBuilder {
             )
         )
     );
+
+    if !context.config.allow_unexpected_entries {
+      if !context.config.allow_unexpected_entries {
+        node.add(
+          ExecutionPlanNode::action("expect:only-entries")
+            .add(ExecutionPlanNode::value_node(keys.clone()))
+            .add(ExecutionPlanNode::action("xml:attributes")
+              .add(ExecutionPlanNode::resolve_current_value(path)))
+        );
+      }
+    }
   }
+}
+
+fn drop_indices(path: &DocPath) -> DocPath {
+  DocPath::from_tokens(path.tokens()
+    .iter()
+    .filter(|token| if let PathToken::Index(_) = token {
+      false
+    } else {
+      true
+    })
+    .cloned())
 }
 
 impl PlanBodyBuilder for XMLPlanBuilder {
@@ -1136,6 +1184,12 @@ mod tests {
                         )
                       )
                     )
+                  ),
+                  %expect:only-entries (
+                    ['name', 'value'],
+                    %xml:attributes (
+                      ~>$.config.sound[0].property[0]
+                    )
                   )
                 ),
                 :#text (
@@ -1202,6 +1256,12 @@ mod tests {
                           %apply ()
                         )
                       )
+                    )
+                  ),
+                  %expect:only-entries (
+                    ['name', 'value'],
+                    %xml:attributes (
+                      ~>$.config.sound[0].property[1]
                     )
                   )
                 ),
