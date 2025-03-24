@@ -3,7 +3,6 @@
 use std::fmt::{Display, Formatter};
 
 use anyhow::anyhow;
-use itertools::Itertools;
 use kiss_xml::dom::Element;
 use onig::Regex;
 use snailquote::escape;

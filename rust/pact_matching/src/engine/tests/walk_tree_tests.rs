@@ -612,6 +612,26 @@ fn simple_xml() {
             ['name', 'sound'] => ['name', 'sound'],
             ~>$.config => xml:"<config>\n  <name>My Settings</name>\n  <sound>\n    <property name=\"volume\" value=\"11\"/>\n    <property name=\"mixer\" value=\"standard\"/>\n  </sound>\n</config>"
           ) => OK,
+          %expect:count (
+            UINT(1) => UINT(1),
+            ~>$.config.name => xml:'<name>My Settings</name>',
+            %join (
+              'Expected 1 <name> child element but there were ',
+              %length (
+                ~>$.config.name
+              )
+            )
+          ) => OK,
+          %expect:count (
+            UINT(1) => UINT(1),
+            ~>$.config.sound => xml:"<sound>\n  <property name=\"volume\" value=\"11\"/>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>",
+            %join (
+              'Expected 1 <sound> child element but there were ',
+              %length (
+                ~>$.config.sound
+              )
+            )
+          ) => OK,
           %if (
             %check:exists (
               ~>$.config.name[0] => xml:'<name>My Settings</name>'
@@ -649,6 +669,16 @@ fn simple_xml() {
               %expect:only-entries (
                 ['property'] => ['property'],
                 ~>$.config.sound[0] => xml:"<sound>\n  <property name=\"volume\" value=\"11\"/>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>"
+              ) => OK,
+              %expect:count (
+                UINT(2) => UINT(2),
+                ~>$.config.sound[0].property => [xml:'<property name="volume" value="11"/>', xml:'<property name="mixer" value="standard"/>'],
+                %join (
+                  'Expected 2 <property> child elements but there were ',
+                  %length (
+                    ~>$.config.sound[0].property
+                  )
+                )
               ) => OK,
               %if (
                 %check:exists (
@@ -833,6 +863,26 @@ fn simple_xml() {
             ['name', 'sound'] => ['name', 'sound'],
             ~>$.config => xml:"<config>\n  <name/>\n  <sound>\n    <property name=\"mixer\" value=\"standard\"/>\n  </sound>\n</config>"
           ) => OK,
+          %expect:count (
+            UINT(1) => UINT(1),
+            ~>$.config.name => xml:'<name/>',
+            %join (
+              'Expected 1 <name> child element but there were ',
+              %length (
+                ~>$.config.name
+              )
+            )
+          ) => OK,
+          %expect:count (
+            UINT(1) => UINT(1),
+            ~>$.config.sound => xml:"<sound>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>",
+            %join (
+              'Expected 1 <sound> child element but there were ',
+              %length (
+                ~>$.config.sound
+              )
+            )
+          ) => OK,
           %if (
             %check:exists (
               ~>$.config.name[0] => xml:'<name/>'
@@ -871,6 +921,16 @@ fn simple_xml() {
                 ['property'] => ['property'],
                 ~>$.config.sound[0] => xml:"<sound>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>"
               ) => OK,
+              %expect:count (
+                UINT(2) => UINT(2),
+                ~>$.config.sound[0].property => xml:'<property name="mixer" value="standard"/>',
+                %join (
+                  'Expected 2 <property> child elements but there were ' => 'Expected 2 <property> child elements but there were ',
+                  %length (
+                    ~>$.config.sound[0].property => xml:'<property name="mixer" value="standard"/>'
+                  ) => UINT(1)
+                ) => 'Expected 2 <property> child elements but there were 1'
+              ) => ERROR(Expected 2 <property> child elements but there were 1),
               %if (
                 %check:exists (
                   ~>$.config.sound[0].property[0] => xml:'<property name="mixer" value="standard"/>'
@@ -1023,7 +1083,7 @@ fn simple_xml() {
 fn missing_xml_value() {
   let path = vec!["$".to_string()];
   let builder = XMLPlanBuilder::new();
-  let mut context = PlanMatchingContext::default();
+  let context = PlanMatchingContext::default();
   let content = Bytes::copy_from_slice("<values><value>A</value><value>B</value></values>".as_bytes());
   let node = builder.build_plan(&content, &context).unwrap();
 
@@ -1054,6 +1114,16 @@ fn missing_xml_value() {
           %expect:only-entries (
             ['value'] => ['value'],
             ~>$.values => xml:"<values>\n  <value>A</value>\n  <value>B</value>\n</values>"
+          ) => OK,
+          %expect:count (
+            UINT(2) => UINT(2),
+            ~>$.values.value => [xml:'<value>A</value>', xml:'<value>B</value>'],
+            %join (
+              'Expected 2 <value> child elements but there were ',
+              %length (
+                ~>$.values.value
+              )
+            )
           ) => OK,
           %if (
             %check:exists (
@@ -1136,6 +1206,16 @@ fn missing_xml_value() {
             ['value'],
             ~>$.values
           ),
+          %expect:count (
+            UINT(2),
+            ~>$.values.value,
+            %join (
+              'Expected 2 <value> child elements but there were ',
+              %length (
+                ~>$.values.value
+              )
+            )
+          ),
           %if (
             %check:exists (
               ~>$.values.value[0]
@@ -1217,6 +1297,16 @@ fn missing_xml_value() {
             ['value'] => ['value'],
             ~>$.values => xml:"<values>\n  <value>A</value>\n</values>"
           ) => OK,
+          %expect:count (
+            UINT(2) => UINT(2),
+            ~>$.values.value => xml:'<value>A</value>',
+            %join (
+              'Expected 2 <value> child elements but there were ' => 'Expected 2 <value> child elements but there were ',
+              %length (
+                ~>$.values.value => xml:'<value>A</value>'
+              ) => UINT(1)
+            ) => 'Expected 2 <value> child elements but there were 1'
+          ) => ERROR(Expected 2 <value> child elements but there were 1),
           %if (
             %check:exists (
               ~>$.values.value[0] => xml:'<value>A</value>'
@@ -1274,13 +1364,9 @@ fn missing_xml_value() {
 fn invalid_xml() {
   let path = vec!["$".to_string()];
   let builder = XMLPlanBuilder::new();
-  let mut context = PlanMatchingContext::default();
+  let context = PlanMatchingContext::default();
   let content = Bytes::copy_from_slice("<values><value>A</value><value>B</value></values>".as_bytes());
   let node = builder.build_plan(&content, &context).unwrap();
-
-  let resolver = TestValueResolver {
-    bytes: content.to_vec()
-  };
 
   let content = Bytes::copy_from_slice("<foo>test".as_bytes());
   let resolver = TestValueResolver {
@@ -1310,6 +1396,16 @@ fn invalid_xml() {
           %expect:only-entries (
             ['value'],
             ~>$.values
+          ),
+          %expect:count (
+            UINT(2),
+            ~>$.values.value,
+            %join (
+              'Expected 2 <value> child elements but there were ',
+              %length (
+                ~>$.values.value
+              )
+            )
           ),
           %if (
             %check:exists (
@@ -1368,13 +1464,9 @@ fn invalid_xml() {
 fn unexpected_xml_value() {
   let path = vec!["$".to_string()];
   let builder = XMLPlanBuilder::new();
-  let mut context = PlanMatchingContext::default();
+  let context = PlanMatchingContext::default();
   let content = Bytes::copy_from_slice("<values><value>A</value><value>B</value></values>".as_bytes());
   let node = builder.build_plan(&content, &context).unwrap();
-
-  let resolver = TestValueResolver {
-    bytes: content.to_vec()
-  };
 
   let content = Bytes::copy_from_slice("<values><value>A</value><value>B</value><value>C</value></values>".as_bytes());
   let resolver = TestValueResolver {
@@ -1405,6 +1497,16 @@ fn unexpected_xml_value() {
             ['value'] => ['value'],
             ~>$.values => xml:"<values>\n  <value>A</value>\n  <value>B</value>\n  <value>C</value>\n</values>"
           ) => OK,
+          %expect:count (
+            UINT(2) => UINT(2),
+            ~>$.values.value => [xml:'<value>A</value>', xml:'<value>B</value>', xml:'<value>C</value>'],
+            %join (
+              'Expected 2 <value> child elements but there were ' => 'Expected 2 <value> child elements but there were ',
+              %length (
+                ~>$.values.value => [xml:'<value>A</value>', xml:'<value>B</value>', xml:'<value>C</value>']
+              ) => UINT(3)
+            ) => 'Expected 2 <value> child elements but there were 3'
+          ) => ERROR(Expected 2 <value> child elements but there were 3),
           %if (
             %check:exists (
               ~>$.values.value[0] => xml:'<value>A</value>'
@@ -1439,8 +1541,8 @@ fn unexpected_xml_value() {
                     ~>$.values.value[1]['#text'] => xml:text:B
                   ) => 'B',
                   NULL => NULL
-                )
-              ),
+                ) => BOOL(true)
+              ) => BOOL(true),
               %expect:empty (
                 ~>$.values.value[1] => xml:'<value>B</value>'
               ) => BOOL(true)
@@ -1448,7 +1550,7 @@ fn unexpected_xml_value() {
             %error (
               'Was expecting an XML element /values/value/1 but it was missing'
             )
-          )
+          ) => BOOL(true)
         ) => BOOL(false),
         %error (
           'Was expecting an XML element /values but it was missing'

@@ -100,6 +100,13 @@ impl PlanMatchingContext {
     self.matching_rules.select_best_matcher(path_slice.as_slice())
   }
 
+  /// If there is a type matcher defined at the path in this context
+  pub fn type_matcher_defined(&self, path: &DocPath) -> bool {
+    let path = path.to_vec();
+    let path_slice = path.iter().map(|p| p.as_str()).collect_vec();
+    self.matching_rules.resolve_matchers_for_path(path_slice.as_slice()).type_matcher_defined()
+  }
+
   /// Creates a clone of this context, but with the matching rules set for the Request Method
   pub fn for_method(&self) -> Self {
     let matching_rules = if let Some(req_res) = self.interaction.as_v4_http() {

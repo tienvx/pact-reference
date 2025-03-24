@@ -342,6 +342,7 @@ impl XMLPlanBuilder {
     parent_node: &mut ExecutionPlanNode
   ) {
     let children = group_children(element);
+
     if !context.config.allow_unexpected_entries {
       if element.child_elements().next().is_none() {
         parent_node.add(
@@ -354,8 +355,27 @@ impl XMLPlanBuilder {
             .add(ExecutionPlanNode::value_node(children.keys().collect_vec()))
             .add(ExecutionPlanNode::resolve_current_value(path))
         );
+        for (child_name, elements) in &children {
+          let p = path.join(child_name);
+          if !context.type_matcher_defined(&p) {
+            parent_node.add(
+              ExecutionPlanNode::action("expect:count")
+                .add(ExecutionPlanNode::value_node(NodeValue::UINT(elements.len() as u64)))
+                .add(ExecutionPlanNode::resolve_current_value(p.clone()))
+                .add(
+                  ExecutionPlanNode::action("join")
+                    .add(ExecutionPlanNode::value_node(
+                      format!("Expected {} <{}> child element{} but there were ",
+                              elements.len(), child_name, if elements.len() > 1 { "s" } else { "" })))
+                    .add(ExecutionPlanNode::action("length")
+                      .add(ExecutionPlanNode::resolve_current_value(p.clone())))
+                )
+            );
+          }
+        }
       }
     }
+
     for (_child_name, elements) in children {
       if elements.len() == 1 {
         self.process_element(context, elements[0], Some(0), path, parent_node);
@@ -998,6 +1018,26 @@ mod tests {
           ['name', 'sound'],
           ~>$.config
         ),
+        %expect:count (
+          UINT(1),
+          ~>$.config.name,
+          %join (
+            'Expected 1 <name> child element but there were ',
+            %length (
+              ~>$.config.name
+            )
+          )
+        ),
+        %expect:count (
+          UINT(1),
+          ~>$.config.sound,
+          %join (
+            'Expected 1 <sound> child element but there were ',
+            %length (
+              ~>$.config.sound
+            )
+          )
+        ),
         %if (
           %check:exists (
             ~>$.config.name[0]
@@ -1035,6 +1075,16 @@ mod tests {
             %expect:only-entries (
               ['property'],
               ~>$.config.sound[0]
+            ),
+            %expect:count (
+              UINT(2),
+              ~>$.config.sound[0].property,
+              %join (
+                'Expected 2 <property> child elements but there were ',
+                %length (
+                  ~>$.config.sound[0].property
+                )
+              )
             ),
             %if (
               %check:exists (

@@ -262,6 +262,7 @@ impl ExecutionPlanInterpreter {
         "upper-case" => self.execute_change_case(action, value_resolver, node, &action_path, true),
         "lower-case" => self.execute_change_case(action, value_resolver, node, &action_path, false),
         "to-string" => self.execute_to_string(action, value_resolver, node, &action_path),
+        "length" => self.execute_length(action, value_resolver, node, &action_path),
         "expect:empty" => self.execute_expect_empty(action, value_resolver, node, &action_path),
         "convert:UTF8" => self.execute_convert_utf8(action, value_resolver, node, &action_path),
         "if" => self.execute_if(value_resolver, node, &action_path),
@@ -280,6 +281,7 @@ impl ExecutionPlanInterpreter {
         "check:exists" => self.execute_check_exists(action, value_resolver, node, &action_path),
         "expect:entries" => self.execute_check_entries(action, value_resolver, node, &action_path),
         "expect:only-entries" => self.execute_check_entries(action, value_resolver, node, &action_path),
+        "expect:count" => self.execute_expect_count(action, value_resolver, node, &action_path),
         "join" => self.execute_join(action, value_resolver, node, &action_path),
         "join-with" => self.execute_join(action, value_resolver, node, &action_path),
         "error" => self.execute_error(action, value_resolver, node, &action_path),
@@ -1401,6 +1403,55 @@ impl ExecutionPlanInterpreter {
     }
   }
 
+  fn execute_length(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_one_arg(node, action, value_resolver, &action_path) {
+      Ok(value) => {
+        let result = value.value()
+          .unwrap_or_default()
+          .as_value()
+          .unwrap_or_default();
+        let result = match result {
+          NodeValue::NULL => NodeResult::VALUE(NodeValue::UINT(0)),
+          NodeValue::STRING(s) => NodeResult::VALUE(NodeValue::UINT(s.len() as u64)),
+          NodeValue::MMAP(m) => NodeResult::VALUE(NodeValue::UINT(m.len() as u64)),
+          NodeValue::SLIST(l) => NodeResult::VALUE(NodeValue::UINT(l.len() as u64)),
+          NodeValue::BARRAY(a) => NodeResult::VALUE(NodeValue::UINT(a.len() as u64)),
+          NodeValue::JSON(json) => match json {
+            Value::String(s) => NodeResult::VALUE(NodeValue::UINT(s.len() as u64)),
+            Value::Array(a) => NodeResult::VALUE(NodeValue::UINT(a.len() as u64)),
+            Value::Object(m) => NodeResult::VALUE(NodeValue::UINT(m.len() as u64)),
+            _ => NodeResult::ERROR(format!("'length' can't be used with a {:?} node", value))
+          }
+          NodeValue::LIST(l) => NodeResult::VALUE(NodeValue::UINT(l.len() as u64)),
+          NodeValue::XML(xml) => match xml {
+            XmlValue::Element(_) => NodeResult::VALUE(NodeValue::UINT(1)),
+            XmlValue::Text(text) => NodeResult::VALUE(NodeValue::UINT(text.len() as u64)),
+            XmlValue::Attribute(_, _) => NodeResult::VALUE(NodeValue::UINT(1))
+          }
+          _ => NodeResult::ERROR(format!("'length' can't be used with a {:?} node", value))
+        };
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(result),
+          children: vec![ value.clone() ]
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
   fn execute_check_exists(
     &mut self,
     action: &str,
@@ -1757,6 +1808,131 @@ impl ExecutionPlanInterpreter {
                 self.pop_result();
                 result
               } else {
+                ExecutionPlanNode {
+                  node_type: node.node_type.clone(),
+                  result: Some(NodeResult::ERROR(err.to_string())),
+                  children: values.iter().chain(optional.iter()).cloned().collect()
+                }
+              }
+            } else {
+              ExecutionPlanNode {
+                node_type: node.node_type.clone(),
+                result: Some(NodeResult::ERROR(err.to_string())),
+                children: values.iter().chain(optional.iter()).cloned().collect()
+              }
+            }
+          }
+        }
+      }
+      Err(err) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::ERROR(err.to_string())),
+          children: node.children.clone()
+        }
+      }
+    }
+  }
+
+  fn execute_expect_count(
+    &mut self,
+    action: &str,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    action_path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.validate_args(2, 1, node, action, value_resolver, &action_path) {
+      Ok((values, optional)) => {
+        let expected_length = values[0].value()
+          .unwrap_or_default()
+          .as_value()
+          .unwrap_or_default()
+          .as_uint()
+          .unwrap_or_default() as usize;
+        let second = values[1].value()
+          .unwrap_or_default()
+          .as_value()
+          .unwrap_or_default();
+        let result = match &second {
+          NodeValue::MMAP(map) => {
+            if map.len() == expected_length {
+              Ok(())
+            } else {
+              Err(format!("Expected {} map entries but there were {}", expected_length, map.len()))
+            }
+          }
+          NodeValue::SLIST(list) => {
+            if list.len() == expected_length {
+              Ok(())
+            } else {
+              Err(format!("Expected {} items but there were {}", expected_length, list.len()))
+            }
+          }
+          NodeValue::STRING(str) => {
+            if str.len() == expected_length {
+              Ok(())
+            } else {
+              Err(format!("Expected a string with a length of {} but it was {}", expected_length, str.len()))
+            }
+          }
+          NodeValue::LIST(list) => {
+            if list.len() == expected_length {
+              Ok(())
+            } else {
+              Err(format!("Expected {} items but there were {}", expected_length, list.len()))
+            }
+          }
+          NodeValue::JSON(json) => match json {
+            Value::Object(map) => {
+              if map.len() == expected_length {
+                Ok(())
+              } else {
+                Err(format!("Expected {} object entries but there were {}", expected_length, map.len()))
+              }
+            }
+            Value::Array(list) => {
+              if list.len() == expected_length {
+                Ok(())
+              } else {
+                Err(format!("Expected {} array items but there were {}", expected_length, list.len()))
+              }
+            }
+            _ => Err(format!("'{}' can't be used with a {:?} node", action, second))
+          }
+          NodeValue::XML(xml) => match xml {
+            XmlValue::Element(_) => {
+              if expected_length == 1 {
+                Ok(())
+              } else {
+                Err(format!("Expected {} elements but there were 1", expected_length))
+              }
+            }
+            _ => Err(format!("'{}' can't be used with a {:?} node", action, second))
+          }
+          _ => Err(format!("'{}' can't be used with a {:?} node", action, second))
+        };
+
+        match result {
+          Ok(_) => {
+            ExecutionPlanNode {
+              node_type: node.node_type.clone(),
+              result: Some(NodeResult::OK),
+              children: values.iter().chain(optional.iter()).cloned().collect()
+            }
+          }
+          Err(err) => {
+            debug!("expect:count failed with an error: {}", err);
+            if optional.len() > 0 {
+              if let Ok(value) = self.walk_tree(action_path.as_slice(), &optional[0], value_resolver) {
+                let message = value.value().unwrap_or_default().as_string().unwrap_or_default();
+                ExecutionPlanNode {
+                  node_type: node.node_type.clone(),
+                  result: Some(NodeResult::ERROR(message)),
+                  children: values.iter().chain(once(&value)).cloned().collect()
+                }
+              } else {
+                // There was an error generating the optional message, so just return the
+                // original error
                 ExecutionPlanNode {
                   node_type: node.node_type.clone(),
                   result: Some(NodeResult::ERROR(err.to_string())),
