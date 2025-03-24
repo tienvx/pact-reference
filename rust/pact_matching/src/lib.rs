@@ -1875,7 +1875,7 @@ pub async fn match_request<'a>(
 ) -> anyhow::Result<RequestMatchResult> {
   debug!("comparing to expected {}", expected);
   debug!("     body: '{}'", expected.body.display_string());
-  debug!("     matching_rules: {:?}", expected.matching_rules);
+  debug!("     matching_rules:\n{}", expected.matching_rules);
   debug!("     generators: {:?}", expected.generators);
 
   #[allow(unused_mut, unused_assignments)] let mut plugin_data = hashmap!{};

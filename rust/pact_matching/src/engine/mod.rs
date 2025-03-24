@@ -261,6 +261,15 @@ impl NodeValue {
     }
   }
 
+  /// Calculates an OR of two values
+  pub fn or(&self, other: &Self) -> Self {
+    match self {
+      NodeValue::NULL => other.clone(),
+      NodeValue::BOOL(b) => NodeValue::BOOL(*b || other.truthy()),
+      _ => NodeValue::BOOL(self.truthy() || other.truthy())
+    }
+  }
+
   /// Convert this value into a boolean using a "truthy" test
   pub fn truthy(&self) -> bool {
     match self {

@@ -11,7 +11,7 @@ use serde_json::Value;
 use tracing::trace;
 
 use pact_models::content_types::ContentType;
-use pact_models::matchingrules::{MatchingRule, RuleList};
+use pact_models::matchingrules::{MatchingRule, RuleList, RuleLogic};
 use pact_models::path_exp::{DocPath, PathToken};
 use pact_models::xml_utils::{group_children, text_nodes};
 
@@ -309,33 +309,42 @@ impl XMLPlanBuilder {
     };
 
     let mut presence_check = ExecutionPlanNode::action("if");
-    if context.matcher_is_defined(&element_path) {
-      todo!("implement support for matching rules");
+    presence_check
+      .add(ExecutionPlanNode::action("check:exists")
+        .add(ExecutionPlanNode::resolve_current_value(element_path.clone())));
+    let mut item_node = ExecutionPlanNode::container(&element_path);
+
+    let no_indices = drop_indices(&element_path);
+    let matchers = if context.matcher_is_defined(&element_path) {
+      context.select_best_matcher(&element_path)
+    } else if context.matcher_is_defined(&no_indices) {
+      context.select_best_matcher(&no_indices)
     } else {
-      presence_check
-        .add(ExecutionPlanNode::action("check:exists")
-            .add(ExecutionPlanNode::resolve_current_value(element_path.clone())));
+      RuleList::empty(RuleLogic::And)
+    };
+    if !matchers.is_empty() && matchers.type_matcher_defined() {
 
-      let mut item_node = ExecutionPlanNode::container(&element_path);
-      if !element.attributes().is_empty() {
-        let mut attributes_node = ExecutionPlanNode::container("attributes");
-        self.process_attributes(&element_path, element, &mut attributes_node, context);
-        item_node.add(attributes_node);
-      }
-      let mut text_node = ExecutionPlanNode::container("#text");
-      self.process_text(&element_path, element, &mut text_node, context);
-      item_node.add(text_node);
-      self.process_children(context, &element_path, element, &mut item_node);
-      presence_check.add(item_node);
-
-      let mut error_node = ExecutionPlanNode::action("error");
-      error_node
-        .add(ExecutionPlanNode::value_node(
-          format!("Was expecting an XML element {} but it was missing", element_path
-            .as_json_pointer().unwrap_or_else(|_| element.name())
-          )));
-      presence_check.add(error_node);
     }
+
+    if !element.attributes().is_empty() {
+      let mut attributes_node = ExecutionPlanNode::container("attributes");
+      self.process_attributes(&element_path, element, &mut attributes_node, context);
+      item_node.add(attributes_node);
+    }
+    let mut text_node = ExecutionPlanNode::container("#text");
+    self.process_text(&element_path, element, &mut text_node, context);
+    item_node.add(text_node);
+    self.process_children(context, &element_path, element, &mut item_node);
+    presence_check.add(item_node);
+
+    let mut error_node = ExecutionPlanNode::action("error");
+    error_node
+      .add(ExecutionPlanNode::value_node(
+        format!("Was expecting an XML element {} but it was missing", element_path
+          .as_json_pointer().unwrap_or_else(|_| element.name())
+        )));
+    presence_check.add(error_node);
+
     node.add(presence_check);
   }
 
@@ -456,15 +465,10 @@ impl XMLPlanBuilder {
         );
 
       let no_indices = drop_indices(&p);
-      if context.matcher_is_defined(&p) {
-        let matchers = context.select_best_matcher(&p);
-        item_node.add(ExecutionPlanNode::annotation(format!("@{} {}", key, matchers.generate_description(true))));
-        presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
-          ExecutionPlanNode::action("xml:value")
-            .add(ExecutionPlanNode::resolve_current_value(&p)),
-          &matchers, false));
-      } else if context.matcher_is_defined(&no_indices) {
-        let matchers = context.select_best_matcher(&no_indices);
+      if context.matcher_is_defined(&p) || context.matcher_is_defined(&no_indices) {
+        let mut matchers = context.select_best_matcher(&p)
+          .and_rules(&context.select_best_matcher(&no_indices))
+          .remove_duplicates();
         item_node.add(ExecutionPlanNode::annotation(format!("@{} {}", key, matchers.generate_description(true))));
         presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
           ExecutionPlanNode::action("xml:value")

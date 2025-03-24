@@ -605,7 +605,7 @@ fn simple_xml() {
             %expect:empty (
               %to-string (
                 ~>$.config['#text'] => NULL
-              ) => NULL
+              ) => ''
             ) => BOOL(true)
           ) => BOOL(true),
           %expect:only-entries (
@@ -663,7 +663,7 @@ fn simple_xml() {
                 %expect:empty (
                   %to-string (
                     ~>$.config.sound[0]['#text'] => NULL
-                  ) => NULL
+                  ) => ''
                 ) => BOOL(true)
               ) => BOOL(true),
               %expect:only-entries (
@@ -742,7 +742,7 @@ fn simple_xml() {
                     %expect:empty (
                       %to-string (
                         ~>$.config.sound[0].property[0]['#text'] => NULL
-                      ) => NULL
+                      ) => ''
                     ) => BOOL(true)
                   ) => BOOL(true),
                   %expect:empty (
@@ -815,7 +815,7 @@ fn simple_xml() {
                     %expect:empty (
                       %to-string (
                         ~>$.config.sound[0].property[1]['#text'] => NULL
-                      ) => NULL
+                      ) => ''
                     ) => BOOL(true)
                   ) => BOOL(true),
                   %expect:empty (
@@ -868,7 +868,7 @@ fn simple_xml() {
             %expect:empty (
               %to-string (
                 ~>$.config['#text'] => NULL
-              ) => NULL
+              ) => ''
             ) => BOOL(true)
           ) => BOOL(true),
           %expect:only-entries (
@@ -905,9 +905,9 @@ fn simple_xml() {
                   'My Settings' => 'My Settings',
                   %to-string (
                     ~>$.config.name[0]['#text'] => NULL
-                  ) => NULL,
+                  ) => '',
                   NULL => NULL
-                ) => ERROR(Expected 'NULL' to be equal to 'My Settings')
+                ) => ERROR(Expected '' to be equal to 'My Settings')
               ) => BOOL(false),
               %expect:empty (
                 ~>$.config.name[0] => xml:'<name/>'
@@ -926,7 +926,7 @@ fn simple_xml() {
                 %expect:empty (
                   %to-string (
                     ~>$.config.sound[0]['#text'] => NULL
-                  ) => NULL
+                  ) => ''
                 ) => BOOL(true)
               ) => BOOL(true),
               %expect:only-entries (
@@ -1005,7 +1005,7 @@ fn simple_xml() {
                     %expect:empty (
                       %to-string (
                         ~>$.config.sound[0].property[0]['#text'] => NULL
-                      ) => NULL
+                      ) => ''
                     ) => BOOL(true)
                   ) => BOOL(true),
                   %expect:empty (
@@ -1132,7 +1132,7 @@ fn missing_xml_value() {
             %expect:empty (
               %to-string (
                 ~>$.values['#text'] => NULL
-              ) => NULL
+              ) => ''
             ) => BOOL(true)
           ) => BOOL(true),
           %expect:only-entries (
@@ -1314,7 +1314,7 @@ fn missing_xml_value() {
             %expect:empty (
               %to-string (
                 ~>$.values['#text'] => NULL
-              ) => NULL
+              ) => ''
             ) => BOOL(true)
           ) => BOOL(true),
           %expect:only-entries (
@@ -1514,7 +1514,7 @@ fn unexpected_xml_value() {
             %expect:empty (
               %to-string (
                 ~>$.values['#text'] => NULL
-              ) => NULL
+              ) => ''
             ) => BOOL(true)
           ) => BOOL(true),
           %expect:only-entries (

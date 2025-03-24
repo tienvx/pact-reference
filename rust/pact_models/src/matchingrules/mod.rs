@@ -723,6 +723,22 @@ impl RuleList {
     }
   }
 
+  /// Create a new rule list with all the rules from both
+  pub fn and_rules(&self, rules: &RuleList) -> RuleList {
+    let mut base_list = self.clone();
+    base_list.add_rules(rules);
+    base_list
+  }
+
+  /// Creates a new list with no duplicated rules
+  pub fn remove_duplicates(&self) -> RuleList {
+    RuleList {
+      rules: self.rules.iter().unique().cloned().collect(),
+      rule_logic: self.rule_logic,
+      cascaded: self.cascaded
+    }
+  }
+
   /// Generates a description of the matching rules that can be displayed in a test report.
   /// `for_collection` changes the description for collections or single items.
   pub fn generate_description(&self, for_collection: bool) -> String {
@@ -1425,6 +1441,29 @@ impl Default for MatchingRules {
     MatchingRules {
       rules: hashmap!{}
     }
+  }
+}
+
+impl Display for MatchingRules {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    for (category, rules) in &self.rules {
+      write!(f, "{}:\n", category)?;
+      for (path, rule_list) in &rules.rules {
+        if rule_list.is_empty() {
+          write!(f, "    {} => []\n", path)?;
+        } else if rule_list.rules.len() == 1 {
+          write!(f, "    {} => {:?}\n", path, rule_list.rules[0])?;
+        } else {
+          write!(f, "    {} => [\n", path)?;
+          for rule in &rule_list.rules {
+            write!(f, "        {:?}\n", rule)?;
+          }
+          write!(f, "    ]\n")?;
+        }
+      }
+    }
+
+    Ok(())
   }
 }
 

@@ -266,6 +266,8 @@ impl ExecutionPlanInterpreter {
         "expect:empty" => self.execute_expect_empty(action, value_resolver, node, &action_path),
         "convert:UTF8" => self.execute_convert_utf8(action, value_resolver, node, &action_path),
         "if" => self.execute_if(value_resolver, node, &action_path),
+        "and" => self.execute_and(value_resolver, node, &action_path),
+        "or" => self.execute_or(value_resolver, node, &action_path),
         "tee" => self.execute_tee(value_resolver, node, &action_path),
         "apply" => self.execute_apply(node),
         "push" => self.execute_push(node),
@@ -1375,7 +1377,7 @@ impl ExecutionPlanInterpreter {
     let results = values.iter()
       .map(|v| {
         match v {
-          NodeValue::NULL => NodeValue::NULL,
+          NodeValue::NULL => NodeValue::STRING(String::default()),
           NodeValue::STRING(_) => v.clone(),
           NodeValue::SLIST(_) => v.clone(),
           NodeValue::JSON(json) => match json {
@@ -1956,6 +1958,46 @@ impl ExecutionPlanInterpreter {
           children: node.children.clone()
         }
       }
+    }
+  }
+
+  fn execute_and(
+    &mut self,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.evaluate_children(value_resolver, node, path) {
+      Ok((children, values)) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::VALUE(values.iter().fold(NodeValue::NULL, |result, value| {
+            result.and(value)
+          }))),
+          children
+        }
+      }
+      Err(err) => err
+    }
+  }
+
+  fn execute_or(
+    &mut self,
+    value_resolver: &dyn ValueResolver,
+    node: &ExecutionPlanNode,
+    path: &Vec<String>
+  ) -> ExecutionPlanNode {
+    match self.evaluate_children(value_resolver, node, path) {
+      Ok((children, values)) => {
+        ExecutionPlanNode {
+          node_type: node.node_type.clone(),
+          result: Some(NodeResult::VALUE(values.iter().fold(NodeValue::NULL, |result, value| {
+            result.or(value)
+          }))),
+          children
+        }
+      }
+      Err(err) => err
     }
   }
 
