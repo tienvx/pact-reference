@@ -17,7 +17,7 @@ exclude = [
 [features]
 default = ["datetime", "xml", "plugins", "multipart", "form_urlencoded"]
 datetime = ["pact_models/datetime", "pact-plugin-driver?/datetime", "dep:chrono"] # Support for date/time matchers and expressions
-xml = ["pact_models/xml", "pact-plugin-driver?/xml", "dep:sxd-document"] # support for matching XML documents
+xml = ["pact_models/xml", "pact-plugin-driver?/xml", "dep:sxd-document", "dep:kiss_xml"] # support for matching XML documents
 plugins = ["dep:pact-plugin-driver"]
 multipart = ["dep:multer"] # suport for MIME multipart bodies
 form_urlencoded = ["pact_models/form_urlencoded"] # suport for matching form urlencoded
@@ -34,7 +34,7 @@ hex = "0.4.3"
 http = "1.1.0"
 infer = "0.16.0"
 itertools = "0.14.0"
-kiss_xml = "1.0.1"
+kiss_xml = { version = "1.0.2", optional = true }
 lazy_static = "1.4.0"
 lenient_semver = "0.4.2"
 maplit = "1.0.2"
