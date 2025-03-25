@@ -727,7 +727,7 @@ pub fn generators_to_json(generators: &Generators, spec_version: &PactSpecificat
 /// ```
 /// use pact_models::generators;
 /// use pact_models::generators::Generator;
-/// let gen = generators! {
+/// let g = generators! {
 ///   "HEADER" => {
 ///     "A" => Generator::RandomString(10)
 ///   }
