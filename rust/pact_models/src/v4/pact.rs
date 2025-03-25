@@ -460,7 +460,7 @@ pub fn from_json(source: &str, pact_json: &Value) -> anyhow::Result<Box<dyn Pact
 
 fn meta_data_from_json(pact_json: &Value) -> BTreeMap<String, Value> {
   match pact_json.get("metadata") {
-    Some(Value::Object(ref obj)) => {
+    Some(Value::Object(obj)) => {
        obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
     _ => btreemap!{}

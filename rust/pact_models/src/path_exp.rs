@@ -159,7 +159,7 @@ impl DocPath {
   /// For use with Header and Query DocPaths.
   pub fn first_field(&self) -> Option<&str> {
     for token in self.path_tokens.iter() {
-      if let PathToken::Field(ref field) = token {
+      if let PathToken::Field(field) = token {
         return Some(field);
       }
     }
@@ -169,7 +169,7 @@ impl DocPath {
   /// Extract the string contents of the last Field token.
   pub fn last_field(&self) -> Option<&str> {
     for token in self.path_tokens.iter().rev() {
-      if let PathToken::Field(ref field) = token {
+      if let PathToken::Field(field) = token {
         return Some(field);
       }
     }

@@ -159,7 +159,7 @@ impl Generator {
       Generator::RandomDecimal(digits) => Some(json!({ "type": "RandomDecimal", "digits": digits })),
       Generator::RandomHexadecimal(digits) => Some(json!({ "type": "RandomHexadecimal", "digits": digits })),
       Generator::RandomString(size) => Some(json!({ "type": "RandomString", "size": size })),
-      Generator::Regex(ref regex) => Some(json!({ "type": "Regex", "regex": regex })),
+      Generator::Regex(regex) => Some(json!({ "type": "Regex", "regex": regex })),
       Generator::Date(format, exp) => {
         match (format, exp) {
           (Some(format), Some(exp)) => Some(json!({ "type": "Date", "format": format, "expression": exp })),
@@ -185,7 +185,7 @@ impl Generator {
         }
       },
       Generator::RandomBoolean => Some(json!({ "type": "RandomBoolean" })),
-      Generator::ProviderStateGenerator(ref expression, ref data_type) => {
+      Generator::ProviderStateGenerator(expression, data_type) => {
         if let Some(data_type) = data_type {
           Some(json!({"type": "ProviderState", "expression": expression, "dataType": data_type}))
         } else {
@@ -302,10 +302,13 @@ impl Generator {
       } else {
         hashmap!{ "expression" => Value::String(exp.clone()) }
       }
-      Generator::MockServerURL(example, regex) => hashmap!{ "example" => json!(example), "regex" => json!(regex) },
-      Generator::ArrayContains(variants) => hashmap!{ "variants" => variants.iter().map(|(variant, rules, gens)| {
-          Value::Array(vec![json!(variant), rules.to_v3_json(), Value::Object(gens.iter().map(|(key, gen)| {
-            (key.to_string(), gen.to_json().unwrap())
+      Generator::MockServerURL(example, regex) => hashmap!{
+        "example" => json!(example), "regex" => json!(regex)
+      },
+      Generator::ArrayContains(variants) => hashmap!{
+        "variants" => variants.iter().map(|(variant, rules, gens)| {
+          Value::Array(vec![json!(variant), rules.to_v3_json(), Value::Object(gens.iter().map(|(key, g)| {
+            (key.to_string(), g.to_json().unwrap())
           }).collect())])
         }).collect()
       }
@@ -638,8 +641,8 @@ impl Generators {
   pub fn add_generators(&mut self, generators: Generators) {
     for (key, values) in &generators.categories {
       let category_map = self.categories.entry(key.clone()).or_insert(HashMap::new());
-      for (path, gen) in values {
-        category_map.insert(path.clone(), gen.clone());
+      for (path, g) in values {
+        category_map.insert(path.clone(), g.clone());
       }
     }
   }
@@ -889,12 +892,12 @@ impl GenerateValue<String> for Generator {
       Generator::RandomDecimal(digits) => Ok(generate_decimal(*digits as usize)),
       Generator::RandomHexadecimal(digits) => Ok(generate_hexadecimal(*digits as usize)),
       Generator::RandomString(size) => Ok(generate_ascii_string(*size as usize)),
-      Generator::Regex(ref regex) => {
+      Generator::Regex(regex) => {
         let mut parser = regex_syntax::ParserBuilder::new().unicode(false).build();
         match parser.parse(strip_anchors(regex)) {
           Ok(hir) => {
             match rand_regex::Regex::with_hir(hir, 20) {
-              Ok(gen) => Ok(rnd.sample(gen)),
+              Ok(r) => Ok(rnd.sample(r)),
               Err(err) => {
                 warn!("Failed to generate a value from regular expression - {}", err);
                 Err(anyhow!("Failed to generate a value from regular expression - {}", err))
@@ -982,8 +985,8 @@ impl GenerateValue<String> for Generator {
           Err(anyhow!("DateTime generators require the 'datetime' feature to be enabled"))
         }
       }
-      Generator::RandomBoolean => Ok(format!("{}", rnd.gen::<bool>())),
-      Generator::ProviderStateGenerator(ref exp, ref dt) => {
+      Generator::RandomBoolean => Ok(format!("{}", rnd.r#gen::<bool>())),
+      Generator::ProviderStateGenerator(exp, dt) => {
         // Provider state values may come under a "providerState" key
         let provider_state_config = if let Some(Object(psc)) = context.get("providerState") {
           psc
@@ -1066,12 +1069,12 @@ impl GenerateValue<Value> for Generator {
       },
       Generator::RandomHexadecimal(digits) => Ok(json!(generate_hexadecimal(*digits as usize))),
       Generator::RandomString(size) => Ok(json!(generate_ascii_string(*size as usize))),
-      Generator::Regex(ref regex) => {
+      Generator::Regex(regex) => {
         let mut parser = regex_syntax::ParserBuilder::new().unicode(false).build();
         match parser.parse(strip_anchors(regex)) {
           Ok(hir) => {
             match rand_regex::Regex::with_hir(hir, 20) {
-              Ok(gen) => Ok(json!(thread_rng().sample::<String, _>(gen))),
+              Ok(r) => Ok(json!(thread_rng().sample::<String, _>(r))),
               Err(err) => {
                 warn!("Failed to generate a value from regular expression - {}", err);
                 Err(anyhow!("Failed to generate a value from regular expression - {}", err))
@@ -1159,8 +1162,8 @@ impl GenerateValue<Value> for Generator {
           Err(anyhow!("DateTime generators require the 'datetime' feature to be enabled"))
         }
       },
-      Generator::RandomBoolean => Ok(json!(rand::thread_rng().gen::<bool>())),
-      Generator::ProviderStateGenerator(ref exp, ref dt) => {
+      Generator::RandomBoolean => Ok(json!(rand::thread_rng().r#gen::<bool>())),
+      Generator::ProviderStateGenerator(exp, dt) => {
         // Provider state values may come under a "providerState" key
         let provider_state_config = if let Some(Object(psc)) = context.get("providerState") {
           psc

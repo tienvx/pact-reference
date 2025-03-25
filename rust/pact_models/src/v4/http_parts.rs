@@ -396,7 +396,7 @@ fn content_type_from_json(headers: &Option<HashMap<String, Vec<String>>>, body_a
     None => {
       debug!("Body has no content type set, will default to any headers or metadata");
       match headers {
-        Some(ref h) => match h.iter().find(|kv| kv.0.to_lowercase() == "content-type") {
+        Some(h) => match h.iter().find(|kv| kv.0.to_lowercase() == "content-type") {
           Some((_, v)) => {
             match ContentType::parse(v[0].as_str()) {
               Ok(v) => Some(v),

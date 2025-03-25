@@ -142,7 +142,7 @@ impl MatchingRule {
   pub fn to_json(&self) -> Value {
     match self {
       MatchingRule::Equality => json!({ "match": "equality" }),
-      MatchingRule::Regex(ref r) => json!({ "match": "regex",
+      MatchingRule::Regex(r) => json!({ "match": "regex",
         "regex": r.clone() }),
       MatchingRule::Type => json!({ "match": "type" }),
       MatchingRule::MinType(min) => json!({ "match": "type",
@@ -151,20 +151,20 @@ impl MatchingRule {
         "max": json!(*max as u64) }),
       MatchingRule::MinMaxType(min, max) => json!({ "match": "type",
         "min": json!(*min as u64), "max": json!(*max as u64) }),
-      MatchingRule::Timestamp(ref t) => json!({ "match": "datetime",
+      MatchingRule::Timestamp(t) => json!({ "match": "datetime",
         "format": Value::String(t.clone()) }),
-      MatchingRule::Time(ref t) => json!({ "match": "time",
+      MatchingRule::Time(t) => json!({ "match": "time",
         "format": Value::String(t.clone()) }),
-      MatchingRule::Date(ref d) => json!({ "match": "date",
+      MatchingRule::Date(d) => json!({ "match": "date",
         "format": Value::String(d.clone()) }),
-      MatchingRule::Include(ref s) => json!({ "match": "include",
+      MatchingRule::Include(s) => json!({ "match": "include",
         "value": Value::String(s.clone()) }),
       MatchingRule::Number => json!({ "match": "number" }),
       MatchingRule::Integer => json!({ "match": "integer" }),
       MatchingRule::Decimal => json!({ "match": "decimal" }),
       MatchingRule::Boolean => json!({ "match": "boolean" }),
       MatchingRule::Null => json!({ "match": "null" }),
-      MatchingRule::ContentType(ref r) => json!({ "match": "contentType",
+      MatchingRule::ContentType(r) => json!({ "match": "contentType",
         "value": Value::String(r.clone()) }),
       MatchingRule::ArrayContains(variants) => json!({
         "match": "arrayContains",
@@ -175,8 +175,8 @@ impl MatchingRule {
           });
           if !generators.is_empty() {
             json["generators"] = Value::Object(generators.iter()
-              .map(|(k, gen)| {
-                if let Some(json) = gen.to_json() {
+              .map(|(k, g)| {
+                if let Some(json) = g.to_json() {
                   Some((String::from(k), json))
                 } else {
                   None
@@ -301,8 +301,8 @@ impl MatchingRule {
       MatchingRule::ContentType(ct) => hashmap!{ "value" => Value::String(ct.clone()) },
       MatchingRule::ArrayContains(variants) => hashmap! { "variants" =>
         variants.iter().map(|(variant, rules, gens)| {
-          Value::Array(vec![json!(variant), rules.to_v3_json(), Value::Object(gens.iter().map(|(key, gen)| {
-            (key.to_string(), gen.to_json().unwrap())
+          Value::Array(vec![json!(variant), rules.to_v3_json(), Value::Object(gens.iter().map(|(key, g)| {
+            (key.to_string(), g.to_json().unwrap())
           }).collect())])
         }).collect()
       },
@@ -416,7 +416,7 @@ impl MatchingRule {
                 let cat = GeneratorCategory::BODY;
                 if let Value::Object(map) = generators_json {
                   for (k, v) in map {
-                    if let Value::Object(ref map) = v {
+                    if let Value::Object(map) = v {
                       let path = DocPath::new(k)?;
                       g.parse_generator_from_map(&cat, map, Some(path));
                     }
