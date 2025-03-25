@@ -71,7 +71,7 @@ impl Matches<&Value> for Value {
         match Regex::new(regex) {
           Ok(re) => {
             let actual_str = match actual {
-              Value::String(ref s) => s.clone(),
+              Value::String(s) => s.clone(),
               _ => actual.to_string()
             };
             if re.is_match(&actual_str) {
@@ -85,7 +85,7 @@ impl Matches<&Value> for Value {
       },
       MatchingRule::Include(substr) => {
         let actual_str = match actual {
-          Value::String(ref s) => s.clone(),
+          Value::String(s) => s.clone(),
           _ => actual.to_string()
         };
         if actual_str.contains(substr) {
@@ -184,7 +184,7 @@ impl Matches<&Value> for Value {
         Err(anyhow!("Expected {} ({}) to be a number", value_of(actual), type_of(actual)))
       },
       #[allow(unused_variables)]
-      MatchingRule::Date(ref s) => {
+      MatchingRule::Date(s) => {
         #[cfg(feature = "datetime")]
         {
           let string = json_to_string(actual);
@@ -202,7 +202,7 @@ impl Matches<&Value> for Value {
         }
       },
       #[allow(unused_variables)]
-      MatchingRule::Time(ref s) => {
+      MatchingRule::Time(s) => {
         #[cfg(feature = "datetime")]
         {
           let string = json_to_string(actual);
@@ -220,7 +220,7 @@ impl Matches<&Value> for Value {
         }
       },
       #[allow(unused_variables)]
-      MatchingRule::Timestamp(ref s) => {
+      MatchingRule::Timestamp(s) => {
         #[cfg(feature = "datetime")]
         {
           let string = json_to_string(actual);
@@ -237,7 +237,7 @@ impl Matches<&Value> for Value {
           Err(anyhow!("DateTime matchers require the datetime feature to be enabled"))
         }
       },
-      MatchingRule::ContentType(ref expected_content_type) => {
+      MatchingRule::ContentType(expected_content_type) => {
         match_content_type(&convert_data(actual), expected_content_type)
           .map_err(|err| anyhow!("Failed to match data to have a content type of '{}': {}", expected_content_type, err))
       }
@@ -322,7 +322,7 @@ fn walk_json(json: &Value, path: &mut dyn Iterator<Item=&str>) -> Option<Value> 
   match path.next() {
     Some(p) => match json {
       Value::Object(_) => json.get(p).cloned(),
-      Value::Array(ref array) => match usize::from_str(p) {
+      Value::Array(array) => match usize::from_str(p) {
         Ok(index) => array.get(index).cloned(),
         Err(_) => None
       },

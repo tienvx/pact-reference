@@ -590,7 +590,7 @@ impl Matches<&MimeFile> for &MimeFile {
   fn matches_with(&self, actual: &MimeFile, matcher: &MatchingRule, _cascaded: bool) -> anyhow::Result<()> {
     debug!("FilePart: comparing binary data to '{:?}' using {:?}", actual.content_type, matcher);
     match matcher {
-      MatchingRule::Regex(ref regex) => {
+      MatchingRule::Regex(regex) => {
         match Regex::new(regex) {
           Ok(re) => {
             match from_utf8(&*actual.data) {
@@ -615,7 +615,7 @@ impl Matches<&MimeFile> for &MimeFile {
           self.data.len(), first(&self.data, 20)))
         }
       },
-      MatchingRule::Include(ref substr) => {
+      MatchingRule::Include(substr) => {
         match from_utf8(&*actual.data) {
           Ok(actual_contents) => if actual_contents.contains(substr) {
             Ok(())

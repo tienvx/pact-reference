@@ -491,7 +491,7 @@ impl Matches<u64> for f64 {
   fn matches_with(&self, actual: u64, matcher: &MatchingRule, cascaded: bool) -> anyhow::Result<()> {
     debug!("f64 -> u64: comparing {} to {} using {:?}", self, actual, matcher);
     match matcher {
-      MatchingRule::Regex(ref regex) => {
+      MatchingRule::Regex(regex) => {
         match Regex::new(regex) {
           Ok(re) => {
             if re.is_match(&actual.to_string()) {
