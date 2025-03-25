@@ -11,7 +11,7 @@ use serde_json::Value;
 use tracing::trace;
 
 use pact_models::content_types::ContentType;
-use pact_models::matchingrules::{MatchingRule, RuleList, RuleLogic};
+use pact_models::matchingrules::{MatchingRule, RuleList};
 use pact_models::path_exp::{DocPath, PathToken};
 use pact_models::xml_utils::{group_children, text_nodes};
 
@@ -102,7 +102,7 @@ impl JsonPlanBuilder {
             path.last_field().unwrap_or_default(),
             matchers.generate_description(true))));
           root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json.clone()),
-                                                 &ExecutionPlanNode::resolve_current_value(path), &matchers, true));
+            &ExecutionPlanNode::resolve_current_value(path), &matchers, true));
 
           if let Some(template) = items.first() {
             let mut for_each_node = ExecutionPlanNode::action("for-each");
@@ -302,7 +302,9 @@ impl XMLPlanBuilder {
     node: &mut ExecutionPlanNode
   ) {
     let name = name(element);
-    let element_path = if let Some(index) = index {
+    let element_path = if path.ends_with(format!("{}[*]", name).as_str()) {
+      path.clone()
+    } else if let Some(index) = index {
       path.join_field(&name).join_index(index)
     } else {
       path.join_field(&name)
@@ -314,26 +316,16 @@ impl XMLPlanBuilder {
         .add(ExecutionPlanNode::resolve_current_value(element_path.clone())));
     let mut item_node = ExecutionPlanNode::container(&element_path);
 
-    let no_indices = drop_indices(&element_path);
-    let matchers = if context.matcher_is_defined(&element_path) {
-      context.select_best_matcher(&element_path)
-    } else if context.matcher_is_defined(&no_indices) {
-      context.select_best_matcher(&no_indices)
-    } else {
-      RuleList::empty(RuleLogic::And)
-    };
-    if !matchers.is_empty() && matchers.type_matcher_defined() {
-
-    }
-
     if !element.attributes().is_empty() {
       let mut attributes_node = ExecutionPlanNode::container("attributes");
       self.process_attributes(&element_path, element, &mut attributes_node, context);
       item_node.add(attributes_node);
     }
+
     let mut text_node = ExecutionPlanNode::container("#text");
     self.process_text(&element_path, element, &mut text_node, context);
     item_node.add(text_node);
+
     self.process_children(context, &element_path, element, &mut item_node);
     presence_check.add(item_node);
 
@@ -369,34 +361,42 @@ impl XMLPlanBuilder {
             .add(ExecutionPlanNode::value_node(children.keys().collect_vec()))
             .add(ExecutionPlanNode::resolve_current_value(path))
         );
-        for (child_name, elements) in &children {
-          let p = path.join(child_name);
-          if !context.type_matcher_defined(&p) {
-            parent_node.add(
-              ExecutionPlanNode::action("expect:count")
-                .add(ExecutionPlanNode::value_node(NodeValue::UINT(elements.len() as u64)))
-                .add(ExecutionPlanNode::resolve_current_value(p.clone()))
-                .add(
-                  ExecutionPlanNode::action("join")
-                    .add(ExecutionPlanNode::value_node(
-                      format!("Expected {} <{}> child element{} but there were ",
-                              elements.len(), child_name, if elements.len() > 1 { "s" } else { "" })))
-                    .add(ExecutionPlanNode::action("length")
-                      .add(ExecutionPlanNode::resolve_current_value(p.clone())))
-                )
-            );
-          }
-        }
       }
     }
 
-    for (_child_name, elements) in children {
-      if elements.len() == 1 {
-        self.process_element(context, elements[0], Some(0), path, parent_node);
-      } else {
-        for (index, child) in elements.iter().enumerate() {
-          self.process_element(context, child, Some(index), path, parent_node);
+    for (child_name, elements) in children {
+      let p = path.join(child_name.as_str());
+
+      if !context.type_matcher_defined(&p) {
+        parent_node.add(
+          ExecutionPlanNode::action("expect:count")
+            .add(ExecutionPlanNode::value_node(NodeValue::UINT(elements.len() as u64)))
+            .add(ExecutionPlanNode::resolve_current_value(p.clone()))
+            .add(
+              ExecutionPlanNode::action("join")
+                .add(ExecutionPlanNode::value_node(
+                  format!("Expected {} <{}> child element{} but there were ",
+                          elements.len(), child_name.as_str(), if elements.len() > 1 { "s" } else { "" })))
+                .add(ExecutionPlanNode::action("length")
+                  .add(ExecutionPlanNode::resolve_current_value(p.clone())))
+            )
+        );
+
+        if elements.len() == 1 {
+          self.process_element(context, elements[0], Some(0), path, parent_node);
+        } else {
+          for (index, child) in elements.iter().enumerate() {
+            self.process_element(context, child, Some(index), path, parent_node);
+          }
         }
+      } else {
+        let mut for_each_node = ExecutionPlanNode::action("for-each");
+        for_each_node.add(ExecutionPlanNode::resolve_current_value(&p));
+        let item_path = p.join("[*]");
+
+        self.process_element(context, elements[0], Some(0), &item_path, &mut for_each_node);
+
+        parent_node.add(for_each_node);
       }
     }
   }
@@ -411,16 +411,14 @@ impl XMLPlanBuilder {
     let text_nodes = text_nodes(element);
     let p = path.join("#text");
     let no_indices = drop_indices(&p);
-    if context.matcher_is_defined(&p) {
-      let matchers = context.select_best_matcher(&p);
-      node.add(ExecutionPlanNode::annotation(format!("{} {}", p.last_field().unwrap_or_default(), matchers.generate_description(false))));
-      let mut current_value = ExecutionPlanNode::action("to-string");
-      current_value.add(ExecutionPlanNode::resolve_current_value(&p));
-      node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(text_nodes.join("")),
-        &current_value, &matchers, false));
-    } else if context.matcher_is_defined(&no_indices) {
-      let matchers = context.select_best_matcher(&no_indices);
-      node.add(ExecutionPlanNode::annotation(format!("{} {}", p.last_field().unwrap_or_default(), matchers.generate_description(false))));
+    let matchers = context.select_best_matcher(&p)
+      .filter(|matcher| !matcher.is_type_matcher())
+      .and_rules(&context.select_best_matcher(&no_indices)
+        .filter(|matcher| !matcher.is_type_matcher())
+      ).remove_duplicates();
+    if !matchers.is_empty() {
+      node.add(ExecutionPlanNode::annotation(format!("{} {}", p.last_field().unwrap_or_default(),
+        matchers.generate_description(false))));
       let mut current_value = ExecutionPlanNode::action("to-string");
       current_value.add(ExecutionPlanNode::resolve_current_value(&p));
       node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(text_nodes.join("")),
@@ -465,10 +463,10 @@ impl XMLPlanBuilder {
         );
 
       let no_indices = drop_indices(&p);
-      if context.matcher_is_defined(&p) || context.matcher_is_defined(&no_indices) {
-        let mut matchers = context.select_best_matcher(&p)
-          .and_rules(&context.select_best_matcher(&no_indices))
-          .remove_duplicates();
+      let matchers = context.select_best_matcher(&p)
+        .and_rules(&context.select_best_matcher(&no_indices))
+        .remove_duplicates();
+      if !matchers.is_empty() {
         item_node.add(ExecutionPlanNode::annotation(format!("@{} {}", key, matchers.generate_description(true))));
         presence_check.add(build_matching_rule_node(&ExecutionPlanNode::value_node(item_value),
           ExecutionPlanNode::action("xml:value")
@@ -523,10 +521,9 @@ impl XMLPlanBuilder {
 fn drop_indices(path: &DocPath) -> DocPath {
   DocPath::from_tokens(path.tokens()
     .iter()
-    .filter(|token| if let PathToken::Index(_) = token {
-      false
-    } else {
-      true
+    .filter(|token| match token {
+      PathToken::Index(_) | PathToken::StarIndex => false,
+      _ => true
     })
     .cloned())
 }
@@ -1080,16 +1077,6 @@ mod tests {
             )
           )
         ),
-        %expect:count (
-          UINT(1),
-          ~>$.config.sound,
-          %join (
-            'Expected 1 <sound> child element but there were ',
-            %length (
-              ~>$.config.sound
-            )
-          )
-        ),
         %if (
           %check:exists (
             ~>$.config.name[0]
@@ -1110,6 +1097,16 @@ mod tests {
           ),
           %error (
             'Was expecting an XML element /config/name/0 but it was missing'
+          )
+        ),
+        %expect:count (
+          UINT(1),
+          ~>$.config.sound,
+          %join (
+            'Expected 1 <sound> child element but there were ',
+            %length (
+              ~>$.config.sound
+            )
           )
         ),
         %if (

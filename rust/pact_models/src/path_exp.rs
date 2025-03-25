@@ -7,6 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::iter::Peekable;
 
 use anyhow::anyhow;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
@@ -419,6 +420,29 @@ impl DocPath {
     }
 
     Ok(buffer)
+  }
+
+  /// If this path (as a string) ends with the given string
+  pub fn ends_with(&self, suffix: &str) -> bool {
+    self.expr.ends_with(suffix)
+  }
+
+  /// Creates a new path with the last `n` parts removed.
+  pub fn drop(&self, n: usize) -> Self {
+    let vec = self.path_tokens.iter()
+      .dropping_back(n)
+      .cloned()
+      .collect_vec();
+    if vec.is_empty() {
+      Self::root()
+    } else {
+      let mut path = DocPath {
+        path_tokens: vec,
+        expr: "".to_string()
+      };
+      path.expr = path.build_expr();
+      path
+    }
   }
 }
 

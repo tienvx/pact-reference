@@ -622,16 +622,6 @@ fn simple_xml() {
               )
             )
           ) => OK,
-          %expect:count (
-            UINT(1) => UINT(1),
-            ~>$.config.sound => xml:"<sound>\n  <property name=\"volume\" value=\"11\"/>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>",
-            %join (
-              'Expected 1 <sound> child element but there were ',
-              %length (
-                ~>$.config.sound
-              )
-            )
-          ) => OK,
           %if (
             %check:exists (
               ~>$.config.name[0] => xml:'<name>My Settings</name>'
@@ -654,6 +644,16 @@ fn simple_xml() {
               'Was expecting an XML element /config/name/0 but it was missing'
             )
           ) => BOOL(true),
+          %expect:count (
+            UINT(1) => UINT(1),
+            ~>$.config.sound => xml:"<sound>\n  <property name=\"volume\" value=\"11\"/>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>",
+            %join (
+              'Expected 1 <sound> child element but there were ',
+              %length (
+                ~>$.config.sound
+              )
+            )
+          ) => OK,
           %if (
             %check:exists (
               ~>$.config.sound[0] => xml:"<sound>\n  <property name=\"volume\" value=\"11\"/>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>"
@@ -885,16 +885,6 @@ fn simple_xml() {
               )
             )
           ) => OK,
-          %expect:count (
-            UINT(1) => UINT(1),
-            ~>$.config.sound => xml:"<sound>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>",
-            %join (
-              'Expected 1 <sound> child element but there were ',
-              %length (
-                ~>$.config.sound
-              )
-            )
-          ) => OK,
           %if (
             %check:exists (
               ~>$.config.name[0] => xml:'<name/>'
@@ -917,6 +907,16 @@ fn simple_xml() {
               'Was expecting an XML element /config/name/0 but it was missing'
             )
           ) => BOOL(false),
+          %expect:count (
+            UINT(1) => UINT(1),
+            ~>$.config.sound => xml:"<sound>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>",
+            %join (
+              'Expected 1 <sound> child element but there were ',
+              %length (
+                ~>$.config.sound
+              )
+            )
+          ) => OK,
           %if (
             %check:exists (
               ~>$.config.sound[0] => xml:"<sound>\n  <property name=\"mixer\" value=\"standard\"/>\n</sound>"

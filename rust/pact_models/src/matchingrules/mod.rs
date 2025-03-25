@@ -484,6 +484,17 @@ impl MatchingRule {
     }
   }
 
+  /// If this matching rule is a type matcher
+  pub fn is_type_matcher(&self) -> bool {
+    match self {
+      MatchingRule::Type => true,
+      MatchingRule::MinType(_) => true,
+      MatchingRule::MaxType(_) => true,
+      MatchingRule::MinMaxType(_, _) => true,
+      _ => false
+    }
+  }
+
   /// If this matcher should cascade to children
   pub fn can_cascade(&self) -> bool {
     match self {
@@ -703,6 +714,17 @@ impl RuleList {
     self.rules.iter().any(MatchingRule::is_values_matcher)
   }
 
+  /// If there are any matchers that are not type matchers
+  pub fn has_non_type_matchers(&self) -> bool {
+    self.rules.iter().any(|rule| match rule {
+      MatchingRule::Type => false,
+      MatchingRule::MinType(_) => false,
+      MatchingRule::MaxType(_) => false,
+      MatchingRule::MinMaxType(_, _) => false,
+      _ => true
+    })
+  }
+
   /// Add a matching rule to the rule list
   pub fn add_rule(&mut self, rule: &MatchingRule) {
     self.rules.push(rule.clone())
@@ -750,6 +772,15 @@ impl RuleList {
       self.rules.iter()
         .map(|rule| rule.generate_description(for_collection))
         .join(", ")
+    }
+  }
+
+  /// Filters this list with the given predicate, returning a new list
+  pub fn filter<F>(&self, predicate: F) -> RuleList where F: FnMut(&&MatchingRule) -> bool {
+    RuleList {
+      rules: self.rules.iter().filter(predicate).cloned().collect(),
+      rule_logic: self.rule_logic,
+      cascaded: self.cascaded
     }
   }
 }
