@@ -13,7 +13,6 @@ jobs:
       fail-fast: false
       matrix:
         operating-system: [ ubuntu-latest, windows-latest, macos-13, macos-14 ]
-        rust: [ stable ]
     env:
       pact_do_not_track: true
     steps:
@@ -31,8 +30,6 @@ jobs:
         env:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
-          MATCHING_ENGINE: v2
-          V2_MATCHING_LOG_EXECUTED_PLAN: 1
       - name: Build Components
         run: cargo build
         working-directory: rust
@@ -40,6 +37,22 @@ jobs:
         if: runner.os == 'Linux'
         run: cargo clippy
         working-directory: rust
+
+  v2-engine:
+    runs-on: ubuntu-latest
+    env:
+      pact_do_not_track: true
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Tests
+        run: cargo test
+        working-directory: rust
+        env:
+          RUST_LOG: debug
+          RUST_BACKTRACE: 1
+          MATCHING_ENGINE: v2
+          V2_MATCHING_LOG_EXECUTED_PLAN: 1
 
   musl-build:
     runs-on: ubuntu-latest
