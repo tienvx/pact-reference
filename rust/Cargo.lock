@@ -2296,7 +2296,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "pact-plugin-driver",
- "pact_matching 2.0.0-beta.0",
+ "pact_matching 2.0.0-beta.1",
  "pact_mock_server 2.0.2",
  "pact_models 1.3.1",
  "pretty_assertions",
@@ -2343,7 +2343,7 @@ dependencies = [
  "onig",
  "os_info",
  "pact-plugin-driver",
- "pact_matching 2.0.0-beta.0",
+ "pact_matching 2.0.0-beta.1",
  "pact_mock_server 1.2.11",
  "pact_models 1.3.1",
  "pact_verifier",
@@ -2416,7 +2416,7 @@ dependencies = [
 
 [[package]]
 name = "pact_matching"
-version = "2.0.0-beta.0"
+version = "2.0.0-beta.1"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -2639,7 +2639,7 @@ dependencies = [
  "mime",
  "pact-plugin-driver",
  "pact_consumer",
- "pact_matching 2.0.0-beta.0",
+ "pact_matching 2.0.0-beta.1",
  "pact_models 1.3.1",
  "pretty_assertions",
  "quickcheck",
