@@ -495,6 +495,16 @@ impl MatchingRule {
     }
   }
 
+  /// If this matching rule is a type matcher that includes a length restriction
+  pub fn is_length_type_matcher(&self) -> bool {
+    match self {
+      MatchingRule::MinType(_) => true,
+      MatchingRule::MaxType(_) => true,
+      MatchingRule::MinMaxType(_, _) => true,
+      _ => false
+    }
+  }
+
   /// If this matcher should cascade to children
   pub fn can_cascade(&self) -> bool {
     match self {

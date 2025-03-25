@@ -190,7 +190,7 @@ impl JsonPlanBuilder {
         if !rules.is_empty() && should_apply_to_map_entries(&rules) {
           root_node.add(ExecutionPlanNode::annotation(rules.generate_description(true)));
           root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json.clone()),
-                                                 &ExecutionPlanNode::resolve_current_value(path), &rules, true));
+            &ExecutionPlanNode::resolve_current_value(path), &rules, true));
         } else if entries.is_empty() {
           root_node.add(
             ExecutionPlanNode::action("json:expect:empty")
@@ -233,7 +233,7 @@ impl JsonPlanBuilder {
           let matchers = context.select_best_matcher(path);
           root_node.add(ExecutionPlanNode::annotation(format!("{} {}", path.last_field().unwrap_or_default(), matchers.generate_description(false))));
           root_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(json),
-                                                 &ExecutionPlanNode::resolve_current_value(path), &matchers, false));
+            &ExecutionPlanNode::resolve_current_value(path), &matchers, false));
         } else {
           let mut match_node = ExecutionPlanNode::action("match:equality");
           match_node
@@ -390,6 +390,16 @@ impl XMLPlanBuilder {
           }
         }
       } else {
+        let rules = context.select_best_matcher(&p)
+          .filter(|m| m.is_length_type_matcher());
+        if !rules.is_empty() {
+          parent_node.add(ExecutionPlanNode::annotation(format!("{} {}",
+            path.last_field().unwrap_or_default(),
+            rules.generate_description(true))));
+          parent_node.add(build_matching_rule_node(&ExecutionPlanNode::value_node(elements[0]),
+            &ExecutionPlanNode::resolve_current_value(path), &rules, true));
+        }
+
         let mut for_each_node = ExecutionPlanNode::action("for-each");
         for_each_node.add(ExecutionPlanNode::resolve_current_value(&p));
         let item_path = p.join("[*]");

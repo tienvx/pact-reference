@@ -2184,7 +2184,7 @@ async fn not_empty_found_at_key_when_empty_expected_xml() {
           "method": "POST",
           "path": "/",
           "query": "",
-          "headers": {"Content-Type": "application/json"},
+          "headers": {"Content-Type": "application/xml"},
           "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><alligator name=\"\"/>"
         },
         "actual": {

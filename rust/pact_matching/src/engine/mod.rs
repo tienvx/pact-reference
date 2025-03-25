@@ -11,6 +11,7 @@ use anyhow::anyhow;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use itertools::Itertools;
+use kiss_xml::dom::Element;
 use serde_json::Value;
 use serde_json::Value::Object;
 use snailquote::escape;
@@ -363,6 +364,18 @@ impl From<Vec<String>> for NodeValue {
 impl From<Vec<&String>> for NodeValue {
   fn from(value: Vec<&String>) -> Self {
     NodeValue::SLIST(value.iter().map(|v| (*v).clone()).collect())
+  }
+}
+
+impl From<Element> for NodeValue {
+  fn from(value: Element) -> Self {
+    NodeValue::XML(XmlValue::Element(value.clone()))
+  }
+}
+
+impl From<&Element> for NodeValue {
+  fn from(value: &Element) -> Self {
+    NodeValue::XML(XmlValue::Element(value.clone()))
   }
 }
 
