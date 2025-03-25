@@ -17,7 +17,7 @@ build = "build.rs"
 [features]
 default = ["datetime", "xml", "form_urlencoded"]
 datetime = ["dep:chrono", "dep:chrono-tz", "dep:gregorian"] # Support for date/time matchers and expressions
-xml = ["dep:sxd-document"] # support for matching XML documents
+xml = ["dep:sxd-document", "dep:kiss_xml"] # support for matching XML documents
 form_urlencoded = ["dep:serde_urlencoded"] # suport for matching form urlencoded
 
 [dependencies]
@@ -32,7 +32,7 @@ hashers = "1.0.1"
 hex = "0.4.3"
 indextree = "4.7.3"
 itertools = "0.14.0"
-kiss_xml = "1.0.1"
+kiss_xml = { version = "1.0.1", optional = true }
 lazy_static = "1.5.0"
 lenient_semver = "0.4.2"
 logos = "0.15.0"
