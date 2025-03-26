@@ -11,9 +11,6 @@ resolver = "2"
 [patch.crates-io]
 # Waiting on the next release of Onig crate
 onig = { git = "https://github.com/rust-onig/rust-onig", default-features = false, rev = "76bc1d29651bd17c7d5ecea9266bd2e0e83cb2e0" }
-# FFI Inmemory sink uses the global static `LOG_BUFFER` in the pact_matching crate. This is required to be the same
-# version across all crates (i.e. mock server crate).
-pact_matching = { version = "~2.0.0-beta", path = "./pact_matching" }
 # Issue 389 - Pull change into other crates
 pact_models = { version = "~1.3.0", path = "./pact_models" }
 
