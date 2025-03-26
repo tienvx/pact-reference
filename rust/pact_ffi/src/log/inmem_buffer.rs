@@ -7,6 +7,7 @@ use std::sync::Mutex;
 
 use bytes::{BufMut, Bytes, BytesMut};
 use lazy_static::lazy_static;
+use pact_mock_server::LOG_ID;
 use tracing_subscriber::fmt::MakeWriter;
 
 /// In-memory buffer for logging output. Sends output to global static `LOG_BUFFER` in the pact_matching
@@ -46,7 +47,7 @@ lazy_static! {
   static ref LOG_BUFFER: Mutex<HashMap<String, BytesMut>> = Mutex::new(HashMap::new());
 }
 
-// TODO: This needs to be moved from pact_matching, but at the moment the mock server crate
+// TODO: This needs to be moved from pact_mock_server, but at the moment the mock server crate
 //       relies on it
 // task_local! {
 //   /// Log ID to accumulate logs against
@@ -65,7 +66,7 @@ pub fn fetch_buffer_contents(id: &str) -> Bytes {
 /// Writes the provided bytes to the task local ID scoped in-memory buffer. If there is no
 /// task local ID set, will write to the "global" buffer.
 pub fn write_to_log_buffer(buf: &[u8]) {
-  let id = pact_matching::logging::LOG_ID
+  let id = LOG_ID
     .try_with(|id| id.clone())
     .unwrap_or_else(|_| "global".into());
   let mut inner = LOG_BUFFER.lock().unwrap();

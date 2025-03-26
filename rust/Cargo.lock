@@ -2311,7 +2311,7 @@ dependencies = [
  "os_info",
  "pact-plugin-driver",
  "pact_matching 1.2.10",
- "pact_mock_server 1.2.12",
+ "pact_mock_server 1.2.14",
  "pact_models",
  "pact_verifier",
  "panic-message",
@@ -2434,9 +2434,9 @@ dependencies = [
 
 [[package]]
 name = "pact_mock_server"
-version = "1.2.12"
+version = "1.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1d9fc96a0c7cc41f49c613228ea38baaad1802af2160154bfdcf765dd13b244"
+checksum = "3fb5a41527741ab7506946f9203baf19a835e1279ea1bd3b2ddf4ede87b0d007"
 dependencies = [
  "anyhow",
  "bytes",

@@ -3,9 +3,9 @@
 use std::sync::Arc;
 
 use itertools::Itertools;
+use pact_mock_server::LOG_ID;
 use serde_json::Value;
 use tracing::{debug, error};
-use pact_matching::logging::LOG_ID;
 use pact_models::prelude::HttpAuth;
 use pact_verifier::{ConsumerVersionSelector, FilterInfo, NullRequestFilterExecutor, PactSource, ProviderInfo, ProviderTransport, PublishOptions, VerificationOptions, verify_provider_async};
 use pact_verifier::callback_executors::HttpRequestProviderStateExecutor;

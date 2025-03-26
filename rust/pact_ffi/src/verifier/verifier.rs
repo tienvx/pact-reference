@@ -7,13 +7,13 @@ use std::sync::Arc;
 
 use clap::{AppSettings, ArgMatches, ErrorKind};
 use maplit::hashmap;
+use pact_mock_server::LOG_ID;
 use serde_json::Value;
 use pact_models::http_utils::HttpAuth;
 use pact_models::PactSpecification;
 use tracing::{debug, error, warn};
 use tracing_core::LevelFilter;
 use tracing_subscriber::FmtSubscriber;
-use pact_matching::logging::LOG_ID;
 use pact_verifier::*;
 use pact_verifier::callback_executors::HttpRequestProviderStateExecutor;
 use pact_verifier::metrics::VerificationMetrics;
