@@ -45,7 +45,6 @@ use tracing::{debug, debug_span, error, info, Instrument, instrument, trace, war
 pub use callback_executors::NullRequestFilterExecutor;
 use callback_executors::RequestFilterExecutor;
 use pact_matching::{match_response, Mismatch};
-use pact_matching::logging::LOG_ID;
 use pact_matching::metrics::{MetricEvent, send_metrics_async};
 
 use crate::callback_executors::{ProviderStateError, ProviderStateExecutor};
@@ -988,8 +987,7 @@ pub async fn verify_provider_async<F: RequestFilterExecutor, S: ProviderStateExe
   metrics_data: Option<VerificationMetrics>
 ) -> anyhow::Result<VerificationExecutionResult> {
   pact_matching::matchers::configure_core_catalogue();
-
-  LOG_ID.scope(format!("verify:{}", provider_info.name), async {
+  async {
     let pact_results = fetch_pacts(source, consumers, &provider_info).await;
 
     let mut total_results = 0;
@@ -1160,7 +1158,7 @@ pub async fn verify_provider_async<F: RequestFilterExecutor, S: ProviderStateExe
     #[cfg(feature = "plugins")] shutdown_plugins();
 
     Ok(verification_result)
-  }.instrument(tracing::trace_span!("verify_provider_async"))).await
+  }.instrument(tracing::trace_span!("verify_provider_async")).await
 }
 
 fn process_errors(errors: &Vec<(String, MismatchResult)>, output: &mut Vec<String>, coloured_output: bool) {

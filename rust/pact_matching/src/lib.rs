@@ -416,7 +416,6 @@ pub const PACT_RUST_VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSI
 
 pub mod matchers;
 pub mod json;
-pub mod logging;
 pub mod matchingrules;
 pub mod metrics;
 pub mod generators;
