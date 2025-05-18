@@ -108,6 +108,7 @@ jobs:
         working-directory: rust/pact_ffi
 
       - name: Upload Release Assets
+        if: ${{ github.event_name == 'release' }}
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
