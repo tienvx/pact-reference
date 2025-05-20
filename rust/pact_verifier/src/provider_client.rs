@@ -53,17 +53,17 @@ impl From<reqwest::Error> for ProviderClientError {
 impl Display for ProviderClientError {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
-      ProviderClientError::RequestMethodError(ref method, _) =>
+      ProviderClientError::RequestMethodError(method, _) =>
         write!(f, "Invalid request method: '{}'", method),
-      ProviderClientError::RequestHeaderNameError(ref name, _) =>
+      ProviderClientError::RequestHeaderNameError(name, _) =>
         write!(f, "Invalid header name: '{}'", name),
-      ProviderClientError::RequestHeaderValueError(ref value, _) =>
+      ProviderClientError::RequestHeaderValueError(value, _) =>
         write!(f, "Invalid header value: '{}'", value),
-      ProviderClientError::RequestBodyError(ref message) =>
+      ProviderClientError::RequestBodyError(message) =>
         write!(f, "Invalid request body: '{}'", message),
-      ProviderClientError::ResponseError(ref message) =>
+      ProviderClientError::ResponseError(message) =>
         write!(f, "Invalid response: {}", message),
-      ProviderClientError::ResponseStatusCodeError(ref code) =>
+      ProviderClientError::ResponseStatusCodeError(code) =>
         write!(f, "Invalid status code: {}", code)
     }
   }

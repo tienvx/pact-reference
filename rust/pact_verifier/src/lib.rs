@@ -1201,7 +1201,7 @@ pub fn interaction_mismatch_output(
       output.push(format!("           {}", if coloured_output { mismatch.ansi_description() } else { mismatch.description() }));
     }
 
-    if let Mismatch::BodyMismatch { ref path, .. } = mismatch {
+    if let Mismatch::BodyMismatch { path, .. } = mismatch {
       display_body_mismatch(expected, actual, path, output);
     }
 

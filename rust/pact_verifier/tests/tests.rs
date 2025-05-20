@@ -788,7 +788,7 @@ async fn verify_message_pact_with_matching_rules_on_metadata() {
 #[test_log::test(tokio::test)]
 async fn verify_pact_with_matcher_on_last_modified_header() {
   // TODO: Remove this when the builder can set the overwrite flag
-  env::set_var("PACT_OVERWRITE", "true");
+  unsafe { env::set_var("PACT_OVERWRITE", "true"); }
 
   let result = {
     let server = PactBuilderAsync::new("consumer", "http-service")
@@ -836,7 +836,7 @@ async fn verify_pact_with_matcher_on_last_modified_header() {
   };
 
   // TODO: Remove this when the builder can set the overwrite flag
-  env::remove_var("PACT_OVERWRITE");
+  unsafe { env::remove_var("PACT_OVERWRITE"); }
 
   expect!(result.unwrap().results.get(0).unwrap().result.as_ref()).to(be_ok());
 }
