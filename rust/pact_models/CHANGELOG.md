@@ -1,5 +1,22 @@
 To generate the log, run `git log --pretty='* %h - %s (%an, %ad)' TAGNAME..HEAD .` replacing TAGNAME and HEAD as appropriate.
 
+# 1.3.1 - Supports generators with XML
+
+* 84085856 - chore(pact-models): Update dependencies (Ronald Holshausen, Tue May 20 11:40:04 2025 +1000)
+* 035bfd72 - test: Test apply XML generator to elements located too deep (tien.xuan.vo, Tue Mar 18 00:53:17 2025 +0700)
+* 3c0c5a09 - test: Test apply XML generator to elements in the middle (tien.xuan.vo, Tue Mar 18 00:52:51 2025 +0700)
+* 25025d8a - test: Test apply XML generator without any generators (tien.xuan.vo, Tue Mar 18 00:50:56 2025 +0700)
+* 9caa1d26 - perf: Improve performance of XML attribute and text generating (tien.xuan.vo, Mon Mar 17 23:54:04 2025 +0700)
+* 67c9f20f - test: Test XML generator with escaping data (tien.xuan.vo, Sun Mar 16 00:57:12 2025 +0700)
+* 1eead4e3 - test: Test XML generator with comment (tien.xuan.vo, Sun Mar 16 00:14:22 2025 +0700)
+* b30ae400 - test: Test XML generator with unicode (tien.xuan.vo, Sat Mar 15 17:20:59 2025 +0700)
+* 662950ac - fix(test): Fix wrong content type (tien.xuan.vo, Sat Mar 15 17:19:58 2025 +0700)
+* 8084b802 - fix: Handle wildcard in XML generator key (tien.xuan.vo, Fri Mar 14 22:29:27 2025 +0700)
+* 3c7a7b33 - feat: Implement generators for XML (tien.xuan.vo, Mon Feb 10 22:43:08 2025 +0700)
+* 4eb429de - fix: kiss_xml should be required with the XML feature (Ronald Holshausen, Tue Mar 25 16:51:39 2025 +1100)
+* a545c105 - chore(pact-models): Correct changelog (Ronald Holshausen, Tue Mar 25 16:14:59 2025 +1100)
+* 45ac2c65 - bump version to 1.3.1 (Ronald Holshausen, Tue Mar 25 16:10:29 2025 +1100)
+
 # 1.3.0 - Support V2 matching engine
 
 * fd3aed0f - chore(pact-models): Upgrade pact models crate to Rust 2024 edition (Ronald Holshausen, Tue Mar 25 16:06:21 2025 +1100)
