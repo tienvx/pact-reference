@@ -188,20 +188,76 @@ impl Default for Link {
   }
 }
 
+/// Builder for the HAL aware HTTP client
+#[derive(Clone)]
+pub struct HALClientBuilder {
+  url: String,
+  auth: Option<HttpAuth>,
+  retries: u8,
+  client: Option<reqwest::Client>
+}
+
+impl HALClientBuilder {
+  /// Create a new builder with default options
+  pub fn builder() -> Self {
+    HALClientBuilder {
+      url: "".to_string(),
+      auth: None,
+      retries: 3,
+      client: None
+    }
+  }
+
+  /// Sets the URL and optional authentication
+  pub fn with_url<S: Into<String>>(&mut self, url: S, auth: Option<HttpAuth>) -> &mut Self {
+    self.url = url.into();
+    self.auth = auth;
+    self
+  }
+
+  /// Sets the number of retries on certain HTTP errors. Default is 3.
+  pub fn with_retries(&mut self, retries: u8) -> &mut Self {
+    self.retries = retries;
+    self
+  }
+
+  /// Sets the HTTP client to use.
+  pub fn with_http_client(&mut self, client: reqwest::Client) -> &mut Self {
+    self.client = Some(client);
+    self
+  }
+
+  /// Constructs the new client
+  pub fn build(&self) -> HALClient {
+    HALClient {
+      client: self.client.clone().unwrap_or_else(|| reqwest::ClientBuilder::new()
+        .user_agent(format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
+        .tcp_keepalive(None)
+        .build()
+        .unwrap()),
+      url: self.url.clone(),
+      path_info: None,
+      auth: self.auth.clone(),
+      retries: self.retries
+    }
+  }
+}
+
 /// HAL aware HTTP client
 #[derive(Clone)]
 pub struct HALClient {
-  client: reqwest::Client,
-  url: String,
-  path_info: Option<Value>,
-  auth: Option<HttpAuth>,
-  retries: u8
+  pub(crate) client: reqwest::Client,
+  pub(crate) url: String,
+  pub(crate) path_info: Option<Value>,
+  pub(crate) auth: Option<HttpAuth>,
+  pub(crate) retries: u8
 }
 
 impl HALClient {
   /// Initialise a client with the URL and optional authentication
+  #[deprecated(note = "use HALClientBuilder", since = "1.2.6")]
   pub fn with_url(url: &str, auth: Option<HttpAuth>) -> HALClient {
-    HALClient { url: url.to_string(), auth, ..HALClient::default() }
+    HALClientBuilder::builder().with_url(url, auth).build()
   }
 
   fn update_path_info(&self, path_info: serde_json::Value) -> HALClient {
@@ -583,7 +639,7 @@ pub async fn fetch_pacts_from_broker(
   trace!("fetch_pacts_from_broker(broker_url='{}', provider_name='{}', auth={})", broker_url,
     provider_name, auth.clone().unwrap_or_default());
 
-    let mut hal_client = HALClient::with_url(broker_url, auth);
+    let mut hal_client = HALClientBuilder::builder().with_url(broker_url, auth).build();
     let template_values = hashmap!{ "provider".to_string() => provider_name.to_string() };
 
     hal_client = hal_client.navigate("pb:latest-provider-pacts", &template_values)
@@ -656,7 +712,7 @@ pub async fn fetch_pacts_dynamically_from_broker(
     broker_url, provider_name, pending, include_wip_pacts_since, provider_tags,
     consumer_version_selectors, auth.clone().unwrap_or_default());
 
-    let mut hal_client = HALClient::with_url(broker_url, auth);
+    let mut hal_client = HALClientBuilder::builder().with_url(broker_url, auth).build();
     let template_values = hashmap!{ "provider".to_string() => provider_name.clone() };
 
     hal_client = hal_client.navigate("pb:provider-pacts-for-verification", &template_values)
@@ -820,7 +876,7 @@ pub async fn publish_verification_results(
   branch: Option<String>,
   metrics_data: Option<&VerificationMetrics>
 ) -> Result<serde_json::Value, PactBrokerError> {
-  let hal_client = HALClient::with_url(broker_url, auth.clone());
+  let hal_client = HALClientBuilder::builder().with_url(broker_url, auth.clone()).build();
 
   if branch.is_some() {
     publish_provider_branch(&hal_client, &links, &branch.unwrap(), &version).await?;
@@ -1188,7 +1244,7 @@ mod tests {
 
   #[test_log::test(tokio::test)]
   async fn fetch_returns_an_error_if_there_is_no_pact_broker() {
-    let client = HALClient::with_url("http://idont.exist:6666", None);
+    let client = HALClientBuilder::builder().with_url("http://idont.exist:6666", None).build();
     expect!(client.fetch("/").await).to(be_err());
   }
 
@@ -1203,7 +1259,7 @@ mod tests {
         })
         .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     let result = client.fetch("/hello").await;
     expect!(result).to(be_err().value(format!("Request to pact broker path \'/hello\' failed: 404 Not Found. URL: '{}'",
         pact_broker.url())));
@@ -1221,7 +1277,7 @@ mod tests {
       })
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     let result = client.fetch("/nonjson").await;
     pretty_assertions::assert_eq!(format!("Error with the content of a HAL resource - Did not get a valid HAL response body from pact broker path \'/nonjson\', content type is 'text/html'. URL: '{}'",
         pact_broker.url()), result.unwrap_err().to_string());
@@ -1267,7 +1323,7 @@ mod tests {
             })
             .start_mock_server(None, None);
 
-        let client = HALClient::with_url(pact_broker.url().as_str(), None);
+        let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
         let result = client.fetch("/user-agent").await;
         expect!(result).to(be_ok());
     }
@@ -1301,7 +1357,7 @@ mod tests {
             })
             .start_mock_server(None, None);
 
-        let client = HALClient::with_url(pact_broker.url().as_str(), None);
+        let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
         let result = client.fetch("/nonhal").await;
         pretty_assertions::assert_eq!(
           format!("Error with the content of a HAL resource - Did not get a valid HAL response body from pact broker path \'/nonhal\' - error decoding response body. URL: '{}'",
@@ -1324,7 +1380,7 @@ mod tests {
       })
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     let expected_requests = client.retries as usize;
     let result = client.fetch("/").await;
     expect!(result).to(be_err());
@@ -1352,7 +1408,7 @@ mod tests {
       })
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().join("/path").unwrap().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url().join("/path").unwrap(), None).build();
 
     let result = client.fetch("/path/a/b/c").await;
     expect!(result).to(be_ok());
@@ -1375,7 +1431,7 @@ mod tests {
       })
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     let expected_requests = client.retries as usize;
     let result = client.post_json(pact_broker.url().as_str(), "{}").await;
 
@@ -1396,7 +1452,7 @@ mod tests {
       })
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     let expected_requests = client.retries as usize;
     let result = client.put_json(pact_broker.url().as_str(), "{}").await;
     expect!(result.clone()).to(be_err());
@@ -1437,7 +1493,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn fetch_link_returns_an_error_if_a_previous_resource_has_not_been_fetched() {
-        let client = HALClient::with_url("http://localhost", None);
+        let client = HALClientBuilder::builder().with_url("http://localhost", None).build();
         let result = client.fetch_link("anything_will_do", &hashmap!{}).await;
         expect!(result).to(be_err().value("No previous resource has been fetched from the pact broker. URL: 'http://localhost', LINK: 'anything_will_do'".to_string()));
     }
@@ -1455,7 +1511,7 @@ mod tests {
             .await
             .start_mock_server(None, None);
 
-        let mut client = HALClient::with_url(pact_broker.url().as_str(), None);
+        let mut client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
         let result = client.fetch("/").await;
         expect!(result.clone()).to(be_ok());
         client.path_info = result.ok();
@@ -1477,7 +1533,7 @@ mod tests {
             .await
             .start_mock_server(None, None);
 
-        let mut client = HALClient::with_url(pact_broker.url().as_str(), None);
+        let mut client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
         let result = client.fetch("/").await;
         expect!(result.clone()).to(be_ok());
         client.path_info = result.ok();
@@ -1499,7 +1555,7 @@ mod tests {
         .await
         .start_mock_server(None, None);
 
-    let mut client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let mut client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     let result = client.fetch("/").await;
     expect!(result.clone()).to(be_ok());
     client.path_info = result.ok();
@@ -1529,7 +1585,7 @@ mod tests {
             .await
             .start_mock_server(None, Some(MockServerConfig::with_keep_alive(true)));
 
-        let mut client = HALClient::with_url(pact_broker.url().as_str(), None);
+        let mut client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
         let result = client.fetch("/").await;
         expect!(result.clone()).to(be_ok());
         client.path_info = result.ok();
@@ -1559,7 +1615,7 @@ mod tests {
             .start_mock_server_async(None, None)
             .await;
 
-        let mut client = HALClient::with_url(pact_broker.url().as_str(), None);
+        let mut client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
         client.path_info = Some(client.fetch("/").await.unwrap());
         let result = client.fetch_link("next", &hashmap!{}).await;
         expect!(result).to(be_ok().value(serde_json::Value::String("Yay! You found your way here".to_string())));
@@ -1586,7 +1642,7 @@ mod tests {
             .await
             .start_mock_server(None, None);
 
-        let mut client = HALClient::with_url(pact_broker.url().as_str(), None);
+        let mut client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
         let result = client.fetch("/").await;
         expect!(result.clone()).to(be_ok());
         client.path_info = result.ok();
@@ -1614,7 +1670,7 @@ mod tests {
       })
       .start_mock_server(None, None);
 
-    let mut client = HALClient::with_url(pact_broker.url().join("/path").unwrap().as_str(), None);
+    let mut client = HALClientBuilder::builder().with_url(pact_broker.url().join("/path").unwrap(), None).build();
     let result = client.fetch("/path").await.unwrap();
     client.path_info = Some(result);
     let result = client.fetch_link("document", &hashmap!{}).await;
@@ -1641,7 +1697,7 @@ mod tests {
       })
       .start_mock_server(None, None);
 
-    let mut client = HALClient::with_url(pact_broker.url().join("/path").unwrap().as_str(), None);
+    let mut client = HALClientBuilder::builder().with_url(pact_broker.url().join("/path").unwrap(), None).build();
     let result = client.fetch("/path").await.unwrap();
     client.path_info = Some(result);
     let result = client.fetch_link("document", &hashmap!{}).await;
@@ -2503,7 +2559,7 @@ mod tests {
       .await
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     let links = vec![
       Link {
         name: "pb:provider".to_string(),
@@ -2533,17 +2589,17 @@ mod tests {
       })
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().join("/path").unwrap().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url().join("/path").unwrap(), None).build();
     let result = client.send_document("/path/a/b/c", "{}", Method::PUT).await;
     expect!(result).to(be_ok());
   }
 
   #[test]
   fn resolve_path_test() {
-    let client = HALClient::with_url("not a URL", None);
+    let client = HALClientBuilder::builder().with_url("not a URL", None).build();
     expect!(client.resolve_path("/any")).to(be_err());
 
-    let client = HALClient::with_url("http://localhost-ip4:1234", None);
+    let client = HALClientBuilder::builder().with_url("http://localhost-ip4:1234", None).build();
     expect!(client.resolve_path("")).to(be_ok().value(Url::parse("http://localhost-ip4:1234").unwrap()));
     expect!(client.resolve_path("/")).to(be_ok().value(Url::parse("http://localhost-ip4:1234").unwrap()));
     expect!(client.resolve_path("/any")).to(be_ok().value(Url::parse("http://localhost-ip4:1234/any").unwrap()));
@@ -2553,7 +2609,7 @@ mod tests {
     expect!(client.resolve_path("/base-path/")).to(be_ok().value(Url::parse("http://localhost-ip4:1234/base-path/").unwrap()));
     expect!(client.resolve_path("/base-path/sub-path")).to(be_ok().value(Url::parse("http://localhost-ip4:1234/base-path/sub-path").unwrap()));
 
-    let client = HALClient::with_url("http://localhost-ip4:1234/base-path", None);
+    let client = HALClientBuilder::builder().with_url("http://localhost-ip4:1234/base-path", None).build();
     expect!(client.resolve_path("")).to(be_ok().value(Url::parse("http://localhost-ip4:1234/base-path").unwrap()));
     expect!(client.resolve_path("/")).to(be_ok().value(Url::parse("http://localhost-ip4:1234").unwrap()));
     expect!(client.resolve_path("/any")).to(be_ok().value(Url::parse("http://localhost-ip4:1234/any").unwrap()));
@@ -2585,7 +2641,7 @@ mod tests {
       .await
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     let result = client.navigate("next", &hashmap!{}).await.unwrap();
     expect!(result.path_info).to(be_some().value(serde_json::Value::String("Yay! You found your way here".to_string())));
   }
@@ -2603,7 +2659,7 @@ mod tests {
       .await
       .start_mock_server(None, None);
 
-    let mut client = HALClient::with_url(pact_broker.url().as_str(), None);
+    let mut client = HALClientBuilder::builder().with_url(pact_broker.url(), None).build();
     client.path_info = Some(json!({
       "_links": {
         "next": { "href": "/abc" },
@@ -2635,7 +2691,7 @@ mod tests {
       .await
       .start_mock_server(None, None);
 
-    let client = HALClient::with_url(pact_broker.url().join("/base-path").unwrap().as_str(), None);
+    let client = HALClientBuilder::builder().with_url(pact_broker.url().join("/base-path").unwrap(), None).build();
     let result = client.navigate("next", &hashmap!{}).await.unwrap();
     expect!(result.path_info).to(be_some().value(serde_json::Value::String("Yay! You found your way here".to_string())));
   }
