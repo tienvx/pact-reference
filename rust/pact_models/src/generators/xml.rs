@@ -34,12 +34,7 @@ impl <'a> ContentTypeHandler<String> for XmlHandler<'a> {
     
     for (key, generator) in filtered {
       debug!("Applying generator {:?} (category: {:?}) to key {}", generator, generator.processing_category(), key);
-      
-      if let Generator::RandomArray(min, max) = generator {
-        self.apply_random_array(key, *min, *max);
-      } else {
-        self.apply_key(key, generator, context, matcher);
-      }
+      self.apply_key(key, generator, context, matcher);
     }
 
     let mut w = Vec::new();
@@ -52,7 +47,7 @@ impl <'a> ContentTypeHandler<String> for XmlHandler<'a> {
   fn apply_key(
     &mut self,
     key: &DocPath,
-    generator: &dyn GenerateValue<String>,
+    generator: &Generator,
     context: &HashMap<&str, Value>,
     matcher: &Box<dyn VariantMatcher + Send + Sync>
   ) {
@@ -64,118 +59,10 @@ impl <'a> ContentTypeHandler<String> for XmlHandler<'a> {
   }
 }
 
-impl <'a> XmlHandler<'a> {
-  fn apply_random_array(&mut self, key: &DocPath, min: u16, max: u16) {
-    if min > max {
-      error!("RandomArray: invalid bounds - min ({}) is greater than max ({})", min, max);
-      return;
-    }
-    
-    let length = rand::rng().random_range(min..max.saturating_add(1));
-    
-    for child in self.value.root().children() {
-      if let ChildOfRoot::Element(el) = child {
-        self.apply_random_array_to_element(&el, key, length, vec!["$".to_string()]);
-      }
-    }
-  }
-
-  fn apply_random_array_to_element(
-    &mut self,
-    el: &Element<'a>,
-    key: &DocPath,
-    target_length: u16,
-    parent_path: Vec<String>
-  ) {
-    if key.len() < parent_path.len() + 1 {
-      return;
-    }
-
-    let mut path = parent_path.clone();
-    path.push(xml_element_name(el));
-
-    if key.len() == path.len() + 1 {
-      self.duplicate_matching_children(el, key, target_length);
-      return;
-    }
-
-    if key.len() <= path.len() {
-      return;
-    }
-
-    for child in el.children() {
-      if let ChildOfElement::Element(child_el) = child {
-        self.apply_random_array_to_element(&child_el, key, target_length, path.clone());
-      }
-    }
-  }
-
-  fn duplicate_matching_children(&mut self, parent: &Element<'a>, key: &DocPath, target_length: u16) {
-    let last_field = key.last_field().unwrap_or("");
-    let element_name = last_field.trim_start_matches('@');
-    
-    let children = parent.children();
-    let matching_children: Vec<_> = children.iter().filter_map(|c| {
-      if let ChildOfElement::Element(e) = c {
-        if e.name().local_part() == element_name {
-          Some(e)
-        } else {
-          None
-        }
-      } else {
-        None
-      }
-    }).collect();
-
-    if matching_children.is_empty() {
-      return;
-    }
-
-    let template = matching_children[0];
-    let items_to_add = target_length.saturating_sub(1);
-    
-    for _ in 0..items_to_add {
-      let cloned = self.clone_element(template);
-      parent.append_child(cloned);
-    }
-  }
-
-  fn clone_element(&mut self, el: &Element<'a>) -> Element<'a> {
-    let new_el = self.value.create_element(el.name().local_part());
-    
-    if let Some(prefix) = el.preferred_prefix() {
-      new_el.set_preferred_prefix(Some(prefix));
-    }
-
-    for attr in el.attributes() {
-      let new_attr = new_el.set_attribute_value(attr.name().local_part(), attr.value());
-      if let Some(prefix) = attr.preferred_prefix() {
-        new_attr.set_preferred_prefix(Some(prefix));
-      }
-    }
-
-    for child in el.children() {
-      match child {
-        ChildOfElement::Element(child_el) => {
-          let cloned_child = self.clone_element(&child_el);
-          new_el.append_child(cloned_child);
-        }
-        ChildOfElement::Text(txt) => {
-          let new_text = self.value.create_text(txt.text());
-          new_el.append_child(new_text);
-        }
-        _ => {}
-      }
-    }
-
-    new_el
-  }
-}
-
 fn generate_values_for_xml_element<'a>(
   el: &Element<'a>,
   key: &DocPath,
-  generator: &dyn GenerateValue<String>,
+  generator: &Generator,
   context: &HashMap<&str, Value>,
   matcher: &Box<dyn VariantMatcher + Send + Sync>,
   parent_path: Vec<String>
@@ -188,6 +75,13 @@ fn generate_values_for_xml_element<'a>(
 
   let mut path = parent_path.clone();
   path.push(xml_element_name(el));
+
+  if let Generator::RandomArray(min, max) = generator {
+    if key.len() == path.len() + 1 {
+      duplicate_elements(el, key, *min, *max);
+      return;
+    }
+  }
 
   if generate_values_for_xml_attribute(&el, key, generator, context, matcher, path.clone()) {
     return
@@ -211,7 +105,7 @@ fn generate_values_for_xml_element<'a>(
 fn generate_values_for_xml_attribute<'a>(
   el: &Element<'a>,
   key: &DocPath,
-  generator: &dyn GenerateValue<String>,
+  generator: &Generator,
   context: &HashMap<&str, Value>,
   matcher: &Box<dyn VariantMatcher + Send + Sync>,
   path: Vec<String>
@@ -247,7 +141,7 @@ fn generate_values_for_xml_attribute<'a>(
 fn generate_values_for_xml_text<'a>(
   el: &Element<'a>,
   key: &DocPath,
-  generator: &dyn GenerateValue<String>,
+  generator: &Generator,
   context: &HashMap<&str, Value>,
   matcher: &Box<dyn VariantMatcher + Send + Sync>,
   path: Vec<String>
@@ -307,6 +201,73 @@ fn xml_attribute_name(attr: Attribute) -> String {
   } else {
     attr.name().local_part().to_string()
   }
+}
+
+fn duplicate_elements<'a>(el: &Element<'a>, key: &DocPath, min: u16, max: u16) {
+  if min > max {
+    error!("RandomArray: invalid bounds - min ({}) is greater than max ({})", min, max);
+    return;
+  }
+
+  let length = rand::rng().random_range(min..max.saturating_add(1));
+  let last_field = key.last_field().unwrap_or("");
+  let element_name = last_field.trim_start_matches('@');
+
+  let children = el.children();
+  let matching_children: Vec<_> = children.iter().filter_map(|c| {
+    if let ChildOfElement::Element(e) = c {
+      if e.name().local_part() == element_name {
+        Some(e)
+      } else {
+        None
+      }
+    } else {
+      None
+    }
+  }).collect();
+
+  if matching_children.is_empty() {
+    return;
+  }
+
+  let template = matching_children[0];
+  let items_to_add = length.saturating_sub(1);
+
+  for _ in 0..items_to_add {
+    let cloned = clone_element(&el.document(), template);
+    el.append_child(cloned);
+  }
+}
+
+fn clone_element<'a>(doc: &Document<'a>, el: &Element<'a>) -> Element<'a> {
+  let new_el = doc.create_element(el.name().local_part());
+
+  if let Some(prefix) = el.preferred_prefix() {
+    new_el.set_preferred_prefix(Some(prefix));
+  }
+
+  for attr in el.attributes() {
+    let new_attr = new_el.set_attribute_value(attr.name().local_part(), attr.value());
+    if let Some(prefix) = attr.preferred_prefix() {
+      new_attr.set_preferred_prefix(Some(prefix));
+    }
+  }
+
+  for child in el.children() {
+    match child {
+      ChildOfElement::Element(child_el) => {
+        let cloned_child = clone_element(doc, &child_el);
+        new_el.append_child(cloned_child);
+      }
+      ChildOfElement::Text(txt) => {
+        let new_text = doc.create_text(txt.text());
+        new_el.append_child(new_text);
+      }
+      _ => {}
+    }
+  }
+
+  new_el
 }
 
 #[cfg(test)]
