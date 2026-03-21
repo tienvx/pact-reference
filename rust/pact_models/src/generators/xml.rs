@@ -1,6 +1,7 @@
 
 use std::collections::HashMap;
 
+use rand::Rng;
 use serde_json::Value;
 use sxd_document::dom::{Document, Element, Attribute, ChildOfRoot, ChildOfElement};
 use sxd_document::writer::format_document;
@@ -26,12 +27,20 @@ impl <'a> ContentTypeHandler<String> for XmlHandler<'a> {
     context: &HashMap<&str, Value>,
     matcher: &Box<dyn VariantMatcher + Send + Sync>
   ) -> Result<OptionalBody, String> {
-    for (key, generator) in generators {
-      if generator.corresponds_to_mode(mode) {
-        debug!("Applying generator {:?} to key {}", generator, key);
+    let mut filtered: Vec<_> = generators.iter()
+      .filter(|(_, g)| g.corresponds_to_mode(mode))
+      .collect();
+    filtered.sort_by_key(|(_, g)| g.processing_category().priority());
+    
+    for (key, generator) in filtered {
+      debug!("Applying generator {:?} (category: {:?}) to key {}", generator, generator.processing_category(), key);
+      
+      if let Generator::RandomArray(min, max) = generator {
+        self.apply_random_array(key, *min, *max);
+      } else {
         self.apply_key(key, generator, context, matcher);
       }
-    };
+    }
 
     let mut w = Vec::new();
     match format_document(&self.value, &mut w) {
@@ -52,6 +61,114 @@ impl <'a> ContentTypeHandler<String> for XmlHandler<'a> {
         generate_values_for_xml_element(&el, key, generator, context, matcher, vec!["$".to_string()])
       }
     }
+  }
+}
+
+impl <'a> XmlHandler<'a> {
+  fn apply_random_array(&mut self, key: &DocPath, min: u16, max: u16) {
+    if min > max {
+      error!("RandomArray: invalid bounds - min ({}) is greater than max ({})", min, max);
+      return;
+    }
+    
+    let length = rand::rng().random_range(min..max.saturating_add(1));
+    
+    for child in self.value.root().children() {
+      if let ChildOfRoot::Element(el) = child {
+        self.apply_random_array_to_element(&el, key, length, vec!["$".to_string()]);
+      }
+    }
+  }
+
+  fn apply_random_array_to_element(
+    &mut self,
+    el: &Element<'a>,
+    key: &DocPath,
+    target_length: u16,
+    parent_path: Vec<String>
+  ) {
+    if key.len() < parent_path.len() + 1 {
+      return;
+    }
+
+    let mut path = parent_path.clone();
+    path.push(xml_element_name(el));
+
+    if key.len() == path.len() + 1 {
+      self.duplicate_matching_children(el, key, target_length);
+      return;
+    }
+
+    if key.len() <= path.len() {
+      return;
+    }
+
+    for child in el.children() {
+      if let ChildOfElement::Element(child_el) = child {
+        self.apply_random_array_to_element(&child_el, key, target_length, path.clone());
+      }
+    }
+  }
+
+  fn duplicate_matching_children(&mut self, parent: &Element<'a>, key: &DocPath, target_length: u16) {
+    let last_field = key.last_field().unwrap_or("");
+    let element_name = last_field.trim_start_matches('@');
+    
+    let children = parent.children();
+    let matching_children: Vec<_> = children.iter().filter_map(|c| {
+      if let ChildOfElement::Element(e) = c {
+        if e.name().local_part() == element_name {
+          Some(e)
+        } else {
+          None
+        }
+      } else {
+        None
+      }
+    }).collect();
+
+    if matching_children.is_empty() {
+      return;
+    }
+
+    let template = matching_children[0];
+    let items_to_add = target_length.saturating_sub(1);
+    
+    for _ in 0..items_to_add {
+      let cloned = self.clone_element(template);
+      parent.append_child(cloned);
+    }
+  }
+
+  fn clone_element(&mut self, el: &Element<'a>) -> Element<'a> {
+    let new_el = self.value.create_element(el.name().local_part());
+    
+    if let Some(prefix) = el.preferred_prefix() {
+      new_el.set_preferred_prefix(Some(prefix));
+    }
+
+    for attr in el.attributes() {
+      let new_attr = new_el.set_attribute_value(attr.name().local_part(), attr.value());
+      if let Some(prefix) = attr.preferred_prefix() {
+        new_attr.set_preferred_prefix(Some(prefix));
+      }
+    }
+
+    for child in el.children() {
+      match child {
+        ChildOfElement::Element(child_el) => {
+          let cloned_child = self.clone_element(&child_el);
+          new_el.append_child(cloned_child);
+        }
+        ChildOfElement::Text(txt) => {
+          let new_text = self.value.create_text(txt.text());
+          new_el.append_child(new_text);
+        }
+        _ => {}
+      }
+    }
+
+    new_el
   }
 }
 
@@ -862,5 +979,236 @@ mod tests {
     }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
 
     expect!(result.unwrap()).to(be_equal_to(OptionalBody::Present("<?xml version='1.0'?><root><a><c><d attr='1'/><d attr='2'/></c></a><b><c><e attr='3'/><e attr='4'/></c></b></root>".into(), Some("application/xml".into()), None)));
+  }
+
+  #[test]
+  fn applies_random_array_generator_to_duplicate_elements() {
+    let p = Package::new();
+    let d = p.as_document();
+    let r = d.create_element("people");
+    d.root().append_child(r);
+    
+    let person = d.create_element("person");
+    person.set_attribute_value("id", "1");
+    person.append_child(d.create_text("John"));
+    r.append_child(person);
+    
+    let mut xml_handler = XmlHandler { value: d };
+    
+    let result = xml_handler.process_body(&hashmap!{
+      DocPath::new_unwrap("$.people.person") => Generator::RandomArray(2, 3)
+    }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
+    
+    let xml_str = result.unwrap().value().unwrap();
+    let xml_str = String::from_utf8_lossy(&xml_str);
+    
+    let person_count = xml_str.matches("<person ").count() + xml_str.matches("<person/").count();
+    expect!(person_count).to(be_ge(2));
+    expect!(person_count).to(be_le(3));
+  }
+
+  #[test]
+  fn applies_random_array_generator_with_exact_count() {
+    let p = Package::new();
+    let d = p.as_document();
+    let r = d.create_element("items");
+    d.root().append_child(r);
+    
+    let item = d.create_element("item");
+    item.set_attribute_value("name", "test");
+    r.append_child(item);
+    
+    let mut xml_handler = XmlHandler { value: d };
+    
+    let result = xml_handler.process_body(&hashmap!{
+      DocPath::new_unwrap("$.items.item") => Generator::RandomArray(3, 3)
+    }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
+    
+    let xml_str = result.unwrap().value().unwrap();
+    let xml_str = String::from_utf8_lossy(&xml_str);
+    
+    let item_count = xml_str.matches("<item ").count() + xml_str.matches("<item/").count();
+    expect!(item_count).to(be_equal_to(3));
+  }
+
+  #[test]
+  fn applies_random_array_generator_with_nested_elements() {
+    let p = Package::new();
+    let d = p.as_document();
+    let r = d.create_element("root");
+    d.root().append_child(r);
+    
+    let container = d.create_element("container");
+    r.append_child(container);
+    
+    let element = d.create_element("element");
+    element.append_child(d.create_text("value"));
+    container.append_child(element);
+    
+    let mut xml_handler = XmlHandler { value: d };
+    
+    let result = xml_handler.process_body(&hashmap!{
+      DocPath::new_unwrap("$.root.container.element") => Generator::RandomArray(2, 2)
+    }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
+    
+    let xml_str = result.unwrap().value().unwrap();
+    let xml_str = String::from_utf8_lossy(&xml_str);
+    
+    let element_count = xml_str.matches("<element").count();
+    expect!(element_count).to(be_equal_to(2));
+  }
+
+  #[test]
+  fn applies_random_array_generator_with_cloned_attributes_and_text() {
+    let p = Package::new();
+    let d = p.as_document();
+    let r = d.create_element("people");
+    d.root().append_child(r);
+    
+    let person = d.create_element("person");
+    person.set_attribute_value("id", "123");
+    person.set_attribute_value("name", "John");
+    r.append_child(person);
+    
+    let mut xml_handler = XmlHandler { value: d };
+    
+    let result = xml_handler.process_body(&hashmap!{
+      DocPath::new_unwrap("$.people.person") => Generator::RandomArray(3, 3)
+    }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
+    
+    let xml_str = result.unwrap().value().unwrap();
+    let xml_str = String::from_utf8_lossy(&xml_str);
+    
+    expect!(xml_str.contains("id='123'")).to(be_true());
+    expect!(xml_str.contains("name='John'")).to(be_true());
+    
+    let id_count = xml_str.matches("id='123'").count();
+    expect!(id_count).to(be_equal_to(3));
+  }
+
+  #[test]
+  fn applies_random_array_generator_with_nested_generators() {
+    let p = Package::new();
+    let d = p.as_document();
+    let r = d.create_element("items");
+    d.root().append_child(r);
+    
+    let item = d.create_element("item");
+    item.set_attribute_value("name", "xxx");
+    item.set_attribute_value("price", "12");
+    r.append_child(item);
+    
+    let mut xml_handler = XmlHandler { value: d };
+    
+    let result = xml_handler.process_body(&hashmap!{
+      DocPath::new_unwrap("$.items.item") => Generator::RandomArray(2, 4),
+      DocPath::new_unwrap("$.items.item['@name']") => Generator::RandomString(5),
+    }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
+    
+    let xml_str = result.unwrap().value().unwrap();
+    let xml_str = String::from_utf8_lossy(&xml_str);
+    
+    let item_count = xml_str.matches("<item ").count() + xml_str.matches("<item/").count();
+    expect!(item_count).to(be_ge(2));
+    expect!(item_count).to(be_le(4));
+    
+    let name_attrs: Vec<_> = xml_str.matches("name='").collect();
+    expect!(name_attrs.len()).to(be_ge(2));
+  }
+
+  #[test]
+  fn applies_random_array_generator_with_min_max_zero() {
+    let p = Package::new();
+    let d = p.as_document();
+    let r = d.create_element("items");
+    d.root().append_child(r);
+    
+    let item = d.create_element("item");
+    item.set_attribute_value("value", "1");
+    r.append_child(item);
+    
+    let mut xml_handler = XmlHandler { value: d };
+    
+    let result = xml_handler.process_body(&hashmap!{
+      DocPath::new_unwrap("$.items.item") => Generator::RandomArray(0, 0)
+    }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
+    
+    let xml_str = result.unwrap().value().unwrap();
+    let xml_str = String::from_utf8_lossy(&xml_str);
+    
+    let item_count = xml_str.matches("<item ").count() + xml_str.matches("<item/").count();
+    expect!(item_count).to(be_ge(0));
+    expect!(item_count).to(be_le(1));
+  }
+
+  #[test]
+  fn applies_multiple_independent_array_generators() {
+    let p = Package::new();
+    let d = p.as_document();
+    let r = d.create_element("root");
+    d.root().append_child(r);
+    
+    let items = d.create_element("items");
+    let item = d.create_element("item");
+    item.set_attribute_value("value", "1");
+    items.append_child(item);
+    r.append_child(items);
+    
+    let other = d.create_element("other");
+    let other_item = d.create_element("entry");
+    other_item.set_attribute_value("x", "2");
+    other.append_child(other_item);
+    r.append_child(other);
+    
+    let mut xml_handler = XmlHandler { value: d };
+    
+    let result = xml_handler.process_body(&hashmap!{
+      DocPath::new_unwrap("$.root.items.item") => Generator::RandomArray(2, 3),
+      DocPath::new_unwrap("$.root.other.entry") => Generator::RandomArray(3, 4)
+    }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
+    
+    let xml_str = result.unwrap().value().unwrap();
+    let xml_str = String::from_utf8_lossy(&xml_str);
+    
+    let item_count = xml_str.matches("<item ").count() + xml_str.matches("<item/").count();
+    let entry_count = xml_str.matches("<entry ").count() + xml_str.matches("<entry/").count();
+    
+    expect!(item_count).to(be_ge(2));
+    expect!(item_count).to(be_le(3));
+    expect!(entry_count).to(be_ge(3));
+    expect!(entry_count).to(be_le(4));
+  }
+
+  #[test]
+  fn applies_random_array_generator_with_nested_elements_and_attributes() {
+    let p = Package::new();
+    let d = p.as_document();
+    let r = d.create_element("people");
+    d.root().append_child(r);
+    
+    let person = d.create_element("person");
+    person.set_attribute_value("id", "1");
+    person.set_attribute_value("name", "John");
+    
+    let address = d.create_element("address");
+    address.set_attribute_value("city", "NYC");
+    person.append_child(address);
+    
+    r.append_child(person);
+    
+    let mut xml_handler = XmlHandler { value: d };
+    
+    let result = xml_handler.process_body(&hashmap!{
+      DocPath::new_unwrap("$.people.person") => Generator::RandomArray(2, 2)
+    }, &GeneratorTestMode::Consumer, &hashmap!{}, &NoopVariantMatcher.boxed());
+    
+    let xml_str = result.unwrap().value().unwrap();
+    let xml_str = String::from_utf8_lossy(&xml_str);
+    
+    let person_count = xml_str.matches("<person ").count() + xml_str.matches("<person/").count();
+    let address_count = xml_str.matches("<address ").count() + xml_str.matches("<address/").count();
+    
+    expect!(person_count).to(be_equal_to(2));
+    expect!(address_count).to(be_equal_to(2));
   }
 }
